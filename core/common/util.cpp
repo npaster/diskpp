@@ -25,6 +25,31 @@ unsigned int binomial(unsigned int n, unsigned int k)
 {
     if (n < k)
         return fact(n) / fact(k);
-
-    return fact(n)/(fact(n-k)*fact(k));
+    
+    if ( k > (n-k) )
+    {
+        unsigned int num=1;
+        unsigned int dem=1;
+        
+        for(unsigned int i=1; i <= (n-k); i++)
+        {
+            num = num*(k+i);
+            dem = dem*i;
+        }
+        
+        return num/dem;
+    }
+    else 
+    {
+        unsigned int num=1;
+        unsigned int dem=1;
+        
+        for(unsigned int i=1; i <= k; i++)
+        {
+            num = num*(n-k+i);
+            dem = dem*i;
+        }
+        
+        return num/dem;
+    }
 }
