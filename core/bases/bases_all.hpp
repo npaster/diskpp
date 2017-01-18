@@ -40,8 +40,6 @@ class scaled_monomial_scalar_basis<Mesh<T,3,Storage>, typename Mesh<T,3,Storage>
     typedef priv::monomial_basis_bones<3>           base;
 
 public:
-    typedef T                                       function_value_type;
-    typedef static_vector<T,3>                      gradient_value_type;
 
     scaled_monomial_scalar_basis()
         : base(1)
@@ -124,7 +122,6 @@ public:
         for (auto itor = begin; itor != end; itor++)
         {
             auto m = *itor;
-            gradient_value_type grad;
 
 #ifdef POWER_CACHE
             auto px = pow.x(m[0]);
@@ -217,7 +214,6 @@ class scaled_monomial_scalar_basis<Mesh<T,3,Storage>, typename Mesh<T,3,Storage>
     typedef priv::monomial_basis_bones<2>   base;
 
 public:
-    typedef T                               function_value_type;
 
     scaled_monomial_scalar_basis()
         : base(1)
@@ -291,8 +287,6 @@ class scaled_monomial_scalar_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>
     typedef priv::monomial_basis_bones<2>           base;
 
 public:
-    typedef T                                       function_value_type;
-    typedef static_vector<T,2>                      gradient_value_type;
 
     scaled_monomial_scalar_basis()
         : base(1)
@@ -371,7 +365,6 @@ public:
         for (auto itor = begin; itor != end; itor++)
         {
             auto m = *itor;
-            gradient_value_type grad;
 
 #ifdef POWER_CACHE
             auto px = pow.x(m[0]);
@@ -406,7 +399,6 @@ class scaled_monomial_scalar_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>
     typedef priv::monomial_basis_bones<1>           base;
 
 public:
-    typedef T                                       function_value_type;
 
     scaled_monomial_scalar_basis()
         : base(1)
@@ -462,9 +454,6 @@ class scaled_monomial_scalar_basis<Mesh<T,1,Storage>, typename Mesh<T,1,Storage>
     typedef priv::monomial_basis_bones<1>           base;
 
 public:
-    typedef T                                       function_value_type;
-    typedef T                                       gradient_value_type;
-
     scaled_monomial_scalar_basis()
         : base(1)
     {}
@@ -549,7 +538,6 @@ class scaled_monomial_scalar_basis<Mesh<T,1,Storage>, typename Mesh<T,1,Storage>
     typedef priv::monomial_basis_bones<0>               base;
 
 public:
-    typedef T                                           function_value_type;
 
     scaled_monomial_scalar_basis()
         : base(1)
