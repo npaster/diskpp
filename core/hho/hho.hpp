@@ -20,7 +20,7 @@
 #include "bases/bases_utils.hpp"
 #include "bases/bases_ranges.hpp"
 #include "timecounter.h"
-#include "contrib/sol2/sol.hpp"
+//#include "contrib/sol2/sol.hpp"
 
 //#define USE_BLAS
 #define FILL_COLMAJOR
@@ -1146,11 +1146,13 @@ public:
 
     void load_params(void)
     {
-        sol::state lua;
-        lua.script_file("params.lua");
-        funcnum = lua.get<size_t>("funcnum");
-        ptlevels = lua.get<size_t>("ptlevels");
-        reflevels = lua.get<size_t>("reflevels");
+      // commented for the moment
+      int i=0;
+        //sol::state lua;
+        //lua.script_file("params.lua");
+        //funcnum = lua.get<size_t>("funcnum");
+        //ptlevels = lua.get<size_t>("ptlevels");
+        //reflevels = lua.get<size_t>("reflevels");
     }
 
     //template<typename OuterCellBasis, OuterFaceBasis>
