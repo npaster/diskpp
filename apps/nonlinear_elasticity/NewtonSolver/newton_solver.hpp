@@ -51,56 +51,69 @@ struct postprocess_info
 };
 
 
-template<typename Mesh>
+template<template<typename, size_t , typename> class Mesh,
+         typename T, size_t DIM, typename Storage>
 class NewtonRaphson_solver
 {
-    typedef Mesh                                       mesh_type;
-    typedef typename mesh_type::scalar_type            scalar_type;
-    typedef typename mesh_type::cell                   cell_type;
-    typedef typename mesh_type::face                   face_type;
+   typedef Mesh<T, DIM, Storage>                      mesh_type;                                       mesh_type;
+   typedef typename mesh_type::scalar_type            scalar_type;
+   typedef typename mesh_type::cell                   cell_type;
+   typedef typename mesh_type::face                   face_type;
 
-    size_t m_cell_degree, m_face_degree;
+   typedef disk::quadrature<mesh_type, cell_type>   cell_quadrature_type;
+   typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
+   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
+   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
 
-    bqdata_type     m_bqd;
+   // typedef static_vector<scalar_type, DIM> static_vector;
+   // typedef static_matrix<scalar_type, DIM> static_matrix;
 
-    const mesh_type& m_msh;
+   typedef dynamic_matrix<scalar_type>         matrix_dynamic;
+   typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-    std::vector<dynamic_vector<scalar_type>>        m_postprocess_data;
+   size_t m_cell_degree, m_face_degree, m_degree;
 
-    bool m_verbose;
-    bool m_convergence;
+
+   const mesh_type& m_msh;
+
+   std::vector<vector_dynamic>                  m_postprocess_data;
+
+   bool m_verbose;
+   bool m_convergence;
+
+
 
 public:
-    NewtonRaphson_solver(const mesh_type& msh, size_t degree, int l = 0)
-        : m_msh(msh), m_verbose(false), m_convergence(false)
-    {
-        if ( l < -1 or l > 1)
-        {
-            std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
+   NewtonRaphson_solver(const mesh_type& msh, size_t degree, int l = 0)
+   : m_msh(msh), m_verbose(false), m_convergence(false)
+   {
+      if ( l < -1 or l > 1)
+      {
+         std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
+         l = 0;
+      }
 
-        if (degree == 0 && l == -1)
-        {
-            std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
+      if (degree == 0 && l == -1)
+      {
+         std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
+         l = 0;
+      }
 
-        m_cell_degree = degree + l;
-        m_face_degree = degree;
+      m_cell_degree = degree + l;
+      m_face_degree = degree;
+      m_degree = degree;
 
-        m_bqd = bqdata_type(m_cell_degree, m_face_degree);
-    }
+   }
 
-    bool    verbose(void) const     { return m_verbose; }
-    void    verbose(bool v)         { m_verbose = v; }
+   bool    verbose(void) const     { return m_verbose; }
+   void    verbose(bool v)         { m_verbose = v; }
 
 
-    template<typename LoadIncrement, typename BoundaryConditionFunction>
-    void
-    compute(const LoadIncrement& lf, const BoundaryConditionFunction& bf,
-            const scalar_type epsilon = 1.E-6,
-            const std::size_t iter_max = 30, const std::size_t reac_iter=1)
+   template<typename LoadIncrement, typename BoundaryConditionFunction>
+   void
+   compute_online(const LoadIncrement& lf, const BoundaryConditionFunction& bf,
+      const scalar_type epsilon = 1.E-6,
+      const std::size_t iter_max = 30, const std::size_t reac_iter=1)
    {
       //initialise the NewtonRaphson_step
       NewtonRaphson_step newton_step(m_msh, m_face_degree, 0);
