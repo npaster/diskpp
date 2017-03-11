@@ -53,6 +53,23 @@ map_to_reference(const simplicial_mesh<T,3>& msh,
 }
 
 template<typename T>
+point<T,1>
+map_to_reference(const simplicial_mesh<T,2>& msh,
+                 const typename simplicial_mesh<T,2>::face& face,
+                 const point<T,2>& pm)
+{
+   auto pts = points(msh, face);
+   auto bar = barycenter(msh, face);
+   auto h = diameter(msh, face);
+   auto v = (pts[1] - pts[0]).to_vector();
+   auto t = (pm - bar).to_vector();
+   T dot = v.dot(t);
+
+    return point<T, 1>({dot/(h*h)}); // have to be between [0,1]
+}
+
+
+template<typename T>
 point<T,3>
 map_to_physical(const simplicial_mesh<T,3>& msh,
                 const simplicial_element<3,1>& face,

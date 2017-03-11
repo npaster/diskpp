@@ -19,6 +19,7 @@
 #include "loaders/loader.hpp"
 #include "elasticity.hpp"
 #include "timecounter.h"
+#include "assert.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -35,9 +36,9 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
 
     typedef disk::quadrature<mesh_type, cell_type>   cell_quadrature_type;
     typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
-    typedef disk::scaled_monomial_vector_sg_basis<mesh_type, cell_type>  cell_basis_type;
-    typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>     div_cell_basis_type;
-    typedef disk::scaled_monomial_vector_sg_basis<mesh_type, face_type>  face_basis_type;
+    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
+    typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>  div_cell_basis_type;
+    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
 
 
     if (degree < 1)
@@ -47,13 +48,13 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
     }
 
 
-    disk::gradient_reconstruction_nopre<mesh_type,
+    disk::sgradient_reconstruction_elas<mesh_type,
                                         cell_basis_type,
                                         cell_quadrature_type,
                                         face_basis_type,
                                         face_quadrature_type> gradrec(degree);
 
-    disk::divergence_reconstruction_nopre<mesh_type,
+    disk::divergence_reconstruction_elas<mesh_type,
                                           cell_basis_type,
                                           cell_quadrature_type,
                                           face_basis_type,
@@ -62,25 +63,34 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
                                           cell_quadrature_type> divrec(degree);
 
 
-    disk::diffusion_like_stabilization_nopre<mesh_type,
+    disk::elas_like_stabilization<mesh_type,
                                              cell_basis_type,
                                              cell_quadrature_type,
                                              face_basis_type,
                                              face_quadrature_type> stab(degree);
 
-    disk::diffusion_like_static_condensation_nopre<mesh_type,
+    disk::diffusion_like_static_condensation<mesh_type,
                                                    cell_basis_type,
                                                    cell_quadrature_type,
                                                    face_basis_type,
                                                    face_quadrature_type> statcond(degree);
 
-    disk::assembler_nopre<mesh_type,
-                          face_basis_type,
+    disk::assembler_elas<mesh_type, face_basis_type,
                           face_quadrature_type> assembler(msh, degree);
 
 
+    disk::l2_error<mesh_type, cell_basis_type, cell_quadrature_type, face_basis_type,
+                                                   face_quadrature_type, Solution> error(degree);
+
+      disk::projector_elas<mesh_type,
+                                                                                             cell_basis_type,
+                                                                                             cell_quadrature_type,
+                                                                                             face_basis_type,
+                                                                                             face_quadrature_type> proj(degree);
+
     scalar_type mu      = 1.0;
     scalar_type lambda  = 1.0;
+    const size_t DIM = msh.dimension;
 
     timecounter tc;
 
@@ -90,10 +100,14 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
         gradrec.compute(msh, cl);
         divrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
-        dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
-                                          lambda * divrec.data +
-                                          2 * mu * stab.data;
+        proj.compute_cell(msh, cl, solution);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        assert(cell_rhs.size() == DIM * binomial(degree + DIM, degree));
+        dynamic_matrix<scalar_type> loc = dynamic_matrix<scalar_type>::Identity(gradrec.data.rows(), gradrec.data.rows());
+        loc.block(0,0, proj.cell_mm.rows(), proj.cell_mm.rows() ) = proj.cell_mm;
+      //   2 * mu * gradrec.data +
+      //                                     lambda * divrec.data +
+      //                                     2 * mu * stab.data;
         auto sc = statcond.compute(msh, cl, loc, cell_rhs);
         assembler.assemble(msh, cl, sc);
     }
@@ -116,6 +130,15 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
 #else
     Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
 #endif
+
+    size_t systsz = assembler.matrix.rows();
+    size_t nnz = assembler.matrix.nonZeros();
+
+     std::cout << "Starting linear solver..." << std::endl;
+     std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
+     std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
+
+
     solver.analyzePattern(assembler.matrix);
     solver.factorize(assembler.matrix);
     dynamic_vector<scalar_type> X = solver.solve(assembler.rhs);
@@ -128,6 +151,8 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
     auto fbs = face_basis.size();
 
     scalar_type diam = 0.0;
+    scalar_type l2 = 0.0;
+    size_t cont_cell = 0;
 
     for (auto& cl : msh)
     {
@@ -136,7 +161,8 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
         auto num_faces = fcs.size();
 
         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
-
+std::cout << "xfs" << '\n';
+std::cout << xFs << '\n';
         for (size_t face_i = 0; face_i < num_faces; face_i++)
         {
             auto fc = fcs[face_i];
@@ -154,279 +180,113 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
         gradrec.compute(msh, cl);
         divrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
-        dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
-                                          lambda * divrec.data +
-                                          2 * mu * stab.data;
+
+        proj.compute_cell(msh, cl, solution);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        dynamic_matrix<scalar_type> loc = dynamic_matrix<scalar_type>::Identity(gradrec.data.rows(), gradrec.data.rows());
+        loc.block(0,0, proj.cell_mm.rows(), proj.cell_mm.rows() ) = proj.cell_mm;
+      //   2 * mu * gradrec.data +
+      //                                     lambda * divrec.data +
+      //                                     2 * mu * stab.data;
 
         dynamic_vector<scalar_type> x = statcond.recover(msh, cl, loc, cell_rhs, xFs);
+
+        l2 += error.compute(msh, cl, x, solution);
+        cont_cell += 1;
+
     }
+
+    std::cout << "l2_error " << l2 << std::endl;
 
 }
 
-template<typename MeshType>
-void test_elasticity(MeshType& msh)
-{
-    typedef MeshType                            mesh_type;
 
-    typedef typename mesh_type::scalar_type     scalar_type;
-
-    typedef typename mesh_type::cell            cell_type;
-    typedef typename mesh_type::face            face_type;
-
-    typedef static_vector<scalar_type, 3> result_type;
-
-    typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
-    typedef disk::scaled_monomial_vector_sg_basis<mesh_type, cell_type>  cell_basis_type;
-    typedef disk::scaled_monomial_vector_sg_basis<mesh_type, face_type>  face_basis_type;
-
-    size_t degree = 1;
-
-    typedef disk::elasticity_template<mesh_type> elasticity;
-
-    auto f = [](const point<scalar_type,3>& p) -> result_type {
-        scalar_type fx = M_PI*M_PI*sin(M_PI*p.x());
-        scalar_type fy = M_PI*M_PI*sin(M_PI*p.y());
-        scalar_type fz = M_PI*M_PI*sin(M_PI*p.z());
-
-        return 2*result_type{fx,fy,fz} + result_type{fx,fy,fz};
-    };
-
-    auto sf = [](const point<scalar_type,3>& p) -> result_type {
-        scalar_type fx = sin(M_PI*p.x());
-        scalar_type fy = sin(M_PI*p.y());
-        scalar_type fz = sin(M_PI*p.z());
-        return result_type{fx,fy,fz};
-    };
-
-    typedef Eigen::Triplet<scalar_type> triplet_type;
-
-    elasticity elast(degree);
-    size_t face_basis_size = elast.face_basis_size();
-
-    size_t nunkw = face_basis_size * (msh.faces_size() + msh.boundary_faces_size());
-    Eigen::SparseMatrix<scalar_type> A(nunkw, nunkw);
-    std::vector<triplet_type> triplets;
-    dynamic_vector<scalar_type> rhs = dynamic_vector<scalar_type>::Zero(nunkw);
-
-/*
-    for (auto& cl : msh)
-    {
-        elast.test_operators(msh, cl);
-    }
-    return;
-*/
-
-    timecounter tc;
-
-    tc.tic();
-
-    for (auto& cl : msh)
-    {
-        auto LC = elast.build_local_contrib(msh, cl, f);
-        return;
-        /* PROBLEM ASSEMBLY */
-        auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
-
-        std::vector<size_t> l2g(face_basis_size * num_faces);
-        for (size_t face_i = 0; face_i < fcs.size(); face_i++)
-        {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
-
-            auto face_id = eid.second;
-
-            auto face_offset = face_id * face_basis_size;
-
-            auto begin = face_i * face_basis_size;
-            auto end = (face_i+1) * face_basis_size;
-            for (size_t i = begin; i < end; i++)
-                l2g.at(i) = face_offset - (face_i*face_basis_size);
-
-        }
-
-        auto AC = LC.first;
-        auto bC = LC.second;
-
-        for (size_t i = 0; i < AC.rows(); i++)
-        {
-            for (size_t j = 0; j < AC.cols(); j++)
-                triplets.push_back( triplet_type( l2g.at(i)+i, l2g.at(j)+j, AC(i,j) ) );
-
-            rhs(l2g.at(i)+i) += bC(i);
-        }
-
-    }
-
-    /* BOUNDARY CONDITIONS */
-    auto fbs = face_basis_size;
-    size_t face_i = 0;
-    for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
-    {
-        auto bfc = *itor;
-
-        auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
-        if (!eid.first)
-            throw std::invalid_argument("This is a bug: face not found");
-
-        auto face_id = eid.second;
-
-        auto face_offset = face_id * fbs;
-        auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
-
-
-        face_quadrature_type fq(2*degree);
-        auto fqd = fq.integrate(msh, bfc);
-
-        face_basis_type fb(degree);
-
-        dynamic_matrix<scalar_type> MFF = dynamic_matrix<scalar_type>::Zero(fbs, fbs);
-        dynamic_vector<scalar_type> rhs_f = dynamic_vector<scalar_type>::Zero(fbs);
-
-        for (auto& qp : fqd)
-        {
-            auto f_phi = fb.eval_functions(msh, bfc, qp.point());
-
-            for (size_t i = 0; i < f_phi.size(); i++)
-            {
-                for (size_t j = 0; j < f_phi.size(); j++)
-                    MFF(i,j) += qp.weight() * disk::mm_prod(f_phi[i], f_phi[j]);
-
-                rhs_f(i) += qp.weight() * disk::mm_prod(f_phi[i], sf(qp.point()));
-            }
-        }
-
-
-        for (size_t i = 0; i < MFF.rows(); i++)
-        {
-            for (size_t j = 0; j < MFF.cols(); j++)
-            {
-                triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
-                triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
-            }
-            rhs(face_offset_lagrange+i) = rhs_f(i);
-        }
-
-        face_i++;
-    }
-
-    A.setFromTriplets(triplets.begin(), triplets.end());
-
-    tc.toc();
-
-    std::cout << "Assembly time: " << tc << " seconds." << std::endl;
-
-    //saveMarket(A, "A.mtx");
-
-    /* SOLVE */
-    tc.tic();
-
-#ifdef HAVE_INTEL_MKL
-    Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>> solver;
-#else
-    Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>> solver;
-#endif
-    solver.analyzePattern(A);
-    solver.factorize(A);
-    dynamic_vector<scalar_type> X = solver.solve(rhs);
-
-    tc.toc();
-
-    std::cout << "Solver time: " << tc << " seconds." << std::endl;
-
-
-    scalar_type diam = 0.0;
-    scalar_type err = 0.0;
-
-    for (auto& cl : msh)
-    {
-        diam = std::max(diameter(msh, cl), diam);
-        auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
-
-        dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
-
-        for (face_i = 0; face_i < num_faces; face_i++)
-        {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
-
-            auto face_id = eid.second;
-
-            dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-            xF = X.block(face_id * fbs, 0, fbs, 1);
-            xFs.block(face_i * fbs, 0, fbs, 1) = xF;
-        }
-
-        dynamic_vector<scalar_type> x = elast.recover_full_solution(msh, cl, xFs, f);
-        dynamic_vector<scalar_type> rec = elast.high_order_reconstruction(msh, cl, x);
-
-
-        /*
-        auto test_points = make_test_points(msh, cl);
-        for (size_t itp = 0; itp < test_points.size(); itp++)
-        {
-            auto tp = test_points[itp];
-
-            auto pot = elast.evaluate_at_point(msh, cl, rec, tp);
-            std::cout << "***" << std::endl;
-            std::cout << pot.transpose() << std::endl;
-            std::cout << sf(tp).transpose() << std::endl;
-        }
-        */
-
-        err += elast.compute_cell_error(msh, cl, rec, sf);
-    }
-
-    std::cout << "Max diam: " << diam << std::endl;
-    std::cout << "L2 error: " << std::sqrt(err) << std::endl;
-}
 
 int main(void)
 {
-    typedef double                                      RealType;
-    typedef disk::simplicial_mesh<RealType, 3>           mesh_type;
+    using RealType = double;
+
+    char    *mesh_filename  = nullptr;
 
 
-    mesh_type msh;
-    disk::netgen_mesh_loader<RealType, 3> loader;
-    if (!loader.read_mesh("/Users/matteo/mroot/matteo/workingcopies/git-mine/hho/hho/hho3d/tests/data/convt02.mesh"))
+    typedef disk::simplicial_mesh<RealType, 2>           mesh_type;
+
+
+
+
+     mesh_type msh;
+    disk::netgen_mesh_loader<RealType, 2> loader;
+    //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/3D_tetras/netgen/convt01.mesh"))
+    //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
     {
         std::cout << "Problem loading mesh." << std::endl;
         return 1;
     }
     loader.populate_mesh(msh);
 
-    //test_elasticity(msh);
+    //auto msh = disk::load_netgen_2d_mesh<RealType>("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d");
 
-    typedef typename mesh_type::scalar_type     scalar_type;
+    typedef RealType scalar_type;
 
-    typedef typename mesh_type::cell            cell_type;
-    typedef typename mesh_type::face            face_type;
+    typedef static_vector<scalar_type, 2> result_type;
 
-    typedef static_vector<scalar_type, 3> result_type;
 
-    auto f = [](const point<scalar_type,3>& p) -> result_type {
-        scalar_type fx = M_PI*M_PI*sin(M_PI*p.x());
-        scalar_type fy = M_PI*M_PI*sin(M_PI*p.y());
-        scalar_type fz = M_PI*M_PI*sin(M_PI*p.z());
 
-        return 2*result_type{fx,fy,fz} + result_type{fx,fy,fz};
+    auto f2 = [](const point<scalar_type,2>& p) -> result_type {
+        const scalar_type lambda =1.0;
+        scalar_type fx = 2.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
+
+        scalar_type fy = 2.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
+
+
+        return result_type{fx,fy};
     };
 
-    auto sf = [](const point<scalar_type,3>& p) -> result_type {
-        scalar_type fx = sin(M_PI*p.x());
-        scalar_type fy = sin(M_PI*p.y());
-        scalar_type fz = sin(M_PI*p.z());
-        return result_type{fx,fy,fz};
+    auto sf2 = [](const point<scalar_type,2>& p) -> result_type {
+        const scalar_type lambda =1.0;
+        scalar_type fx = sin(M_PI*p.x())*sin(M_PI*p.y()) + 0.5/lambda*p.x();
+        scalar_type fy = cos(M_PI*p.x())*cos(M_PI*p.y()) + 0.5/lambda*p.y();
+
+        return result_type{fx,fy};
     };
 
-    test_elasticity(msh);
-    test_new_elasticity(msh, f, sf, 1);
+
+//     auto f = [](const point<scalar_type,3>& p) -> result_type {
+//         const scalar_type lambda =1.0;
+//         scalar_type fx = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.x())*sin(2*M_PI*p.y())*sin(2*M_PI*p.z())
+//                + 8 * (3*cos(2*M_PI*p.x())-1)*sin(2*M_PI*p.y())*sin(2*M_PI*p.z())
+//                - cos(M_PI*p.x())*sin(M_PI*(p.y()+p.z()))
+//                + (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
+//
+//         scalar_type fy = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.y())*sin(2*M_PI*p.x())*sin(2*M_PI*p.z())
+//                + 8 * (3*cos(2*M_PI*p.y())-1)*sin(2*M_PI*p.x())*sin(2*M_PI*p.z())
+//                - cos(M_PI*p.y())*sin(M_PI*(p.x()+p.z())) +
+//                (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
+//
+//         scalar_type fz = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.z())*sin(2*M_PI*p.y())*sin(2*M_PI*p.x())
+//                + 8 * (3*cos(2*M_PI*p.z())-1)*sin(2*M_PI*p.y())*sin(2*M_PI*p.x())
+//                - cos(M_PI*p.z())*sin(M_PI*(p.y()+p.x())) +
+//                (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
+//
+//         return result_type{fx,fy,fz};
+//     };
+//
+//     auto sf = [](const point<scalar_type,3>& p) -> result_type {
+//         const scalar_type lambda =1.0;
+//         scalar_type fx = sin(2*M_PI*p.y())*sin(2*M_PI*p.z())*(-1 + cos(2*M_PI*p.x()))
+//                         + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
+//         scalar_type fy = sin(2*M_PI*p.z())*sin(2*M_PI*p.x())*(-1 + cos(2*M_PI*p.y()))
+//                         + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
+//         scalar_type fz = sin(2*M_PI*p.x())*sin(2*M_PI*p.y())*(-1 + cos(2*M_PI*p.z()))
+//                         + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
+//         return result_type{fx,fy,fz};
+//     };
+
+
+   test_cell_projector(msh);
+
+
+   //test_new_elasticity(msh, f2, sf2, 1);
 
 }
