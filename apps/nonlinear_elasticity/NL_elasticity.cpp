@@ -79,9 +79,19 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
    if(nl.verbose()){
       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
    }
-   //
-   // dp.assemble(load, solution);
-   // dp.solve();
+
+   nl.compute_initial_state();
+
+   if(nl.verbose()){
+      std::cout << "Solve the problem: " << '\n';
+   }
+
+   auto solve_info = nl.compute(load, solution);
+
+   if(nl.verbose()){
+      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+   }
+
    // dp.postprocess(load);
    // dp.plot_solution("plot.dat");
    // std::cout << dp.compute_l2_error(solution) << std::endl;
@@ -115,7 +125,7 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
       return result_type{fx,fy,fz};
    };
 
-   auto sf = [](const point<T,3>& p) -> auto {
+   auto solution = [](const point<T,3>& p) -> auto {
       const T lambda =1.0;
       T fx = sin(2*M_PI*p.y())*sin(2*M_PI*p.z())*(-1 + cos(2*M_PI*p.x()))
       + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
@@ -135,8 +145,18 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
    }
 
-   // dp.assemble(load, solution);
-   // dp.solve();
+   nl.compute_initial_state();
+
+   if(nl.verbose()){
+      std::cout << "Solve the problem: " << '\n';
+   }
+
+   auto solve_info = nl.compute(load, solution);
+
+   if(nl.verbose()){
+      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+   }
+
    // dp.postprocess(load);
    // dp.plot_solution("plot.dat");
    // std::cout << dp.compute_l2_error(solution) << std::endl;

@@ -26,6 +26,7 @@
 
 #include "hho/hho.hpp"
 #include "hho_nl.hpp"
+#include "NewtonSolver/newton_solver.hpp"
 
 #include "timecounter.h"
 
@@ -38,85 +39,71 @@ struct offline_info
     double  time_offline;
 };
 
-struct assembly_info
-{
-    size_t  linear_system_size;
-    double  time_gradrec, time_statcond, time_stab;
-};
-
-struct solver_info
+struct solve_info
 {
     double  time_solver;
 };
 
-struct postprocess_info
-{
-    double  time_postprocess;
-};
 
 template<typename Mesh>
 class NL_elasticity_solver
 {
-    typedef Mesh                                       mesh_type;
-    typedef typename mesh_type::scalar_type            scalar_type;
-    typedef typename mesh_type::cell                   cell_type;
-    typedef typename mesh_type::face                   face_type;
+   typedef Mesh                                       mesh_type;
+   typedef typename mesh_type::scalar_type            scalar_type;
+   typedef typename mesh_type::cell                   cell_type;
+   typedef typename mesh_type::face                   face_type;
 
-    typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
-    typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
+   typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
+   typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
 
-    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
-    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
+   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
+   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
 
-    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
-    typedef dynamic_vector<scalar_type>         vector_dynamic;
+   typedef dynamic_matrix<scalar_type>         matrix_dynamic;
+   typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-    size_t m_cell_degree, m_face_degree, m_degree;
+   size_t m_cell_degree, m_face_degree, m_degree;
 
+   const mesh_type& m_msh;
 
-   //  typename assembler_type::sparse_matrix_type     m_system_matrix;
-   //  typename assembler_type::vector_type            m_system_rhs, m_system_solution;
+   std::vector<vector_dynamic>                    m_solution_data;
+   std::vector<matrix_dynamic>                    m_grad_recons;
 
-    const mesh_type& m_msh;
-
-    std::vector<vector_dynamic>                    m_postprocess_data;
-    std::vector<matrix_dynamic>                    m_grad_recons;
-
-    bool m_verbose;
+   bool m_verbose;
 
 public:
-    NL_elasticity_solver(const mesh_type& msh, size_t degree, int l = 0)
-        : m_msh(msh), m_verbose(false)
-    {
-        if ( l < -1 or l > 1)
-        {
-            std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
+   NL_elasticity_solver(const mesh_type& msh, size_t degree, int l = 0)
+   : m_msh(msh), m_verbose(false)
+   {
+      if ( l < -1 or l > 1)
+      {
+         std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
+         l = 0;
+      }
 
-        if (degree == 0 && l == -1)
-        {
-            std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
+      if (degree == 0 && l == -1)
+      {
+         std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
+         l = 0;
+      }
 
-        m_cell_degree = degree + l;
-        m_face_degree = degree;
-        m_degree = degree;
+      m_cell_degree = degree + l;
+      m_face_degree = degree;
+      m_degree = degree;
 
-    }
+   }
 
-    bool    verbose(void) const     { return m_verbose; }
-    void    verbose(bool v)         { m_verbose = v; }
+   bool    verbose(void) const     { return m_verbose; }
+   void    verbose(bool v)         { m_verbose = v; }
 
-    offline_info
-    compute_offline()
-    {
-      disk::gradient_reconstruction_elas<mesh_type,
-                                           cell_basis_type,
-                                           cell_quadrature_type,
-                                           face_basis_type,
-                                           face_quadrature_type> gradrec(m_degree);
+   offline_info
+   compute_offline()
+   {
+      disk::gradient_reconstruction_elas< mesh_type,
+                                          cell_basis_type,
+                                          cell_quadrature_type,
+                                          face_basis_type,
+                                          face_quadrature_type> gradrec(m_degree);
 
       m_grad_recons.reserve(m_msh.cells_size());
 
@@ -128,58 +115,71 @@ public:
       tc.tic();
       for (auto& cl : m_msh)
       {
-          gradrec.compute(m_msh, cl);
-          m_grad_recons.push_back(gradrec.oper);
+         gradrec.compute(m_msh, cl);
+         m_grad_recons.push_back(gradrec.oper);
       }
       tc.toc();
       ai.time_offline += tc.to_double();
 
       return ai;
-    }
+   }
 
-//     template<typename LoadFunction, typename BoundaryConditionFunction>
-//     assembly_info
-//     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
-//     {
-//         auto gradrec    = gradrec_type(m_bqd);
-//         auto stab       = stab_type(m_bqd);
-//         auto statcond   = statcond_type(m_bqd);
-//         auto assembler  = assembler_type(m_msh, m_face_degree);
-//
-//         assembly_info ai;
-//         bzero(&ai, sizeof(ai));
-//
-//         timecounter tc;
-//
-//         for (auto& cl : m_msh)
-//         {
-//             tc.tic();
-//             gradrec.compute(m_msh, cl);
-//             tc.toc();
-//             ai.time_gradrec += tc.to_double();
-//
-//             tc.tic();
-//             stab.compute(m_msh, cl, gradrec.oper);
-//             tc.toc();
-//             ai.time_stab += tc.to_double();
-//
-//             tc.tic();
-//             auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
-//             dynamic_matrix<scalar_type> loc = gradrec.data + stab.data;
-//             auto scnp = statcond.compute(m_msh, cl, loc, cell_rhs);
-//             tc.toc();
-//             ai.time_statcond += tc.to_double();
-//
-//             assembler.assemble(m_msh, cl, scnp);
-//         }
-//
-//         assembler.impose_boundary_conditions(m_msh, bcf);
-//         assembler.finalize(m_system_matrix, m_system_rhs);
-//
-//         ai.linear_system_size = m_system_matrix.rows();
-//         return ai;
-//     }
-//
+   //template<typename DeplFunction, typename StressFunction>
+   void
+   compute_initial_state()//const DeplFunction& df, const StressFunction& bcf)
+   {
+      m_solution_data.reserve(m_msh.cells_size());
+
+      cell_basis_type cell_basis = cell_basis_type(m_degree);
+      face_basis_type face_basis = face_basis_type(m_degree);
+
+      const size_t num_cell_dofs = cell_basis.size();
+      const size_t num_face_dofs = face_basis.size();
+
+      for (auto& cl : m_msh)
+      {
+         auto fcs = faces(m_msh, cl);
+         const size_t num_faces = fcs.size();
+         m_solution_data.push_back(vector_dynamic::Zero(num_cell_dofs + num_faces * num_face_dofs));
+      }
+   }
+
+   template<typename LoadFunction, typename BoundaryConditionFunction>
+   solve_info
+   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf,
+      size_t n_time_step = 1)
+   {
+
+      solve_info ai;
+      bzero(&ai, sizeof(ai));
+
+      timecounter tc;
+
+      NewtonRaphson_solver<Mesh> newton_solver(m_msh, m_degree, 0);
+
+      for (size_t n = 0; n < n_time_step; n++)
+      {
+         tc.tic();
+         if(m_verbose){
+            std::cout << "** Time step " << n+1 << "/" << n_time_step << '\n';
+         }
+
+         auto newton_info = newton_solver.compute(lf, bcf);
+
+         tc.toc();
+         ai.time_solver += tc.to_double();
+
+         if(m_verbose){
+            std::cout << "** time in this step " << tc.to_double() << " sec" << '\n';
+            std::cout << "**** Assembly time: " << newton_info.time_assembly << " sec" << '\n';
+            std::cout << "**** Solver time: " << newton_info.time_solve << " sec" << '\n';
+            std::cout << "**** Postprocess time: " << newton_info.time_post << " sec" << '\n';
+         }
+      }
+
+      return ai;
+   }
+
 //     solver_info
 //     solve(void)
 //     {

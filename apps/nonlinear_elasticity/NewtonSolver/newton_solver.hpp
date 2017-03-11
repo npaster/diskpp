@@ -16,6 +16,8 @@
 
  // NewtonRaphson_solver
 
+#pragma once
+
 #include <iostream>
 
 #include <sstream>
@@ -27,35 +29,24 @@
 #endif
 
 #include "hho/hho.hpp"
-##include "newton_step.hpp"
+#include "newton_step.hpp"
 
 #include "timecounter.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-struct assembly_info
+struct newton_info
 {
     size_t  linear_system_size;
-    double  time_gradrec, time_statcond, time_stab;
-};
-
-struct solver_info
-{
-    double  time_solver;
-};
-
-struct postprocess_info
-{
-    double  time_postprocess;
+    double  time_assembly, time_solve, time_post;
 };
 
 
-template<template<typename, size_t , typename> class Mesh,
-         typename T, size_t DIM, typename Storage>
+template<typename Mesh>
 class NewtonRaphson_solver
 {
-   typedef Mesh<T, DIM, Storage>                      mesh_type;                                       mesh_type;
+   typedef Mesh                                        mesh_type;
    typedef typename mesh_type::scalar_type            scalar_type;
    typedef typename mesh_type::cell                   cell_type;
    typedef typename mesh_type::face                   face_type;
@@ -64,9 +55,6 @@ class NewtonRaphson_solver
    typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
-
-   // typedef static_vector<scalar_type, DIM> static_vector;
-   // typedef static_matrix<scalar_type, DIM> static_matrix;
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
@@ -110,33 +98,48 @@ public:
 
 
    template<typename LoadIncrement, typename BoundaryConditionFunction>
-   void
-   compute_online(const LoadIncrement& lf, const BoundaryConditionFunction& bf,
-      const scalar_type epsilon = 1.E-6,
-      const std::size_t iter_max = 30, const std::size_t reac_iter=1)
+   newton_info
+   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf,
+            const scalar_type epsilon = 1.E-6,
+            const std::size_t iter_max = 30, const std::size_t reac_iter=1)
    {
+      newton_info ai;
+      bzero(&ai, sizeof(ai));
+      timecounter tc;
+
       //initialise the NewtonRaphson_step
-      NewtonRaphson_step newton_step(m_msh, m_face_degree, 0);
+      NewtonRaphson_step<Mesh> newton_step(m_msh, m_degree, 0);
 
       // loop
       std::size_t iter = 0;
       while (iter < iter_max && m_convergence) {
          if(true){
+            tc.tic();
             //assemble lhs and rhs
             newton_step.assemble(lf, bf);
+            tc.toc();
+            ai.time_assembly += tc.to_double();
          }
          // else {
          //    // assemble only rhs
          //    newton_step.assemble_rhs(lf, bf);
          // }
          // solve the global system
+         tc.tic();
          newton_step.solve();
+         tc.toc();
+         ai.time_solve += tc.to_double();
          // update unknowns
-         newton_step.update_data();
+         tc.tic();
+         //newton_step.update_data();
+         tc.toc();
+         ai.time_post += tc.to_double();
          // test convergence
-         m_convergence = newton_step.test_convergence(epsilon);
+         //m_convergence = newton_step.test_convergence(epsilon);
          iter++;
       }
+
+      return ai;
    }
 
    bool test_convergence() const {return m_convergence;}
