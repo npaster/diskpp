@@ -25,8 +25,8 @@
 #endif
 
 #include "hho/hho.hpp"
-#include "hho_nl.hpp"
-#include "NewtonSolver/newton_solver.hpp"
+#include "hho_nl_diffusion.hpp"
+#include "NewtonSolver_diffusion/newton_solver_diffusion.hpp"
 
 #include "timecounter.h"
 
@@ -46,7 +46,7 @@ struct solve_info
 
 
 template<typename Mesh, typename Point>
-class NL_elasticity_solver
+class NL_diffusion_solver
 {
    typedef Mesh                                       mesh_type;
    typedef typename mesh_type::scalar_type            scalar_type;
@@ -56,8 +56,8 @@ class NL_elasticity_solver
    typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
    typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
 
-   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
-   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
+   typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>    cell_basis_type;
+   typedef disk::scaled_monomial_scalar_basis<mesh_type, face_type>    face_basis_type;
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
@@ -73,7 +73,7 @@ class NL_elasticity_solver
    bool m_verbose;
 
 public:
-   NL_elasticity_solver(const mesh_type& msh, size_t degree, int l = 0)
+   NL_diffusion_solver(const mesh_type& msh, size_t degree, int l = 0)
    : m_msh(msh), m_verbose(false)
    {
       if ( l < -1 or l > 1)
@@ -100,18 +100,18 @@ public:
    offline_info
    compute_offline()
    {
-      disk::gradient_reconstruction_elas< mesh_type,
+      disk::gradient_reconstruction< mesh_type,
                                           cell_basis_type,
                                           cell_quadrature_type,
                                           face_basis_type,
                                           face_quadrature_type> gradrec(m_degree);
                                           
                                           
-//       disk::diffusion_like_stabilization< mesh_type,
-//                                           cell_basis_type,
-//                                           cell_quadrature_type,
-//                                           face_basis_type,
-//                                           face_quadrature_type> stab(m_degree);
+      disk::diffusion_like_stabilization< mesh_type,
+                                          cell_basis_type,
+                                          cell_quadrature_type,
+                                          face_basis_type,
+                                          face_quadrature_type> stab(m_degree);
 
       m_data_offline.reserve(m_msh.cells_size());
 
@@ -124,8 +124,8 @@ public:
       for (auto& cl : m_msh)
       {
          gradrec.compute(m_msh, cl);
-//          stab.compute(m_msh, cl, gradrec.oper);
-         dynamic_matrix<scalar_type> loc = gradrec.oper;// + stab.data;
+         stab.compute(m_msh, cl, gradrec.oper);
+         dynamic_matrix<scalar_type> loc = gradrec.data + stab.data;
          m_data_offline.push_back(loc);
       }
       tc.toc();
@@ -185,7 +185,7 @@ public:
 
       timecounter tc;
 
-      NewtonRaphson_solver_elasticity<Mesh> newton_solver(m_msh, m_degree, 0);
+      NewtonRaphson_solver_diffusion<Mesh> newton_solver(m_msh, m_degree, 0);
       
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
@@ -239,7 +239,7 @@ public:
     {
         scalar_type err_dof = 0.0;
 
-        disk::projector_elas2<mesh_type, cell_basis_type, cell_quadrature_type,
+        disk::projector<mesh_type, cell_basis_type, cell_quadrature_type,
                         face_basis_type, face_quadrature_type> projk(m_degree);
 
         size_t i = 0;

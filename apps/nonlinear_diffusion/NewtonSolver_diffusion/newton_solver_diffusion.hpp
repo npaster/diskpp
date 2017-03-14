@@ -28,7 +28,7 @@
 #endif
 
 #include "hho/hho.hpp"
-#include "newton_step.hpp"
+#include "newton_step_diffusion.hpp"
 
 #include "timecounter.h"
 
@@ -43,7 +43,7 @@ struct newton_info
 
 
 template<typename Mesh>
-class NewtonRaphson_solver_elasticity
+class NewtonRaphson_solver_diffusion
 {
    typedef Mesh                                        mesh_type;
    typedef typename mesh_type::scalar_type            scalar_type;
@@ -52,8 +52,8 @@ class NewtonRaphson_solver_elasticity
 
    typedef disk::quadrature<mesh_type, cell_type>   cell_quadrature_type;
    typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
-   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
-   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
+   typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>  cell_basis_type;
+   typedef disk::scaled_monomial_scalar_basis<mesh_type, face_type>  face_basis_type;
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
@@ -72,7 +72,7 @@ class NewtonRaphson_solver_elasticity
 
 
 public:
-   NewtonRaphson_solver_elasticity(const mesh_type& msh, size_t degree, int l = 0)
+   NewtonRaphson_solver_diffusion(const mesh_type& msh, size_t degree, int l = 0)
    : m_msh(msh), m_verbose(false), m_convergence(false)
    {
       if ( l < -1 or l > 1)
@@ -133,7 +133,7 @@ public:
       timecounter tc;
 
       //initialise the NewtonRaphson_step
-      NewtonRaphson_step_elasticity<Mesh> newton_step(m_msh, m_degree, 0);
+      NewtonRaphson_step_diffusion<Mesh> newton_step(m_msh, m_degree, 0);
       
       newton_step.initialize(m_solution_cells, m_solution_faces, 
                              m_solution_lagr, m_solution_data);
@@ -146,11 +146,11 @@ public:
       while (iter < iter_max && !m_convergence) {
           tc.tic();
           //assemble lhs and rhs
-          //newton_step.assemble(lf, bf, offline_data);
+          newton_step.assemble(lf, bf, offline_data);
           tc.toc();
           ai.time_assembly += tc.to_double();
          // test convergence
-         //m_convergence = newton_step.test_convergence(epsilon, iter);
+         m_convergence = newton_step.test_convergence(epsilon, iter);
          
          if(!m_convergence){
             // test recompute lu decomposition
@@ -165,13 +165,13 @@ public:
                  reactualise_next = false;
             // solve the global system
             tc.tic();
-            //solver_info solve_info = newton_step.solve(reactualise, reactualise_next);
+            solver_info solve_info = newton_step.solve(reactualise, reactualise_next);
             tc.toc();
             ai.time_solve += tc.to_double();
             // update unknowns
             tc.tic();
-            //newton_step.postprocess(lf, offline_data);
-            //newton_step.update_solution();
+            newton_step.postprocess(lf, offline_data);
+            newton_step.update_solution();
             tc.toc();
             ai.time_post += tc.to_double();
          }
@@ -205,5 +205,7 @@ public:
         solution = m_solution_data;
 
     }
+
+
 
 };

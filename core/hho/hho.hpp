@@ -1065,6 +1065,48 @@ public:
 
         return std::make_pair(AC, bC);
     }
+    
+        auto
+    compute(const mesh_type& msh, const cell_type& cl,
+            const matrix_type& local_mat,
+            const vector_type& rhs, bool l_face)
+    {
+        auto fcs = faces(msh, cl);
+        auto num_faces = fcs.size();
+
+        auto num_cell_dofs = cell_basis.size();
+        auto num_face_dofs = face_basis.size();
+
+        dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
+
+        size_t cell_size = dsr.cell_range().size();
+        size_t face_size = dsr.all_faces_range().size();
+
+        matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
+        matrix_type K_TF = local_mat.topRightCorner(cell_size, face_size);
+        matrix_type K_FT = local_mat.bottomLeftCorner(face_size, cell_size);
+        matrix_type K_FF = local_mat.bottomRightCorner(face_size, face_size);
+
+        assert(K_TT.cols() == cell_size);
+        assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
+        assert(K_TT.rows() + K_FT.rows() == local_mat.rows());
+        assert(K_TF.rows() + K_FF.rows() == local_mat.rows());
+        assert(K_FT.cols() + K_FF.cols() == local_mat.cols());
+        
+        vector_type rhs_cell = rhs.block(0,0, cell_size, 1);
+        vector_type rhs_faces = rhs.block(cell_size,0, face_size, 1);
+        
+        assert((rhs_cell.rows() + rhs_faces.rows() ) ==  rhs.rows());
+
+        auto K_TT_ldlt = K_TT.llt();
+        matrix_type AL = K_TT_ldlt.solve(K_TF);
+        vector_type bL = K_TT_ldlt.solve(rhs_cell);
+
+        matrix_type AC = K_FF - K_FT * AL;
+        vector_type bC = rhs_faces - K_FT * bL;
+
+        return std::make_pair(AC, bC);
+    }
 
     vector_type
     recover(const mesh_type& msh, const cell_type& cl,
@@ -1088,6 +1130,9 @@ public:
         matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
         matrix_type K_TF = local_mat.topRightCorner(cell_size, all_faces_size);
 
+        assert(num_cell_dofs == cell_rhs.size());
+        assert((num_face_dofs * num_faces) == solF.size());
+
         vector_type solT = K_TT.llt().solve(cell_rhs - K_TF*solF);
 
         ret.head(cell_size)         = solT;
@@ -1095,6 +1140,8 @@ public:
 
         return ret;
     }
+    
+   
 
 };
 

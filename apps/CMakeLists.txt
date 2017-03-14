@@ -1,5 +1,6 @@
 add_subdirectory(mesh_basic_tests)
 add_subdirectory(diffusion)
+add_subdirectory(nonlinear_diffusion)
 add_subdirectory(nonlinear_elasticity)
 add_subdirectory(timing_test)
 add_subdirectory(parallel_diffusion)

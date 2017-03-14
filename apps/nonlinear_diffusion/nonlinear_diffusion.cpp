@@ -38,7 +38,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#include "NL_elasticity_solver.hpp"
+#include "nonlinear_diffusion_solver.hpp"
 
 struct run_params
 {
@@ -47,30 +47,24 @@ struct run_params
     bool    verbose;
 };
 
+
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
 void
-run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
+run_NL_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
 
-   auto load = [](const point<T,2>& p) -> auto {
-      const T lambda =1.0;
-      T fx = 2.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
-      T fy = 2.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
-      return result_type{fx,fy};
+   auto load = [](const point<T, 2>& p) -> auto {
+       return (2.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI));
    };
 
-   auto solution = [](const point<T,2>& p) -> auto {
-      const T lambda =1.0;
-      T fx = sin(M_PI*p.x())*sin(M_PI*p.y()) + 0.5/lambda*p.x();
-      T fy = cos(M_PI*p.x())*cos(M_PI*p.y()) + 0.5/lambda*p.y();
-
-      return result_type{fx,fy};
+   auto solution = [](const point<T, 2>& p) -> auto {
+       return (sin(p.x() * M_PI) * sin(p.y() * M_PI));
    };
 
-   NL_elasticity_solver<mesh_type,  point<T, 2> > nl(msh, rp.degree);
+   NL_diffusion_solver<mesh_type,  point<T, 2> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
    auto info_offline = nl.compute_offline();
@@ -101,43 +95,20 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
 template<template<typename, size_t, typename> class Mesh,
          typename T, typename Storage>
 void
-run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
+run_NL_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
 {
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
 
-    auto load = [](const point<T,3>& p) -> auto {
-      const T lambda =1.0;
-      T fx = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.x())*sin(2*M_PI*p.y())*sin(2*M_PI*p.z())
-      + 8 * (3*cos(2*M_PI*p.x())-1)*sin(2*M_PI*p.y())*sin(2*M_PI*p.z())
-      - cos(M_PI*p.x())*sin(M_PI*(p.y()+p.z()))
-      + (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
+    auto load = [](const point<T, 3>& p) -> auto {
+        return 3.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
+    };
 
-      T fy = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.y())*sin(2*M_PI*p.x())*sin(2*M_PI*p.z())
-      + 8 * (3*cos(2*M_PI*p.y())-1)*sin(2*M_PI*p.x())*sin(2*M_PI*p.z())
-      - cos(M_PI*p.y())*sin(M_PI*(p.x()+p.z())) +
-      (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
+    auto solution = [](const point<T, 3>& p) -> auto {
+        return sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
+    };
 
-      T fz = M_PI*M_PI*(12*lambda*cos(2*M_PI*p.z())*sin(2*M_PI*p.y())*sin(2*M_PI*p.x())
-      + 8 * (3*cos(2*M_PI*p.z())-1)*sin(2*M_PI*p.y())*sin(2*M_PI*p.x())
-      - cos(M_PI*p.z())*sin(M_PI*(p.y()+p.x())) +
-      (1 + 3./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z()) );
-
-      return result_type{fx,fy,fz};
-   };
-
-   auto solution = [](const point<T,3>& p) -> auto {
-      const T lambda =1.0;
-      T fx = sin(2*M_PI*p.y())*sin(2*M_PI*p.z())*(-1 + cos(2*M_PI*p.x()))
-      + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
-      T fy = sin(2*M_PI*p.z())*sin(2*M_PI*p.x())*(-1 + cos(2*M_PI*p.y()))
-      + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
-      T fz = sin(2*M_PI*p.x())*sin(2*M_PI*p.y())*(-1 + cos(2*M_PI*p.z()))
-      + (1./(1+lambda))* sin(M_PI*p.x())*sin(M_PI*p.y())*sin(M_PI*p.z());
-      return result_type{fx,fy,fz};
-   };
-
-   NL_elasticity_solver<mesh_type,  point<T, 3> > nl(msh, rp.degree);
+   NL_diffusion_solver<mesh_type,  point<T, 3> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
    auto info_offline = nl.compute_offline();
@@ -163,7 +134,6 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
    // dp.plot_solution("plot.dat");
    std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
 }
-
 
 int main(int argc, char **argv)
 {
@@ -241,49 +211,49 @@ int main(int argc, char **argv)
 
     mesh_filename = argv[0];
 
-   //  /* FVCA5 2D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
-   //      auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* FVCA5 2D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
+    {
+        std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
+        auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
+        run_NL_diffusion_solver(msh, rp);
+        return 0;
+    }
 
     /* Netgen 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$") ))
     {
         std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
         auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
-        run_NL_elasticity_solver(msh, rp);
+        run_NL_diffusion_solver(msh, rp);
         return 0;
     }
 
-   //  /* DiSk++ cartesian 2D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.quad$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
-   //      auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* DiSk++ cartesian 2D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.quad$") ))
+    {
+        std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
+        auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
+        run_NL_diffusion_solver(msh, rp);
+        return 0;
+    }
 
     /* Netgen 3D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$") ))
     {
         std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
         auto msh = disk::load_netgen_3d_mesh<RealType>(mesh_filename);
-        run_NL_elasticity_solver(msh, rp);
+        run_NL_diffusion_solver(msh, rp);
         return 0;
     }
 
-   //  /* DiSk++ cartesian 3D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.hex$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
-   //      auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* DiSk++ cartesian 3D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.hex$") ))
+    {
+        std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
+        auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
+        run_NL_diffusion_solver(msh, rp);
+        return 0;
+    }
 
 }
