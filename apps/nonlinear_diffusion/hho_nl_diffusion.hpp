@@ -159,11 +159,11 @@ public:
                 MFF += qp.weight() * f_phi * f_phi.transpose();
                 rhs_f += qp.weight() * f_phi * bc(qp.point());
             }
-            
-            
+
+
             rhs_f -= MFF * sol_faces.at(face_id);
-            
-            vector_type rhs_l = MFF * sol_lagr.at(lagr_i);  
+
+            vector_type rhs_l = MFF * sol_lagr.at(lagr_i);
 
 #ifdef FILL_COLMAJOR
             for (size_t j = 0; j < MFF.cols(); j++)

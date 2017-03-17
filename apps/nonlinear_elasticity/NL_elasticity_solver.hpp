@@ -26,7 +26,12 @@
 
 #include "hho/hho.hpp"
 #include "hho_nl.hpp"
+#include "bases/bases_utils.hpp"
 #include "NewtonSolver/newton_solver.hpp"
+
+
+#include "../exemple_visualisation/visualisation/gmshDisk.h"
+#include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
 
@@ -70,11 +75,11 @@ class NL_elasticity_solver
    std::vector<matrix_dynamic>                    m_data_offline;
    std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
 
-   bool m_verbose;
+   bool m_verbose, m_convergence;
 
 public:
    NL_elasticity_solver(const mesh_type& msh, size_t degree, int l = 0)
-   : m_msh(msh), m_verbose(false)
+   : m_msh(msh), m_verbose(false), m_convergence(false)
    {
       if ( l < -1 or l > 1)
       {
@@ -105,8 +110,8 @@ public:
                                           cell_quadrature_type,
                                           face_basis_type,
                                           face_quadrature_type> gradrec(m_degree);
-                                          
-                                          
+
+
 //       disk::diffusion_like_stabilization< mesh_type,
 //                                           cell_basis_type,
 //                                           cell_quadrature_type,
@@ -130,7 +135,7 @@ public:
       }
       tc.toc();
       ai.time_offline += tc.to_double();
-      
+
       assert(m_data_offline.size() == m_msh.cells_size());
 
       return ai;
@@ -144,7 +149,7 @@ public:
       m_solution_cells.clear();
       m_solution_faces.clear();
       m_solution_lagr.clear();
-      
+
       m_solution_data.reserve(m_msh.cells_size());
       m_solution_cells.reserve(m_msh.cells_size());
       m_solution_faces.reserve(m_msh.faces_size());
@@ -163,15 +168,15 @@ public:
          m_solution_data.push_back(vector_dynamic::Zero(num_cell_dofs + num_faces * num_face_dofs));
          m_solution_cells.push_back(vector_dynamic::Zero(num_cell_dofs));
       }
-      
+
       for(size_t i = 0; i < m_msh.faces_size(); i++)
       {
          m_solution_faces.push_back(vector_dynamic::Zero(num_face_dofs));
       }
       
       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
-         m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));   
-      }    
+         m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));
+      }
    }
 
    template<typename LoadFunction, typename BoundaryConditionFunction>
@@ -186,7 +191,7 @@ public:
       timecounter tc;
 
       NewtonRaphson_solver_elasticity<Mesh> newton_solver(m_msh, m_degree, 0);
-      
+
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
 
@@ -204,14 +209,15 @@ public:
          }
 
          auto rlf = [&lf, &time](const Point& p) -> auto {
-            return time*lf(p);
+             return disk::mm_prod(time,lf(p));
+
          };
 
          auto rbcf = [&bcf, &time](const Point& p) -> auto {
-            return time*bcf(p);
+             return disk::mm_prod(time,bcf(p));
          };
 
-         auto newton_info = newton_solver.compute(rlf, bcf, m_data_offline);
+         auto newton_info = newton_solver.compute(rlf, rbcf, m_data_offline);
 
          tc.toc();
          ai.time_solver += tc.to_double();
@@ -222,16 +228,25 @@ public:
             std::cout << "**** Solver time: " << newton_info.time_solve << " sec" << std::endl;
             std::cout << "**** Postprocess time: " << newton_info.time_post << " sec" << std::endl;
          }
+
+         m_convergence = newton_solver.test_convergence();
+
+         if(!m_convergence){
+             std::cout << "***********************************************************" << std::endl;
+             std::cout << "***** PROBLEM OF CONVERGENCE: We stop the calcul here *****" << std::endl;
+             std::cout << "***********************************************************" << std::endl;
+             break;
+         }
       }
 
-      
-      newton_solver.save_solutions(m_solution_cells, m_solution_faces,
+      if(m_convergence)
+        newton_solver.save_solutions(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
-      
+
       return ai;
    }
 
-
+    bool test_convergence() const {return m_convergence;}
 
     template<typename AnalyticalSolution>
     scalar_type
@@ -239,7 +254,7 @@ public:
     {
         scalar_type err_dof = 0.0;
 
-        disk::projector_elas2<mesh_type, cell_basis_type, cell_quadrature_type,
+        disk::projector_elas<mesh_type, cell_basis_type, cell_quadrature_type,
                         face_basis_type, face_quadrature_type> projk(m_degree);
 
         size_t i = 0;
@@ -255,32 +270,107 @@ public:
 
         return sqrt(err_dof);
     }
-//
-//     void
-//     plot_solution(const std::string& filename)
-//     {
-//         std::ofstream ofs(filename);
-//
-//         size_t cell_i = 0;
-//         for (auto& cl : m_msh)
-//         {
-//             auto x = m_postprocess_data.at(cell_i++);
-//             auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
-//             for (auto& qp : qps)
-//             {
-//                 auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-//
-//                 scalar_type pot = 0.0;
-//                 for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_cell_degree).size(); i++)
-//                     pot += phi[i] * x(i);
-//
-//                 auto tp = qp.point();
-//                 for (size_t i = 0; i < mesh_type::dimension; i++)
-//                     ofs << tp[i] << " ";
-//                 ofs << pot << std::endl;
-//             }
-//         }
-//
-//         ofs.close();
-//     }
+
+
+void
+    plot_solution_at_gausspoint(const std::string& filename)
+    {
+       std::cout << "Compute solution at Gauss points" << std::endl;
+       visu::Gmesh msh; //creta a mesh
+
+        std::vector<visu::Data> data; //create data (not used)
+        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+        size_t nb_node =  msh.getNumberofNodes();
+
+        size_t dim = m_msh.dimension;
+
+        cell_basis_type cell_basis          = cell_basis_type(m_degree);
+        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+
+        size_t cell_i = 0;
+        for (auto& cl : m_msh)
+        {
+            vector_dynamic x = m_solution_cells.at(cell_i++);
+            auto qps = cell_quadrature.integrate(m_msh, cl);
+            for (auto& qp : qps)
+            {
+
+                auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
+
+                vector_dynamic pot = vector_dynamic::Zero(dim);
+                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size()/dim; i+=dim)
+                    for(size_t j=0; j<dim; j++)
+                            pot(j) += phi.at(i+j)(j) * x(i+j);
+
+
+               nb_node += 1;
+               visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
+               std::vector<double> value(3, 0.0);
+               for(size_t j=0; j<dim; j++)
+                   value.at(j) =  {double(pot(j))}; // save the solution at gauss point
+               visu::SubData sdata(value, snode);
+               subdata.push_back(sdata); // add subdata
+
+
+            }
+        }
+
+        visu::NodeData nodedata(3, 0.0, "sol_gp", data, subdata); // create and init a nodedata view
+
+        nodedata.saveNodeData(filename, msh); // save the view
+    }
+
+
+    template<typename AnalyticalSolution>
+    void
+    plot_l2error_at_gausspoint(const std::string& filename, const AnalyticalSolution& as)
+    {
+       std::cout << "Compute L2 error at Gauss points" << std::endl;
+       visu::Gmesh msh; //creta a mesh
+
+        std::vector<visu::Data> data; //create data (not used)
+        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+        size_t nb_node =  msh.getNumberofNodes();
+
+        size_t dim = m_msh.dimension;
+
+        cell_basis_type cell_basis          = cell_basis_type(m_degree);
+        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+
+        size_t cell_i = 0;
+        for (auto& cl : m_msh)
+        {
+            vector_dynamic x = m_solution_cells.at(cell_i++);
+            auto qps = cell_quadrature.integrate(m_msh, cl);
+            for (auto& qp : qps)
+            {
+
+                auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
+
+                vector_dynamic pot = vector_dynamic::Zero(dim);
+                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size()/dim; i+=dim)
+                    for(size_t j=0; j<dim; j++)
+                            pot(j) += phi.at(i+j)(j) * x(i+j);
+
+                auto true_pot = as(qp.point()); // a voir et projeté
+
+               nb_node += 1;
+               visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
+               std::vector<double> value(1,0.0);
+               double l2error = 0.0;
+               for(size_t j=0; j<dim; j++)
+                   l2error +=  double((pot(j)-true_pot(j))*(pot(j)-true_pot(j))); // save the solution at gauss point
+
+               value[0] = sqrt(l2error);
+               visu::SubData sdata(value, snode);
+               subdata.push_back(sdata); // add subdata
+
+
+            }
+        }
+
+        visu::NodeData nodedata(1, 0.0, "l2error_gp", data, subdata); // create and init a nodedata view
+
+        nodedata.saveNodeData(filename, msh); // save the view
+    }
 };

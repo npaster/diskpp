@@ -96,7 +96,7 @@ public:
    bool    verbose(void) const     { return m_verbose; }
    void    verbose(bool v)         { m_verbose = v; }
 
-   
+
     void
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                 const std::vector<vector_dynamic>& initial_solution_faces,
@@ -106,19 +106,19 @@ public:
         assert(m_msh.cells_size() == initial_solution_cells.size());
         m_solution_cells = initial_solution_cells;
         assert(m_msh.cells_size() == m_solution_cells.size());
-        
+
         assert(m_msh.faces_size() == initial_solution_faces.size());
         m_solution_faces = initial_solution_faces;
         assert(m_msh.faces_size() == m_solution_faces.size());
-        
+
         assert(m_msh.boundary_faces_size() == initial_solution_lagr.size());
         m_solution_lagr = initial_solution_lagr;
         assert(m_msh.boundary_faces_size() == m_solution_lagr.size());
-        
+
         assert(m_msh.cells_size() == initial_solution.size());
         m_solution_data = initial_solution;
         assert(m_msh.cells_size() == m_solution_data.size());
-        
+
     }
 
    template<typename LoadIncrement, typename BoundaryConditionFunction>
@@ -134,8 +134,8 @@ public:
 
       //initialise the NewtonRaphson_step
       NewtonRaphson_step_diffusion<Mesh> newton_step(m_msh, m_degree, 0);
-      
-      newton_step.initialize(m_solution_cells, m_solution_faces, 
+
+      newton_step.initialize(m_solution_cells, m_solution_faces,
                              m_solution_lagr, m_solution_data);
 
       m_convergence = false;
@@ -151,14 +151,14 @@ public:
           ai.time_assembly += tc.to_double();
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
-         
+
          if(!m_convergence){
             // test recompute lu decomposition
              if((iter%reac_iter) == 0)
                  reactualise = true;
              else
                  reactualise = false;
-             
+
              if((iter+1)%reac_iter == 0)
                  reactualise_next = true;
              else
@@ -178,14 +178,14 @@ public:
          iter++;
       }
 
-        newton_step.save_solutions(m_solution_cells, m_solution_faces, 
+        newton_step.save_solutions(m_solution_cells, m_solution_faces,
                              m_solution_lagr, m_solution_data);
-      
+
       return ai;
    }
 
    bool test_convergence() const {return m_convergence;}
-   
+
    void
     save_solutions( std::vector<vector_dynamic>& solution_cells,
                     std::vector<vector_dynamic>& solution_faces,
@@ -194,13 +194,13 @@ public:
     {
         assert(m_solution_cells.size() == solution_cells.size());
         solution_cells = m_solution_cells;
-        
+
         assert(m_solution_faces.size() == solution_faces.size());
         solution_faces = m_solution_faces;
-        
+
         assert(m_solution_lagr.size() == solution_lagr.size());
         solution_lagr = m_solution_lagr;
-        
+
         assert(m_solution_data.size() == solution.size());
         solution = m_solution_data;
 

@@ -55,14 +55,14 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
 
-   auto load = [](const point<T,2>& p) -> auto {
-      const T lambda =1.0;
+   auto load = [](const point<T,2>& p) -> result_type {
+      const T lambda =0.0;
       T fx = 2.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
       T fy = 2.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
       return result_type{fx,fy};
    };
 
-   auto solution = [](const point<T,2>& p) -> auto {
+   auto solution = [](const point<T,2>& p) -> result_type {
       const T lambda =1.0;
       T fx = sin(M_PI*p.x())*sin(M_PI*p.y()) + 0.5/lambda*p.x();
       T fy = cos(M_PI*p.x())*cos(M_PI*p.y()) + 0.5/lambda*p.y();
@@ -73,11 +73,11 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
    NL_elasticity_solver<mesh_type,  point<T, 2> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
-   auto info_offline = nl.compute_offline();
+   //auto info_offline = nl.compute_offline();
 
-   if(nl.verbose()){
-      std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
-   }
+//    if(nl.verbose()){
+//       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+//    }
 
    nl.compute_initial_state();
 
@@ -93,9 +93,15 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
    }
 
-   // dp.plot_solution("plot.dat");
 
-   std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+   if(nl.test_convergence()){
+
+        std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+
+        std::cout << "Post-processing: " << std::endl;
+        nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
+        nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution);
+   }
 }
 
 template<template<typename, size_t, typename> class Mesh,
@@ -160,8 +166,14 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
    }
 
-   // dp.plot_solution("plot.dat");
-   std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+   if(nl.test_convergence()){
+
+        std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+
+        std::cout << "Post-processing: " << std::endl;
+        nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
+        nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution);
+   }
 }
 
 

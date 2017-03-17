@@ -130,6 +130,7 @@ solver_info
         //free_memomry (pas très beau)
         m_system_matrix = sparse_matrix_type(0,0);
         m_system_rhs = vector_type::Zero(0);
+;
         if (reactualisze_next) {
            sparse_matrix_type id = sparse_matrix_type(1,1);
            id.setIdentity();

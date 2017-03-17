@@ -65,19 +65,24 @@ class NewtonRaphson_step_elasticity
 
     typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
     typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
+    typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>    div_cell_basis_type;
 
     typedef dynamic_matrix<scalar_type>         matrix_dynamic;
     typedef dynamic_vector<scalar_type>         vector_dynamic;
 
 
     typedef disk::gradient_reconstruction_elas<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                                face_basis_type, face_quadrature_type>                      grad_type;
+                                                face_basis_type, face_quadrature_type>                          grad_type;
 
     typedef disk::elas_like_stabilization<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                            face_basis_type, face_quadrature_type>                      stab_type;
+                                            face_basis_type, face_quadrature_type>                              stab_type;
     typedef disk::diffusion_like_static_condensation<   mesh_type, cell_basis_type, cell_quadrature_type,
-                                                        face_basis_type, face_quadrature_type>          statcond_type;
-    typedef disk::assembler_nl_elas<   mesh_type, face_basis_type, face_quadrature_type>                   assembler_type;
+                                                        face_basis_type, face_quadrature_type>                  statcond_type;
+    typedef disk::assembler_nl_elas<   mesh_type, face_basis_type, face_quadrature_type>                        assembler_type;
+
+    typedef disk::divergence_reconstruction_elas<mesh_type, cell_basis_type, cell_quadrature_type,
+                                          face_basis_type, face_quadrature_type, div_cell_basis_type,
+                                          cell_quadrature_type>                                                 div_type;
 
     size_t m_cell_degree, m_face_degree, m_degree;
 
@@ -134,7 +139,7 @@ solver_info
         m_system_rhs = vector_type::Zero(0);
         if (reactualisze_next) {
            sparse_matrix_type id = sparse_matrix_type(1,1);
-           id .setIdentity();
+           id.setIdentity();
            solver.analyzePattern(id);
            solver.factorize(id);
         }
@@ -229,63 +234,84 @@ public:
 
     }
 
-//     template<typename LoadFunction, typename BoundaryConditionFunction>
-//     assembly_info
-//     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
-//     {
-//
-//
-//         grad_type gradrec(m_degree);
-//         stab_type stab(m_degree);
-//
-//         statcond_type statcond(m_degree);
-//
-//         assembler_type assembler(m_msh, m_degree);
-//
-//
-//         assembly_info ai;
-//         bzero(&ai, sizeof(ai));
-//
-//         timecounter tc;
-//
-//         scalar_type mu      = 1.0;
-//         scalar_type lambda  = 1.0;
-//         const size_t DIM = m_msh.dimension;
-//
-//         size_t i = 0;
-//
-//         for (auto& cl : m_msh)
-//         {
-//             tc.tic();
-//             gradrec.compute(m_msh, cl);
-//             tc.toc();
-//             ai.time_gradrec += tc.to_double();
-//
-//             tc.tic();
-//             stab.compute(m_msh, cl, gradrec.oper);
-//             tc.toc();
-//             ai.time_stab += tc.to_double();
-//
-//             tc.tic();
-//
-//             dynamic_matrix<scalar_type> loc = gradrec.data + stab.data;
-//
-//             dynamic_vector<scalar_type> rhs = disk::compute_rhs_diffusion<cell_basis_type, cell_quadrature_type>
-//                                                 (m_msh, cl, lf, m_cell_degree, loc,  m_solution_data.at(i++));
-//
-//             auto scnp = statcond.compute(m_msh, cl, loc, -rhs, true);
-//             tc.toc();
-//             ai.time_statcond += tc.to_double();
-//
-//             assembler.assemble(m_msh, cl, scnp);
-//         }
-//
-//          assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
-//          assembler.finalize(m_system_matrix, m_system_rhs);
-//
-//          ai.linear_system_size = m_system_matrix.rows();
-//         return ai;
-//     }
+    template<typename LoadFunction, typename BoundaryConditionFunction>
+    assembly_info
+    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
+    {
+
+
+        grad_type gradrec(m_degree);
+        stab_type stab(m_degree);
+        div_type   divrec(m_degree);
+
+        statcond_type statcond(m_degree);
+
+        assembler_type assembler(m_msh, m_degree);
+
+
+        assembly_info ai;
+        bzero(&ai, sizeof(ai));
+
+        timecounter tc;
+
+        scalar_type mu      = 1.0;
+        scalar_type lambda  = 0.0;
+        const size_t DIM = m_msh.dimension;
+
+        size_t i = 0;
+
+        for (auto& cl : m_msh)
+        {
+            tc.tic();
+            gradrec.compute(m_msh, cl);
+            tc.toc();
+            ai.time_gradrec += tc.to_double();
+
+            tc.tic();
+            stab.compute(m_msh, cl, gradrec.oper);
+            tc.toc();
+            ai.time_stab += tc.to_double();
+
+            divrec.compute(m_msh, cl);
+            tc.tic();
+
+
+            /////// NON LINEAIRE /////////
+            auto gtu = gradrec.oper * m_solution_data.at(i);
+            auto stu = stab.data * m_solution_data.at(i);
+
+            auto elem = disk::compute_elem<cell_basis_type, cell_quadrature_type, mesh_type>(m_msh, cl, gtu, m_degree);
+
+            dynamic_vector<scalar_type> rhs_ext = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                (m_msh, cl, lf, m_cell_degree, m_solution_data.at(i));
+
+            dynamic_matrix<scalar_type> lhs = disk::assemble_lhs<scalar_type>(gradrec.oper, stab.data, elem.first, 2.0*mu);
+
+            dynamic_vector<scalar_type> rhs = - disk::assemble_rhs<scalar_type>(gradrec.oper, stu, elem.second, rhs_ext, 2.0*mu);
+
+            /////// LINEAIRE ////////////////
+
+/*
+            dynamic_matrix<scalar_type> lhs = 2.0*mu*gradrec.data + 2.0*mu*stab.data + lambda * divrec.data;
+
+
+            dynamic_vector<scalar_type> rhs = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                (m_msh, cl, lf, m_cell_degree,  m_solution_data.at(i));*/
+
+            auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
+            tc.toc();
+            ai.time_statcond += tc.to_double();
+
+            assembler.assemble(m_msh, cl, scnp);
+            i++;
+        }
+
+         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
+         assembler.finalize(m_system_matrix, m_system_rhs);
+
+         ai.linear_system_size = m_system_matrix.rows();
+        return ai;
+    }
 
 
 //         template<typename LoadFunction, typename BoundaryConditionFunction>
@@ -338,67 +364,91 @@ public:
             return solve_reuselu(reactualisze_next);
     }
 
-//     template<typename LoadFunction>
-//     postprocess_info
-//     postprocess(const LoadFunction& lf)
-//     {
-//         grad_type gradrec(m_degree);
-//         stab_type stab(m_degree);
-//
-//         statcond_type statcond(m_degree);
-//
-//         face_basis_type face_basis(m_degree);
-//         size_t fbs = face_basis.size();
-//         cell_basis_type cell_basis(m_degree);
-//         size_t cbs = cell_basis.size();
-//
-//         postprocess_info pi;
-//
-//         m_postprocess_data.clear();
-//
-//         m_postprocess_data.reserve(m_msh.cells_size());
-//
-//         timecounter tc;
-//         tc.tic();
-//
-//         size_t i =0;
-//         for (auto& cl : m_msh)
-//         {
-//             auto fcs = faces(m_msh, cl);
-//             auto num_faces = fcs.size();
-//
-//             dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
-//
-//             for (size_t face_i = 0; face_i < num_faces; face_i++)
-//             {
-//                 auto fc = fcs[face_i];
-//                 auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
-//                 if (!eid.first)
-//                     throw std::invalid_argument("This is a bug: face not found");
-//
-//                 auto face_id = eid.second;
-//
-//                 dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-//                 xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
-//                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
-//             }
-//
-//             gradrec.compute(m_msh, cl);
-//             stab.compute(m_msh, cl, gradrec.oper);
-//             dynamic_matrix<scalar_type> loc = gradrec.data + stab.data;
-//
-//             dynamic_vector<scalar_type> rhs = disk::compute_rhs_diffusion<cell_basis_type, cell_quadrature_type>
-//                                                 (m_msh, cl, lf, m_cell_degree, loc,  m_solution_data.at(i++));
-//             dynamic_vector<scalar_type> rhs_cell = -rhs.block(0,0, cbs, 1);
-//             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, rhs_cell, xFs);
-//             m_postprocess_data.push_back(x);
-//         }
-//         tc.toc();
-//
-//         pi.time_postprocess = tc.to_double();
-//
-//         return pi;
-//     }
+    template<typename LoadFunction>
+    postprocess_info
+    postprocess(const LoadFunction& lf)
+    {
+        grad_type gradrec(m_degree);
+        stab_type stab(m_degree);
+        div_type   divrec(m_degree);
+
+        statcond_type statcond(m_degree);
+
+        face_basis_type face_basis(m_degree);
+        size_t fbs = face_basis.size();
+        cell_basis_type cell_basis(m_degree);
+        size_t cbs = cell_basis.size();
+
+        postprocess_info pi;
+
+        m_postprocess_data.clear();
+
+        m_postprocess_data.reserve(m_msh.cells_size());
+
+        timecounter tc;
+        tc.tic();
+
+        scalar_type lambda = 1.0;
+        scalar_type mu =1.0;
+
+        size_t i =0;
+        for (auto& cl : m_msh)
+        {
+            auto fcs = faces(m_msh, cl);
+            auto num_faces = fcs.size();
+
+            dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
+
+            for (size_t face_i = 0; face_i < num_faces; face_i++)
+            {
+                auto fc = fcs[face_i];
+                auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+                if (!eid.first)
+                    throw std::invalid_argument("This is a bug: face not found");
+
+                auto face_id = eid.second;
+
+                dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
+                xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+                xFs.block(face_i * fbs, 0, fbs, 1) = xF;
+            }
+
+            gradrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, gradrec.oper);
+            divrec.compute(m_msh, cl);
+
+            /////// NON LINEAIRE /////////
+            auto gtu = gradrec.oper * m_solution_data.at(i);
+            auto stu = stab.data * m_solution_data.at(i);
+
+            auto elem = disk::compute_elem<cell_basis_type, cell_quadrature_type, mesh_type>(m_msh, cl, gtu, m_degree);
+
+            dynamic_vector<scalar_type> rhs_ext = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                (m_msh, cl, lf, m_cell_degree, m_solution_data.at(i));
+
+            dynamic_matrix<scalar_type> lhs = disk::assemble_lhs<scalar_type>(gradrec.oper, stab.data, elem.first, 2.0*mu);
+
+            dynamic_vector<scalar_type> rhs = - disk::assemble_rhs<scalar_type>(gradrec.oper, stu, elem.second, rhs_ext, 2.0*mu);
+
+            /////// LINEAIRE ////////////////
+
+/*
+            dynamic_matrix<scalar_type> lhs = 2.0*mu*gradrec.data + 2.0*mu*stab.data + lambda * divrec.data;
+
+
+            dynamic_vector<scalar_type> rhs = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                (m_msh, cl, lf, m_cell_degree,  m_solution_data.at(i));*/
+
+            dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
+            dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
+            m_postprocess_data.push_back(x);
+        }
+        tc.toc();
+
+        pi.time_postprocess = tc.to_double();
+
+        return pi;
+    }
 
 
 //     template<typename LoadFunction>
@@ -531,11 +581,12 @@ public:
          std::cout << "----------------------------------------------" << std::endl;
 
       }
+      std::ios::fmtflags f( std::cout.flags() );
       std::cout.precision(5);
       std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
       std::cout << "| " << s_iter << " |   " << relative_error << "  |  " << max_error << "  |" << std::endl;
       std::cout << "----------------------------------------------" << std::endl;
-
+      std::cout.flags( f );
 
       if(relative_error <= epsilon){
          return true;
@@ -543,6 +594,7 @@ public:
       else {
          return false;
       }
+
    }
 
    void

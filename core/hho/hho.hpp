@@ -1029,21 +1029,25 @@ public:
         face_quadrature     = face_quadrature_type(2*m_degree);
     }
 
-    auto
+    std::pair<matrix_type, vector_type>
     compute(const mesh_type& msh, const cell_type& cl,
             const matrix_type& local_mat,
             const vector_type& cell_rhs)
     {
         auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
+        size_t num_faces = fcs.size();
 
-        auto num_cell_dofs = cell_basis.size();
-        auto num_face_dofs = face_basis.size();
+        size_t num_cell_dofs = cell_basis.size();
+        size_t num_face_dofs = face_basis.size();
 
         dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
 
         size_t cell_size = dsr.cell_range().size();
         size_t face_size = dsr.all_faces_range().size();
+
+        assert( cell_size ==  cell_rhs.rows() && "wrong rhs dimension");
+        assert( (cell_size + face_size) == local_mat.rows() && "wrong lhs rows dimension");
+        assert( (cell_size + face_size) == local_mat.cols() && "wrong lhs cols dimension");
 
         matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
         matrix_type K_TF = local_mat.topRightCorner(cell_size, face_size);
@@ -1065,38 +1069,42 @@ public:
 
         return std::make_pair(AC, bC);
     }
-    
-        auto
+
+    std::pair<matrix_type, vector_type>
     compute(const mesh_type& msh, const cell_type& cl,
             const matrix_type& local_mat,
             const vector_type& rhs, bool l_face)
     {
         auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
+        size_t num_faces = fcs.size();
 
-        auto num_cell_dofs = cell_basis.size();
-        auto num_face_dofs = face_basis.size();
+        size_t num_cell_dofs = cell_basis.size();
+        size_t num_face_dofs = face_basis.size();
 
         dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
 
         size_t cell_size = dsr.cell_range().size();
-        size_t face_size = dsr.all_faces_range().size();
+        size_t faces_size = dsr.all_faces_range().size();
+
+        assert( (cell_size + faces_size) ==  rhs.rows() && "wrong rhs dimension");
+        assert( (cell_size + faces_size) ==  local_mat.rows() && "wrong lhs rows dimension");
+        assert( (cell_size + faces_size) ==  local_mat.cols() && "wrong lhs cols dimension");
 
         matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
-        matrix_type K_TF = local_mat.topRightCorner(cell_size, face_size);
-        matrix_type K_FT = local_mat.bottomLeftCorner(face_size, cell_size);
-        matrix_type K_FF = local_mat.bottomRightCorner(face_size, face_size);
+        matrix_type K_TF = local_mat.topRightCorner(cell_size, faces_size);
+        matrix_type K_FT = local_mat.bottomLeftCorner(faces_size, cell_size);
+        matrix_type K_FF = local_mat.bottomRightCorner(faces_size, faces_size);
 
-        assert(K_TT.cols() == cell_size);
+        assert(K_TT.cols() == cell_size && "wrong K_TT dimension");
         assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
         assert(K_TT.rows() + K_FT.rows() == local_mat.rows());
         assert(K_TF.rows() + K_FF.rows() == local_mat.rows());
         assert(K_FT.cols() + K_FF.cols() == local_mat.cols());
-        
+
         vector_type rhs_cell = rhs.block(0,0, cell_size, 1);
-        vector_type rhs_faces = rhs.block(cell_size,0, face_size, 1);
-        
-        assert((rhs_cell.rows() + rhs_faces.rows() ) ==  rhs.rows());
+        vector_type rhs_faces = rhs.block(cell_size,0, faces_size, 1);
+
+        assert((rhs_cell.rows() + rhs_faces.rows() ) ==  rhs.rows() && "wrong rhs decomposition");
 
         auto K_TT_ldlt = K_TT.llt();
         matrix_type AL = K_TT_ldlt.solve(K_TF);
@@ -1115,20 +1123,28 @@ public:
             const vector_type& solF)
     {
         auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
+        size_t num_faces = fcs.size();
 
-        auto num_cell_dofs = cell_basis.size();
-        auto num_face_dofs = face_basis.size();
+        size_t num_cell_dofs = cell_basis.size();
+        size_t num_face_dofs = face_basis.size();
 
         dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
 
         size_t cell_size        = dsr.cell_range().size();
         size_t all_faces_size   = dsr.all_faces_range().size();
 
+        assert(cell_rhs.rows() == cell_size && "wrong rhs_cell dimension");
+        assert(solF.rows() == all_faces_size && "wrong solF dimension");
+        assert( (cell_size + all_faces_size) == local_mat.rows() && "wrong lhs rows dimension");
+        assert( (cell_size + all_faces_size) == local_mat.cols() && "wrong lhs cols dimension");
+
         vector_type ret( dsr.total_size() );
 
         matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
         matrix_type K_TF = local_mat.topRightCorner(cell_size, all_faces_size);
+
+        assert(K_TT.cols() == cell_size && "wrong K_TT dimension");
+        assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
 
         assert(num_cell_dofs == cell_rhs.size());
         assert((num_face_dofs * num_faces) == solF.size());
@@ -1140,8 +1156,8 @@ public:
 
         return ret;
     }
-    
-   
+
+
 
 };
 
@@ -1669,14 +1685,11 @@ public:
             assert(cell_basis.size() == dphi.size());
             assert(dpk1 == dphi.size());
             for(size_t i=0; i< dphi.size(); i++){
-               for(size_t j=0; j< dphi.size(); j++){
-               //    std::cout << dphi.at(i) << '\n';
-               //    std::cout << dphi.at(j) << '\n';
-               //   std::cout << i << " " << j << " " <<  mm_prod(dphi.at(i), dphi.at(j)) << '\n';
+               for(size_t j=i; j< dphi.size(); j++){
                   stiff_mat(i,j) += qp.weight() * mm_prod(dphi.at(i), dphi.at(j));
+                  stiff_mat(j,i) = stiff_mat(i,j);
                }
             }
-            // std::cout << " " << '\n';
         }
 
         /* LHS: take basis functions derivatives from degree 1 to K+1 */
@@ -1997,8 +2010,9 @@ public:
             auto c_phi = cell_basis.eval_functions(msh, cl, qp.point());
             assert(c_phi.size() == dpk1);
             for(size_t i=0; i< cell_basis.size(); i++){
-               for(size_t j=0; j< cell_basis.size(); j++){
+               for(size_t j=i; j< cell_basis.size(); j++){
                   mass_mat(i,j) += qp.weight() * mm_prod(c_phi.at(i), c_phi.at(j));
+                  mass_mat(j,i) = mass_mat(i,j);
                }
             }
         }
@@ -2050,9 +2064,13 @@ public:
                 auto c_phi = cell_basis.eval_functions(msh, cl, qp.point());
                 //auto q_f_phi = qp.weight() * f_phi;
 
+                assert(f_phi.size() == fbs);
+                assert(c_phi.size() == cell_basis.size());
+
                 for(size_t i=0; i< fbs; i++){
-                  for(size_t j=0; j< fbs; j++){
+                  for(size_t j=i; j< fbs; j++){
                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), f_phi.at(j));
+                    face_mass_matrix(j,i) = face_mass_matrix(i,j);
                   }
                }
 
@@ -2061,8 +2079,6 @@ public:
                      face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), c_phi.at(j));
                   }
                }
-
-
             }
 
             Eigen::LLT<matrix_type> piKF;
@@ -2071,6 +2087,7 @@ public:
             // Step 3a: \pi_F^k( v_F - p_T^k v )
             auto face_range = current_face_range.remove_offset();
             matrix_type MR1 = take(face_trace_matrix, face_range, one_range);
+            assert(MR1.cols() == gradrec_oper.rows());
             matrix_type proj2 = piKF.solve(MR1*gradrec_oper);
             matrix_type I_F = matrix_type::Identity(fbs, fbs);
             auto block_offset = current_face_range.min();
@@ -2078,7 +2095,11 @@ public:
 
             // Step 3b: \pi_F^k( v_T - \pi_T^k p_T^k v )
             matrix_type MR2 = take(face_trace_matrix, face_range, zero_range);
+            assert(MR2.cols() == proj1.rows());
             matrix_type proj3 = piKF.solve(MR2*proj1);
+
+            assert(proj2.rows() == proj3.rows());
+            assert(proj2.cols() == proj3.cols());
 
             matrix_type BRF = proj2 + proj3;
 
@@ -2164,6 +2185,8 @@ public:
         auto fcs = faces(msh, cl);
         std::vector<size_t> l2g(fcs.size() * face_basis.size());
 
+        assert(dpkf == face_basis.size());
+
         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
         {
             auto fc = fcs[face_i];
@@ -2228,10 +2251,10 @@ public:
             if (!eid.first)
                 throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            size_t face_id = eid.second;
 
-            auto face_offset = face_id * fbs;
-            auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
+            size_t face_offset = face_id * fbs;
+            size_t face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
 
             auto fqd = face_quadrature.integrate(msh, bfc);
 
@@ -2342,6 +2365,7 @@ public:
     }
 
     matrix_type cell_mm;
+    matrix_type whole_mm;
 
     template<typename Function>
     vector_type
@@ -2365,11 +2389,11 @@ public:
 
             assert(phi.size() == dpk);
 
-            for(size_t i=0; i < cell_basis.size(); i++)
-               for(size_t j=0; j < cell_basis.size(); j++)
+            for(size_t i=0; i < phi.size(); i++)
+               for(size_t j=0; j < phi.size(); j++)
                   mm(i,j)  += qp.weight() *mm_prod(phi.at(i), phi.at(j));
 
-            for(size_t i=0; i < cell_basis.size(); i++)
+            for(size_t i=0; i < phi.size(); i++)
                rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi.at(i));
 
 
@@ -2377,6 +2401,48 @@ public:
 
         cell_mm = mm;
         return mm.llt().solve(rhs);
+    }
+
+
+    template<typename Function>
+    vector_type
+    compute_whole(const mesh_type& msh, const cell_type& cl, const Function& f)
+    {
+        auto fcs = faces(msh, cl);
+        vector_type ret = vector_type::Zero(cell_basis.size() + fcs.size()*face_basis.size());
+        whole_mm = matrix_type::Zero(cell_basis.size() + fcs.size()*face_basis.size(),
+                                           cell_basis.size() + fcs.size()*face_basis.size());
+
+        ret.block(0, 0, cell_basis.size(), 1) = compute_cell(msh, cl, f);
+        whole_mm.block(0, 0, cell_basis.size(), cell_basis.size()) = cell_mm;
+
+        size_t face_offset = cell_basis.size();
+        for (auto& fc : fcs)
+        {
+            matrix_type mm = matrix_type::Zero(face_basis.size(), face_basis.size());
+            vector_type rhs = vector_type::Zero(face_basis.size());
+
+            auto face_quadpoints = face_quadrature.integrate(msh, fc);
+            for (auto& qp : face_quadpoints)
+            {
+                auto phi = face_basis.eval_functions(msh, fc, qp.point());
+
+                for(size_t i=0; i < phi.size(); i++)
+                    for(size_t j=0; j < phi.size(); j++)
+                        mm(i,j)  += qp.weight() *mm_prod(phi.at(i), phi.at(j));
+
+                for(size_t i=0; i < phi.size(); i++)
+                    rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi.at(i));
+
+            }
+
+            ret.block(face_offset, 0, face_basis.size(), 1) = mm.llt().solve(rhs);
+            whole_mm.block(face_offset, face_offset, face_basis.size(), face_basis.size()) = mm;
+            face_offset += face_basis.size();
+        }
+
+
+        return ret;
     }
 
 };
