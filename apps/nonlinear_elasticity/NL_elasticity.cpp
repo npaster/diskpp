@@ -146,11 +146,11 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
    NL_elasticity_solver<mesh_type,  point<T, 3> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
-   auto info_offline = nl.compute_offline();
-
-   if(nl.verbose()){
-      std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
-   }
+   // auto info_offline = nl.compute_offline();
+   //
+   // if(nl.verbose()){
+   //    std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+   // }
 
    nl.compute_initial_state();
 

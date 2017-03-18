@@ -549,12 +549,14 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
 
         auto pk2 = law.compute_PK2(cu);
 
+        auto Ce = law.compute_tangent_moduli(cu);
+
         //compute C(u) : transpo_fu * dphi
         decltype(dphi) cdphi;
         cdphi.reserve(dphi.size());
 
         for(size_t i = 0; i < fdphi.size(); i++)
-            cdphi.push_back( /* ajouter C */  fdphi.at(i));
+            cdphi.push_back( /*mm_prod(Ce, */fdphi.at(i));
 
         //compure K_geom
         for (size_t i = G_range.from(); i < G_range.to(); i++)
@@ -575,7 +577,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
                 K(i - G_range.from(), j - G_range.from()) += qp.weight() * mm_prod(sdphi.at(i), dphi.at(j));
 
         //compute F(u) * S(u)
-        auto fsu = fu /* * pk2 */ ;
+        decltype(fu) fsu = fu * pk2;
 
         //compure R_int
         for (size_t i = G_range.from(); i < G_range.to(); i++)
