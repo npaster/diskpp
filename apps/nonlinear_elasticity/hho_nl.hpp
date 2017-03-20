@@ -556,7 +556,23 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
         cdphi.reserve(dphi.size());
 
         for(size_t i = 0; i < fdphi.size(); i++)
-            cdphi.push_back( /*mm_prod(Ce, */fdphi.at(i));
+        {
+           //le produit ne marche pas
+            // decltype(fdphi[i]) ret(fdphi[i]);
+            //
+            //   for (int i = 0; i < Ce.dimension(0); i++)
+            //      for (int j = 0; j < Ce.dimension(1); j++)
+            //         for (int k = 0; k < Ce.dimension(2); k++)
+            //            for (int l = 0; l < Ce.dimension(3); l++)
+            //               ret(i,j) = Ce(i,j,k,l) * fdphi[i](k,l);
+            //
+            // cdphi.push_back( ret);
+
+            cdphi.push_back(fdphi.at(i));
+        }
+
+
+            //cdphi.push_back( mm_prod(Ce, fdphi.at(i)));
 
         //compure K_geom
         for (size_t i = G_range.from(); i < G_range.to(); i++)
@@ -577,7 +593,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
                 K(i - G_range.from(), j - G_range.from()) += qp.weight() * mm_prod(sdphi.at(i), dphi.at(j));
 
         //compute F(u) * S(u)
-        decltype(fu) fsu = fu * pk2;
+        decltype(fu) fsu = fu /* * pk2 */;
 
         //compure R_int
         for (size_t i = G_range.from(); i < G_range.to(); i++)
