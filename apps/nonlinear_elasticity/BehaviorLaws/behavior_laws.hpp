@@ -165,3 +165,139 @@ public:
    }
 
 };
+
+
+
+
+/* Material: Neo-nookean
+ * Energy :  W(C) = Wiso(C) + Wvol(C)
+ *   - Wiso(C) =    mu / 2 *[tr(C) - d] - mu * ln(J)
+ *   - Wvol(C) =  lambda/2 * U(J)**2
+ * Stress :  S(C) = Siso(C) + Svol(C)
+ *   - Siso(C) = mu * ( Id - C^{-T})
+ *   - Svol(C) = lambda * J * U(J) * U'(J)
+ * Module :  C(E) = lambda * ( I_2 \cirl I_2)  + 2.0 * mu * I_4
+ */
+
+
+template<typename scalar_type>
+class NeoNookeanLaw
+{
+   typedef static_tensor4<scalar_type, 2, 2, 2, 2>   tensor_2d;
+   typedef static_tensor4<scalar_type, 3, 3, 3, 3>   tensor_3d;
+   scalar_type m_mu;
+   scalar_type m_lambda;
+   size_t m_type;
+
+   const size_t maxtype = 2;
+
+   scalar_type
+   computeU(scalar_type J)
+   {
+      if(m_type == 1)
+         return ln(J);
+      else if(m_type == 2)
+         return sqrt(J);
+      else
+         assert(false);
+   }
+
+   scalar_type
+   computeUprime(scalar_type J)
+   {
+      if(m_type == 1)
+         return ln(J);
+      else if(m_type == 2)
+         return sqrt(J);
+      else
+         assert(false);
+   }
+
+public:
+   NeoNookeanLaw()
+   : m_mu(0.0), m_lambda(0.0), m_type(1)
+   {
+      if(m_type <= 0 || m_type > maxtype)
+      {
+         std::cout << "Unknown option for NeoNookean material" << '\n';
+         std::cout << "We use U(J) = ln(J)" << '\n';
+      }
+   }
+
+   NeoNookeanLaw(const scalar_type mu, const scalar_type lambda, const size_t type)
+   : m_mu(mu), m_lambda(lambda), m_type(type)
+   {
+      if(m_type <= 0 || m_type > maxtype)
+      {
+         std::cout << "Unknown option for NeoNookean material" << '\n';
+         std::cout << "We use U(J) = ln(J)" << '\n';
+      }
+   }
+
+   NeoNookeanLaw(const Material_parameters<scalar_type>& material, const size_t type)
+   : m_mu(material.giveMu()), m_lambda(material.giveLambda()), m_type(type)
+   {
+      if(m_type <= 0 || m_type > maxtype)
+      {
+         std::cout << "Unknown option for NeoNookean material" << '\n';
+         std::cout << "We use U(J) = ln(J)" << '\n';
+      }
+   }
+
+   void
+   setMu(const scalar_type mu)
+   {
+      m_mu = mu;
+   }
+
+   void
+   setLambda(const scalar_type lambda)
+   {
+      m_lambda = lambda;
+   }
+
+   scalar_type
+   giveMu() const {return m_mu;}
+
+   scalar_type
+   giveLambda() const {return m_lambda;}
+
+   static_matrix<scalar_type,2,2>
+   compute_PK2(const static_matrix<scalar_type,2,2>& CauchyGreenDroit)
+   {
+      static_matrix<scalar_type,2,2> Id = static_matrix<scalar_type,2,2>::Identity();
+      static_matrix<scalar_type,2,2> invCtr = (CauchyGreenDroit.inverse()).transpose();
+      scalar_type J = sqrt(CauchyGreenDroit.det());
+      scalar_type UJ = computeU(J);
+      scalar_type UJp = computeUprime(J);
+
+      return m_mu * (Id - invCtr) + m_lambda * J * UJ * UJp * invCtr;
+   }
+
+   static_matrix<scalar_type,3,3>
+   compute_PK2(const static_matrix<scalar_type,3,3>& CauchyGreenDroit)
+   {
+      static_matrix<scalar_type,2,2> Id = static_matrix<scalar_type,2,2>::Identity();
+      static_matrix<scalar_type,2,2> invCtr = (CauchyGreenDroit.inverse()).transpose();
+      scalar_type J = sqrt(CauchyGreenDroit.det());
+      scalar_type UJ = computeU(J);
+      scalar_type UJp = computeUprime(J);
+
+      return m_mu * (Id - invCtr) + m_lambda * J * UJ * UJp * invCtr;
+   }
+
+   tensor_2d
+   compute_tangent_moduli(const static_matrix<scalar_type,2,2>& CauchyGreenDroit)
+   {
+      tensor_2d tangent_moduli = tensor_2d::Zero();
+      return tangent_moduli;
+   }
+
+   tensor_3d
+   compute_tangent_moduli(const static_matrix<scalar_type,3,3>& CauchyGreenDroit)
+   {
+      tensor_3d tangent_moduli = tensor_3d::Zero();
+      return tangent_moduli;
+   }
+
+};
