@@ -512,7 +512,8 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
         gradrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
 
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
+        //std::cout << cell_rhs << '\n';
         assert(cell_rhs.size() == DIM * binomial(degree + DIM, degree));
         dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
                                           2 * mu * stab.data;
@@ -585,7 +586,7 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
         gradrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
 
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
         dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
                                           2 * mu * stab.data;
 

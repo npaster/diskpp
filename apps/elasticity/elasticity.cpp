@@ -100,7 +100,7 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
         gradrec.compute(msh, cl);
         divrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
         assert(cell_rhs.size() == DIM * binomial(degree + DIM, degree));
         dynamic_matrix<scalar_type> loc =  2 * mu * gradrec.data +
                                           lambda * divrec.data +
@@ -175,7 +175,7 @@ void test_new_elasticity(MeshType& msh, const Function& load, const Solution& so
         divrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
 
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
+        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
         dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
                                           lambda * divrec.data +
                                           2 * mu * stab.data;
@@ -208,8 +208,8 @@ int main(void)
      mesh_type msh;
     disk::netgen_mesh_loader<RealType, 2> loader;
     //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/3D_tetras/netgen/convt01.mesh"))
-    if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
-    //if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
     {
         std::cout << "Problem loading mesh." << std::endl;
         return 1;
@@ -254,9 +254,14 @@ int main(void)
     };
 
     auto fgrad2 = [](const point<scalar_type,2>& p) -> result_type {
-        const scalar_type lambda =1.0;
-        const scalar_type mu = 0.0;
+        const scalar_type lambda =0.0;
+        const scalar_type mu = 1.0;
+        scalar_type fx = 2.*mu*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
 
+        scalar_type fy = 2.*mu*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
+
+
+        return result_type{fx,fy};
         return result_type{0.0,0.0};
     };
 
@@ -312,6 +317,6 @@ int main(void)
    test_gradient(msh, fgrad2, sfgrad2, 3);
 
 
-   test_new_elasticity(msh, f2, sf2, 1);
+   test_new_elasticity(msh, f2, sf2, 2);
 
 }
