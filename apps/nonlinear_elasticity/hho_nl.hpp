@@ -21,7 +21,7 @@
 #include "bases/bases_ranges.hpp"
 #include "timecounter.h"
 #include "hho/hho.hpp"
-#include "BehaviorLaws/behavior_laws.hpp"
+#include "BehaviorLaws/behaviorlaws.hpp"
 #include "BehaviorLaws/material_parameters.hpp"
 //#include "contrib/sol2/sol.hpp"
 
@@ -526,6 +526,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
 
     //  a automatiser
     StVenantKirchhoffLaw<scalar_type>  law(1.0,1.0);
+    //NeoHookeanLaw<scalar_type>  law(1.0,1.0, 1);
 
     auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
     for (auto& qp : cell_quadpoints)
@@ -544,12 +545,13 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
         for(size_t i = 0; i < dphi.size(); i++)
             fdphi.push_back(transpo_fu * dphi.at(i));
 
-        //calculer C et S
+        //compute behavior C et S
         auto cu = compute_cgright_pt<scalar_type>(fu);
 
-        auto pk2 = law.compute_PK2(cu);
-
-        auto Ce = law.compute_tangent_moduli(cu);
+        auto tensor_behavior = law.compute_whole(cu);
+        //std::cout << "PK2" << tensor_behavior.first << '\n';
+        auto pk2 = tensor_behavior.first;
+        auto Ce = tensor_behavior.second;
 
         //compute C(u) : transpo_fu * dphi
         decltype(dphi) cdphi;
@@ -557,17 +559,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
 
         for(size_t i = 0; i < fdphi.size(); i++)
         {
-           //le produit ne marche pas
-            // decltype(fdphi[i]) ret(fdphi[i]);
-            //
-            //   for (int i = 0; i < Ce.dimension(0); i++)
-            //      for (int j = 0; j < Ce.dimension(1); j++)
-            //         for (int k = 0; k < Ce.dimension(2); k++)
-            //            for (int l = 0; l < Ce.dimension(3); l++)
-            //               ret(i,j) = Ce(i,j,k,l) * fdphi[i](k,l);
-            //
-            // cdphi.push_back( ret);
-
+            // cdphi.push_back(tm_prod(Ce, fdphi.at(i)) );
             cdphi.push_back(fdphi.at(i));
         }
 

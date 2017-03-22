@@ -32,7 +32,6 @@
 #include <Eigen/SparseCore>
 #include <Eigen/SparseLU>
 #include <unsupported/Eigen/SparseExtra>
-#include <unsupported/Eigen/CXX11/Tensor>
 
 #pragma clang diagnostic pop
 
@@ -51,11 +50,12 @@ using static_vector = Eigen::Matrix<T, N, 1>;
 template<typename T, size_t M, size_t N>
 using material_tensor = static_matrix<T, M, N>;
 
-template<typename T, size_t M, size_t N, size_t O, size_t P>
-using static_tensor4 = Eigen::TensorFixedSize<T, Eigen::Sizes<M, N, O, P> >;
-
 //template<typename T>
 //using sparse_matrix = Eigen::SparseMatrix<T>;
+
+//to mimic fourth order tensor
+template<typename T, size_t N>
+using static_tensor = Eigen::Matrix<T, N*N, N*N>;
 
 template<typename T>
 using triplet = Eigen::Triplet<T>;
