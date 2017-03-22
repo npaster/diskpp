@@ -22,6 +22,7 @@
 #include "timecounter.h"
 #include "hho/hho.hpp"
 #include "BehaviorLaws/behaviorlaws.hpp"
+#include "BehaviorLaws/maths_tensor.hpp"
 #include "BehaviorLaws/material_parameters.hpp"
 //#include "contrib/sol2/sol.hpp"
 
@@ -472,36 +473,6 @@ compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
     return ret;
 }
 
-// The gradient of transformation tensor
-template<typename T>
-static_matrix<T,3,3>
-compute_fgradient_pt(const static_matrix<T,3,3>& gradient)
-{
-    return gradient + static_matrix<T,3,3>::Identity();
-}
-
-template<typename T>
-static_matrix<T,2,2>
-compute_fgradient_pt(const static_matrix<T,2,2>& gradient)
-{
-    return gradient + static_matrix<T,2,2>::Identity();
-}
-
-// The right Cauch-Green tensor
-template<typename T>
-static_matrix<T,3,3>
-compute_cgright_pt(const static_matrix<T,3,3>& fgradient)
-{
-    return fgradient.transpose() * fgradient;
-}
-
-template<typename T>
-static_matrix<T,2,2>
-compute_cgright_pt(const static_matrix<T,2,2>& fgradient)
-{
-    return fgradient.transpose() * fgradient;
-}
-
 
 template<typename CellBasisType, typename CellQuadType, typename Mesh>
 std::pair<dynamic_matrix<typename Mesh::scalar_type>, dynamic_vector<typename Mesh::scalar_type> >
@@ -535,7 +506,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
         //Compoute G(u)
         auto gradu = compute_gradient_pt<CellBasisType, Mesh>(msh, cl, gradrec_coeff, qp.point(), degree);
         //compute F(u) and F(u)^T
-        auto fu = compute_fgradient_pt<scalar_type>(gradu);
+        auto fu = compute_FTensor(gradu);
         auto transpo_fu = fu.transpose();
 
         //compute transpo_fu * dphi
@@ -546,7 +517,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
             fdphi.push_back(transpo_fu * dphi.at(i));
 
         //compute behavior C et S
-        auto cu = compute_cgright_pt<scalar_type>(fu);
+        auto cu = compute_CauchyGreenRightTensor(fu);
 
         auto tensor_behavior = law.compute_whole(cu);
         //std::cout << "PK2" << tensor_behavior.first << '\n';

@@ -131,24 +131,6 @@ tm_prod(const static_tensor<T, DIM>& tens, const static_matrix<T, DIM, DIM>& mat
    return ret;
 }
 
-// Compute C = F^T * F
-
-template<typename T, int  DIM>
-static_matrix<T, DIM, DIM>
-compute_CauchyGreenRightTensor(const static_matrix<T, DIM, DIM>& FTensor)
-{
-   return FTensor.transpose() * FTensor;
-}
-
-//Compute E = 1/2 *( C - I)
-
-template<typename T, int  DIM>
-static_matrix<T, DIM, DIM>
-compute_GreenLagrangeTensor(const static_matrix<T, DIM, DIM>& CauchyGreenTensor)
-{
-   return 0.5 * (CauchyGreenTensor - static_matrix<T,DIM, DIM>::Identity());
-}
-
 
 // Compute Kronecker product
 
@@ -177,7 +159,30 @@ template<typename T, int  DIM>
 static_tensor<T, DIM>
 compute_IdentityTensor()
 {
-   return static_tensor<T,DIM>::Identity();
+   static_tensor<T, DIM> ret = static_tensor<T,DIM>::Zero();
+   T one = T{1};
+
+   if(DIM == 2){
+      ret(0, 0) = one;  // I1111
+      ret(0, 3) = one;  // I1212
+      ret(3, 0) = one;  // I2121
+      ret(3, 3) = one;  // I2222
+   }
+   else if( DIM == 3){
+      ret(0, 0) = one;  // I1111
+      ret(0, 4) = one;  // I1212
+      ret(0, 8) = one;  // I1313
+      ret(4, 0) = one;  // I2121
+      ret(4, 4) = one;  // I2222
+      ret(4, 8) = one;  // I2323
+      ret(8, 0) = one;  // I3131
+      ret(8, 4) = one;  // I3232
+      ret(8, 8) = one;  // I3333
+   }
+   else
+      static_assert((DIM == 2 || DIM == 3), "Wrong dimension only 2 and 3");
+
+   return ret;
 }
 
 

@@ -25,6 +25,7 @@
 #include "common/eigen.hpp"
 #include "maths_tensor.hpp"
 #include "maths_jacobian_derivate.hpp"
+#include "maths_deformation_tensors.hpp"
 #include <Eigen/LU>
 
 #define _USE_MATH_DEFINES
