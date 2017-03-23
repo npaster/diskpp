@@ -47,6 +47,53 @@ struct postprocess_info
     double  time_postprocess;
 };
 
+
+template<typename Mesh, typename CellBasisType, typename CellQuadType,
+         typename FaceBasisType, typename FaceQuadType,
+          typename Solution>
+dynamic_vector<typename Mesh::scalar_type>
+compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
+            const Solution& as, dynamic_matrix<typename Mesh::scalar_type> G,
+          size_t degree)
+{
+    typedef dynamic_vector<typename Mesh::scalar_type> vector_type;
+
+    auto cell_basis     = CellBasisType(degree+1);
+    auto cell_quad      = CellQuadType(2*(degree+1));
+
+
+    disk::projector<Mesh, CellBasisType, CellQuadType,
+               FaceBasisType, FaceQuadType> projk(degree+1);
+ // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
+   auto proju = projk.compute_cell(msh, cl, as);
+
+//keep only the part of uT 
+// multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
+   auto Gu = G.block(0,0, G.rows() ,proju.rows()-1) *
+                  proju.block(1,0, proju.rows()-1 ,1);
+
+    auto cell_quadpoints = cell_quad.integrate(msh, cl);
+    size_t j = 0;
+    vector_type ret = vector_type::Zero(cell_quadpoints.size());
+    // test the reconstructed solution at the gauss point
+    for (auto& qp : cell_quadpoints)
+    {
+        auto phi = cell_basis.eval_functions(msh, cl, qp.point());
+        auto val = as(qp.point()); // value of the analytiqual solution
+        ret(j) = proju(0); // the constant for the continuity
+        assert(Gu.size() == (cell_basis.size()-1)); // verify the size
+
+        //reconstruct the solution
+        for (size_t i = 1; i < cell_basis.size(); i++)
+            ret(j) += Gu(i-1) * phi[i];
+
+         std::cout << val << " " << ret(j) << " " << ret(j)-val << '\n';
+         j++;
+    }
+
+    return ret;
+}
+
 template<typename Mesh>
 class diffusion_solver
 {
@@ -70,7 +117,7 @@ class diffusion_solver
     typedef disk::diffusion_like_stabilization_bq<bqdata_type>          stab_type;
     typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
     typedef disk::assembler<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
-
+    typedef disk::projector_bq<bqdata_type> projk_type;
     size_t m_cell_degree, m_face_degree;
 
     bqdata_type     m_bqd;
@@ -117,6 +164,7 @@ public:
         auto stab       = stab_type(m_bqd);
         auto statcond   = statcond_type(m_bqd);
         auto assembler  = assembler_type(m_msh, m_face_degree);
+        auto projk      = projk_type(m_bqd);
 
         assembly_info ai;
         bzero(&ai, sizeof(ai));
@@ -129,6 +177,12 @@ public:
             gradrec.compute(m_msh, cl);
             tc.toc();
             ai.time_gradrec += tc.to_double();
+
+            ///////////////////////////////////
+
+            auto test = compute_reconstruction<mesh_type, cell_basis_type, cell_quadrature_type,
+                                             face_basis_type, face_quadrature_type, BoundaryConditionFunction>
+            (m_msh, cl, bcf, gradrec.oper,  m_cell_degree);
 
             tc.tic();
             stab.compute(m_msh, cl, gradrec.oper);
