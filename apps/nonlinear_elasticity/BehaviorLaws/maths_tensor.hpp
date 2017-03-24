@@ -126,9 +126,16 @@ tm_prod(const static_tensor<T, DIM>& tens, const static_matrix<T, DIM, DIM>& mat
 
    for (size_t i = 0; i < DIM; i++)
       for (size_t j = 0; j < DIM; j++)
-         ret(i,j) = mm_prod(tens.block(i*DIM, j*DIM, DIM, DIM), mat);
+         ret(i,j) = (tens.block(i*DIM, j*DIM, DIM, DIM).cwiseProduct(mat)).sum();
 
    return ret;
+}
+
+template<typename T>
+T
+tm_prod(const T& tens, const T& mat)
+{
+   return tens * mat;
 }
 
 
@@ -162,6 +169,8 @@ compute_IdentityTensor()
    static_tensor<T, DIM> ret = static_tensor<T,DIM>::Zero();
    T one = T{1};
 
+   if(DIM == 1)
+      ret(0, 0) = one;  // I1111
    if(DIM == 2){
       ret(0, 0) = one;  // I1111
       ret(0, 3) = one;  // I1212
@@ -180,7 +189,7 @@ compute_IdentityTensor()
       ret(8, 8) = one;  // I3333
    }
    else
-      static_assert((DIM == 2 || DIM == 3), "Wrong dimension only 2 and 3");
+      static_assert((DIM == 1 || DIM == 2 || DIM == 3), "Wrong dimension only 2 and 3");
 
    return ret;
 }

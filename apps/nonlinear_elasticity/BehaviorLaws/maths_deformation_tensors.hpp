@@ -20,6 +20,13 @@
 
 // Compute F = G + I
 
+template<typename T>
+T
+compute_FTensor(const T& Gradient)
+{
+   return Gradient + T{1};
+}
+
 template<typename T, int  DIM>
 static_matrix<T, DIM, DIM>
 compute_FTensor(const static_matrix<T, DIM, DIM>& Gradient)
@@ -29,6 +36,13 @@ compute_FTensor(const static_matrix<T, DIM, DIM>& Gradient)
 
 // Compute C = F^T * F
 
+template<typename T>
+T
+compute_CauchyGreenRightTensor(const T& FTensor)
+{
+   return FTensor * FTensor;
+}
+
 template<typename T, int  DIM>
 static_matrix<T, DIM, DIM>
 compute_CauchyGreenRightTensor(const static_matrix<T, DIM, DIM>& FTensor)
@@ -37,6 +51,14 @@ compute_CauchyGreenRightTensor(const static_matrix<T, DIM, DIM>& FTensor)
 }
 
 //Compute E = 1/2 *( C - I)
+
+template<typename T>
+T
+compute_GreenLagrangeTensor(const T& CauchyGreenTensor)
+{
+   return 0.5 * (CauchyGreenTensor - T{1});
+}
+
 
 template<typename T, int  DIM>
 static_matrix<T, DIM, DIM>

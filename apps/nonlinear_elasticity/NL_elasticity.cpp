@@ -48,6 +48,67 @@ struct run_params
 };
 
 template<template<typename, size_t , typename> class Mesh,
+typename T, typename Storage>
+void
+run_NL_elasticity_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
+{
+   typedef Mesh<T, 1, Storage> mesh_type;
+   
+//    auto load = [](const point<T,1>& p) -> auto {
+//       const T lambda = T{0.0};
+//       const T mu = T{1.0};
+//       return (T{2.0} * mu + lambda) * M_PI *  M_PI * sin(p.x() * M_PI);
+//    };
+//    
+//    auto solution = [](const point<T,1>& p) -> auto {
+//       return sin(p.x() * M_PI);
+//    };
+   
+   auto load = [](const point<T,1>& p) -> auto {
+      const T lambda = T{0.0};
+      const T mu = T{1.0};
+      return 0.0;
+   };
+   
+   auto solution = [](const point<T,1>& p) -> auto {
+      return p.x();
+   };
+   
+   NL_elasticity_solver<mesh_type,  point<T, 1> > nl(msh, rp.degree);
+   nl.verbose(rp.verbose);
+   
+   //auto info_offline = nl.compute_offline();
+   
+   //    if(nl.verbose()){
+   //       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+   //    }
+   
+   nl.compute_initial_state();
+   
+   if(nl.verbose()){
+      std::cout << "Solve the problem: " << '\n';
+   }
+   
+   const size_t n_time_step = 1;
+   
+   solve_info solve_info = nl.compute(load, solution, n_time_step);
+   
+   if(nl.verbose()){
+      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+   }
+   
+   
+   if(nl.test_convergence()){
+      
+      std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+      
+      std::cout << "Post-processing: " << std::endl;
+      //nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
+      //nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution);
+   }
+}
+
+template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
 void
 run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
@@ -248,6 +309,8 @@ int main(int argc, char **argv)
     if (argc == 0)
     {
         std::cout << "Mesh format: 1D uniform (Not avaible)" << std::endl;
+        auto msh = disk::load_uniform_1d_mesh<RealType>(0, 1, elems_1d);
+        run_NL_elasticity_solver(msh, rp);
         return 0;
     }
 

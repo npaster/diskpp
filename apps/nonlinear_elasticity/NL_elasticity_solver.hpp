@@ -173,7 +173,7 @@ public:
       {
          m_solution_faces.push_back(vector_dynamic::Zero(num_face_dofs));
       }
-      
+
       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
          m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));
       }

@@ -74,6 +74,9 @@ class NewtonRaphson_step_elasticity
     typedef disk::gradient_reconstruction_elas<  mesh_type, cell_basis_type, cell_quadrature_type,
                                                 face_basis_type, face_quadrature_type>                          grad_type;
 
+    typedef disk::sgradient_reconstruction_elas<  mesh_type, cell_basis_type, cell_quadrature_type,
+                                                face_basis_type, face_quadrature_type>                          sgrad_type;
+
     typedef disk::elas_like_stabilization<  mesh_type, cell_basis_type, cell_quadrature_type,
                                             face_basis_type, face_quadrature_type>                              stab_type;
     typedef disk::diffusion_like_static_condensation<   mesh_type, cell_basis_type, cell_quadrature_type,
@@ -236,13 +239,95 @@ public:
 
     template<typename LoadFunction, typename BoundaryConditionFunction>
     assembly_info
+    assemblelin(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
+    {
+
+
+       sgrad_type gradrec(m_degree);
+       stab_type stab(m_degree);
+       //div_type   divrec(m_degree);
+
+       statcond_type statcond(m_degree);
+
+       assembler_type assembler(m_msh, m_degree);
+
+
+       assembly_info ai;
+       bzero(&ai, sizeof(ai));
+
+       timecounter tc;
+
+       scalar_type mu      = 1.0;
+       scalar_type lambda  = 0.0;
+       const size_t DIM = m_msh.dimension;
+
+       size_t i = 0;
+
+       for (auto& cl : m_msh)
+       {
+          tc.tic();
+          gradrec.compute(m_msh, cl);
+          tc.toc();
+          ai.time_gradrec += tc.to_double();
+
+          tc.tic();
+          stab.compute(m_msh, cl, gradrec.oper);
+          tc.toc();
+          ai.time_stab += tc.to_double();
+
+          //divrec.compute(m_msh, cl);
+          tc.tic();
+
+          std::cout << "SOLUTIONPRED" << std::endl;
+          std::cout << m_solution_data.at(i) << std::endl;
+
+          std::cout << "gradrec" << std::endl;
+          std::cout << gradrec.oper << std::endl;
+          std::cout << "stab" << std::endl;
+          std::cout << stab.data << std::endl;
+
+          /////// LINEAIRE ////////////////
+
+
+                  dynamic_matrix<scalar_type> lhs = 2.0*mu*gradrec.data + 2.0*mu*stab.data;// + lambda * divrec.data;
+
+
+                  dynamic_vector<scalar_type> rhsext = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                      (m_msh, cl, lf, m_cell_degree,  m_solution_data.at(i));
+
+                  dynamic_vector<scalar_type> rhs = -( lhs * m_solution_data.at(i) - rhsext);
+
+                                                      std::cout << "rhs" << std::endl;
+                                                      std::cout << rhs << std::endl;
+
+          auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
+          tc.toc();
+          ai.time_statcond += tc.to_double();
+
+          std::cout << "mat_cond" << std::endl;
+          std::cout << scnp.first << std::endl;
+          std::cout << "rhs_cond" << std::endl;
+          std::cout << scnp.second << std::endl;
+
+          assembler.assemble(m_msh, cl, scnp);
+          i++;
+       }
+
+       assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
+       assembler.finalize(m_system_matrix, m_system_rhs);
+
+       ai.linear_system_size = m_system_matrix.rows();
+       return ai;
+    }
+
+    template<typename LoadFunction, typename BoundaryConditionFunction>
+    assembly_info
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
     {
 
 
         grad_type gradrec(m_degree);
         stab_type stab(m_degree);
-        div_type   divrec(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -272,7 +357,6 @@ public:
             tc.toc();
             ai.time_stab += tc.to_double();
 
-            divrec.compute(m_msh, cl);
             tc.tic();
 
 
@@ -303,7 +387,25 @@ public:
             ai.time_statcond += tc.to_double();
 
             assembler.assemble(m_msh, cl, scnp);
+
+
+
+            std::cout << "SOLUTIONPRED" << std::endl;
+            std::cout << m_solution_data.at(i) << std::endl;
+
+            std::cout << "Gu" << std::endl;
+            std::cout << gtu << std::endl;
+            std::cout << "STu" << std::endl;
+            std::cout << stu << std::endl;
+
+
+            std::cout << "mat_cond" << std::endl;
+            std::cout << scnp.first << std::endl;
+            std::cout << "rhs_cond" << std::endl;
+            std::cout << scnp.second << std::endl;
+
             i++;
+
         }
 
          assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
@@ -366,11 +468,90 @@ public:
 
     template<typename LoadFunction>
     postprocess_info
+    postprocesslin(const LoadFunction& lf)
+    {
+       sgrad_type gradrec(m_degree);
+       stab_type stab(m_degree);
+       //div_type   divrec(m_degree);
+
+       statcond_type statcond(m_degree);
+
+       face_basis_type face_basis(m_degree);
+       size_t fbs = face_basis.size();
+       cell_basis_type cell_basis(m_degree);
+       size_t cbs = cell_basis.size();
+
+       postprocess_info pi;
+
+       m_postprocess_data.clear();
+
+       m_postprocess_data.reserve(m_msh.cells_size());
+
+       timecounter tc;
+       tc.tic();
+
+       scalar_type lambda = 1.0;
+       scalar_type mu = 1.0;
+
+       size_t i =0;
+       for (auto& cl : m_msh)
+       {
+          auto fcs = faces(m_msh, cl);
+          auto num_faces = fcs.size();
+
+          dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
+
+          for (size_t face_i = 0; face_i < num_faces; face_i++)
+          {
+             auto fc = fcs[face_i];
+             auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+             if (!eid.first)
+                throw std::invalid_argument("This is a bug: face not found");
+
+             auto face_id = eid.second;
+
+             dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
+             xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+             xFs.block(face_i * fbs, 0, fbs, 1) = xF;
+          }
+
+          gradrec.compute(m_msh, cl);
+          stab.compute(m_msh, cl, gradrec.oper);
+          //divrec.compute(m_msh, cl);
+
+
+          /////// LINEAIRE ////////////////
+
+
+                  dynamic_matrix<scalar_type> lhs = 2.0*mu*gradrec.data + 2.0*mu*stab.data;// + lambda * divrec.data;
+
+
+                  dynamic_vector<scalar_type> rhsext = disk::compute_rhs_ext<cell_basis_type, cell_quadrature_type>
+                                                      (m_msh, cl, lf, m_cell_degree,  m_solution_data.at(i));
+
+          dynamic_vector<scalar_type> rhs = -( lhs * m_solution_data.at(i) - rhsext);
+          dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
+          dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
+          m_postprocess_data.push_back(x);
+
+          std::cout << "sol" << std::endl;
+          std::cout << xFs << std::endl;
+          std::cout << "recover" << std::endl;
+          std::cout << x << std::endl;
+       }
+       tc.toc();
+
+       pi.time_postprocess = tc.to_double();
+
+       return pi;
+    }
+
+    template<typename LoadFunction>
+    postprocess_info
     postprocess(const LoadFunction& lf)
     {
         grad_type gradrec(m_degree);
         stab_type stab(m_degree);
-        div_type   divrec(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -415,7 +596,6 @@ public:
 
             gradrec.compute(m_msh, cl);
             stab.compute(m_msh, cl, gradrec.oper);
-            divrec.compute(m_msh, cl);
 
             /////// NON LINEAIRE /////////
             auto gtu = gradrec.oper * m_solution_data.at(i);
@@ -552,6 +732,9 @@ public:
       scalar_type max_error(0);
 
       relative_error = m_system_rhs.dot(m_system_rhs);
+
+      std::cout << "m_rhs_systeme" << std::endl;
+      std::cout << m_system_rhs << std::endl;
 
       for (size_t j = 0; j < m_system_rhs.size(); j++){
          scalar_type test_error = std::abs(m_system_rhs(j));

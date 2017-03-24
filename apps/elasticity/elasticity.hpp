@@ -70,6 +70,35 @@ compute_rhs_whole(const Mesh& msh, const typename Mesh::cell& cl,
     return ret;
 }
 
+
+template<typename CellBasisType, typename CellQuadType,
+typename Mesh,
+typename Function>
+dynamic_vector<typename Mesh::scalar_type>
+compute_rhs_cell(const Mesh& msh, const typename Mesh::cell& cl,
+                  const Function& f, size_t degree)
+{
+   typedef dynamic_vector<typename Mesh::scalar_type> vector_type;
+
+   auto cell_basis     = CellBasisType(degree);
+   auto cell_quad      = CellQuadType(2*degree);
+
+
+   vector_type ret = vector_type::Zero(cell_basis.size());
+
+   auto cell_quadpoints = cell_quad.integrate(msh, cl);
+   for (auto& qp : cell_quadpoints)
+   {
+      auto phi = cell_basis.eval_functions(msh, cl, qp.point());
+      auto fval = f(qp.point());
+      for (size_t i = 0; i < cell_basis.size(); i++)
+         ret(i) += qp.weight() * mm_prod(fval, phi.at(i));
+   }
+
+   return ret;
+}
+
+
    template<typename Mesh, typename CellBasisType, typename CellQuadType,
     typename FaceBasisType, typename FaceQuadType, typename Solution>
 class l2_error
@@ -136,15 +165,15 @@ public:
                                                    face_quadrature_type> proj(m_degree);
 
 
-            dynamic_vector<scalar_type> true_dof = proj.compute_whole(msh, cl, sol);
+            dynamic_vector<scalar_type> true_dof = proj.compute_cell(msh, cl, sol);
             dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
 
-            //std::cout << " " << '\n';
+//             std::cout << "error" << std::endl;
 //             for (size_t i = 0; i < comp_dof.size(); i++) {
 //                std::cout << true_dof(i) <<" vs "<< comp_dof(i)  << '\n';
 //             }
             dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
-            scalar_type err_dof = diff_dof.dot(proj.whole_mm * diff_dof);
+            scalar_type err_dof = diff_dof.dot(proj.cell_mm * diff_dof);
 
 
             return err_dof;
@@ -295,153 +324,6 @@ test_condensation(const MeshType& msh, const Solution& solution, const size_t de
 }
 
 
-template<typename MeshType, typename Function, typename Solution>
-void test_divergence(MeshType& msh, const Function& load, const Solution& solution, size_t degree)
-{
-    typedef MeshType                            mesh_type;
-
-    typedef typename mesh_type::scalar_type     scalar_type;
-
-    typedef typename mesh_type::cell            cell_type;
-    typedef typename mesh_type::face            face_type;
-
-    typedef disk::quadrature<mesh_type, cell_type>   cell_quadrature_type;
-    typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
-    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
-    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
-    typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>  div_cell_basis_type;
-
-
-    if (degree < 1)
-    {
-        std::cout << "Only K > 0 for this problem" << std::endl;
-        return;
-    }
-
-
-    disk::divergence_reconstruction_elas<mesh_type,
-                                          cell_basis_type,
-                                          cell_quadrature_type,
-                                          face_basis_type,
-                                          face_quadrature_type,
-                                          div_cell_basis_type,
-                                          cell_quadrature_type> divrec(degree);
-
-
-    disk::diffusion_like_static_condensation<mesh_type,
-                                                   cell_basis_type,
-                                                   cell_quadrature_type,
-                                                   face_basis_type,
-                                                   face_quadrature_type> statcond(degree);
-
-    disk::assembler_elas<mesh_type, face_basis_type,
-                          face_quadrature_type> assembler(msh, degree);
-
-
-    disk::l2_error<mesh_type, cell_basis_type, cell_quadrature_type, face_basis_type,
-                                                   face_quadrature_type, Solution> error(degree);
-
-      disk::projector_elas<mesh_type,
-                                                                                             cell_basis_type,
-                                                                                             cell_quadrature_type,
-                                                                                             face_basis_type,
-                                                                                             face_quadrature_type> proj(degree);
-
-    scalar_type mu      = 0.0;
-    scalar_type lambda  = 1.0;
-    const size_t DIM = msh.dimension;
-
-    timecounter tc;
-
-    tc.tic();
-    for (auto& cl : msh)
-    {
-        divrec.compute(msh, cl);
-
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
-        assert(cell_rhs.size() == DIM * binomial(degree + DIM, degree));
-        dynamic_matrix<scalar_type> loc = lambda * divrec.data;
-        auto sc = statcond.compute(msh, cl, loc, cell_rhs);
-        assembler.assemble(msh, cl, sc);
-    }
-
-    assembler.impose_boundary_conditions(msh, solution);
-    assembler.finalize();
-    tc.toc();
-
-    std::cout << "Assembly time: " << tc << " seconds." << std::endl;
-
-    tc.tic();
-
-//#ifdef HAVE_SOLVER_WRAPPERS
-//    agmg_solver<scalar_type> solver;
-//    dynamic_vector<scalar_type> X = solver.solve(assembler.matrix, assembler.rhs);
-//#else
-
-#ifdef HAVE_INTEL_MKL
-    Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
-#else
-    Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
-#endif
-
-    size_t systsz = assembler.matrix.rows();
-    size_t nnz = assembler.matrix.nonZeros();
-
-     std::cout << "Starting linear solver..." << std::endl;
-     std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
-     std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
-
-
-    solver.analyzePattern(assembler.matrix);
-    solver.factorize(assembler.matrix);
-    dynamic_vector<scalar_type> X = solver.solve(assembler.rhs);
-//#endif
-
-    tc.toc();
-    std::cout << "Solver time: " << tc << " seconds." << std::endl;
-
-    face_basis_type face_basis(degree);
-    auto fbs = face_basis.size();
-
-    scalar_type l2 = 0.0;
-    size_t cont_cell = 0;
-
-    for (auto& cl : msh)
-    {
-        auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
-
-        dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
-
-        for (size_t face_i = 0; face_i < num_faces; face_i++)
-        {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
-
-            auto face_id = eid.second;
-
-            dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-            xF = X.block(face_id * fbs, 0, fbs, 1);
-            xFs.block(face_i * fbs, 0, fbs, 1) = xF;
-        }
-
-        divrec.compute(msh, cl);
-
-        auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, solution, degree);
-        dynamic_matrix<scalar_type> loc = lambda * divrec.data ;
-
-        dynamic_vector<scalar_type> x = statcond.recover(msh, cl, loc, cell_rhs, xFs);
-
-        l2 += error.compute(msh, cl, x, solution);
-        cont_cell += 1;
-
-    }
-
-    std::cout << "test div l2_error: " << l2 << std::endl;
-
-}
 
 
 template<typename MeshType, typename Function, typename Solution>
@@ -458,7 +340,6 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
     typedef disk::quadrature<mesh_type, face_type>   face_quadrature_type;
     typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>  cell_basis_type;
     typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>  face_basis_type;
-
 
     if (degree < 1)
     {
@@ -513,11 +394,25 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
         stab.compute(msh, cl, gradrec.oper);
 
         auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
+
+//         std::cout << "gradrec" << std::endl;
+//         std::cout << gradrec.oper << std::endl;
+//         std::cout << "stab" << std::endl;
+//         std::cout << stab.data << std::endl;
+//         std::cout << "rhs" << std::endl;
+//         std::cout << cell_rhs << std::endl;
         //std::cout << cell_rhs << '\n';
         assert(cell_rhs.size() == DIM * binomial(degree + DIM, degree));
-        dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
-                                          2 * mu * stab.data;
+        dynamic_matrix<scalar_type> loc =  2.0* mu * gradrec.data +
+                                            2.0*mu * stab.data;
         auto sc = statcond.compute(msh, cl, loc, cell_rhs);
+
+//         std::cout << "mat_cond" << std::endl;
+//         std::cout << sc.first << std::endl;
+//         std::cout << "rhs_cond" << std::endl;
+//         std::cout << sc.second << std::endl;
+
+
         assembler.assemble(msh, cl, sc);
     }
 
@@ -569,6 +464,8 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
 
         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
 
+
+
         for (size_t face_i = 0; face_i < num_faces; face_i++)
         {
             auto fc = fcs[face_i];
@@ -581,16 +478,32 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
             dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
             xF = X.block(face_id * fbs, 0, fbs, 1);
             xFs.block(face_i * fbs, 0, fbs, 1) = xF;
+
+//             std::cout << "sol" << std::endl;
+//             std::cout << xFs << std::endl;
         }
 
         gradrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
 
         auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
-        dynamic_matrix<scalar_type> loc = 2 * mu * gradrec.data +
-                                          2 * mu * stab.data;
+        dynamic_matrix<scalar_type> loc = 2.0* mu * gradrec.data +
+                                          2.0* mu * stab.data;
 
         dynamic_vector<scalar_type> x = statcond.recover(msh, cl, loc, cell_rhs, xFs);
+
+        auto dof_true = proj.compute_whole(msh, cl, solution);
+
+        std::cout << "STU" << std::endl;
+        std::cout << stab.data * x << std::endl;
+        std::cout << "USTU " << x.transpose() * stab.data * x << std::endl;
+
+        std::cout << "STU true" << std::endl;
+        std::cout << stab.data * dof_true << std::endl;
+        std::cout << "USTU " << dof_true.transpose() * stab.data * dof_true << std::endl;
+
+//         std::cout << "recover" << std::endl;
+//         std::cout << x << std::endl;
 
         l2 += error.compute(msh, cl, x, solution);
         cont_cell += 1;

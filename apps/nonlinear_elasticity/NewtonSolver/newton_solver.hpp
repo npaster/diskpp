@@ -126,7 +126,7 @@ public:
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf,
             const std::vector<matrix_dynamic>& offline_data,
             const scalar_type epsilon = 1.E-6,
-            const std::size_t iter_max = 10, const std::size_t reac_iter=1)
+            const std::size_t iter_max = 30, const std::size_t reac_iter=1)
    {
       newton_info ai;
       bzero(&ai, sizeof(ai));
@@ -150,7 +150,8 @@ public:
           tc.toc();
           ai.time_assembly += tc.to_double();
          // test convergence
-         m_convergence = newton_step.test_convergence(epsilon, iter);
+         if(iter > 0)
+            m_convergence = newton_step.test_convergence(epsilon, iter - 1);
 
          if(!m_convergence){
             // test recompute lu decomposition

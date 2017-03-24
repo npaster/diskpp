@@ -48,17 +48,20 @@ Fichier pour gérer les lois de comportements
 template<typename scalar_type>
 class StVenantKirchhoffLaw
 {
+   typedef scalar_type   tensor_1d;
    typedef static_tensor<scalar_type, 2>   tensor_2d;
    typedef static_tensor<scalar_type, 3>   tensor_3d;
    scalar_type m_mu;
    scalar_type m_lambda;
 
+   tensor_1d  elasticity_tensor_1d;
    tensor_2d  elasticity_tensor_2d;
    tensor_3d  elasticity_tensor_3d;
 
    void
    init_elasticity_tensor()
    {
+      elasticity_tensor_1d = m_lambda + 2.0 * m_mu;
       elasticity_tensor_2d = m_lambda * compute_IxI<scalar_type, 2>() + 2.0*m_mu * compute_IdentityTensor<scalar_type,2>();
       elasticity_tensor_3d = m_lambda * compute_IxI<scalar_type, 3>() + 2.0*m_mu * compute_IdentityTensor<scalar_type,3>();
 
@@ -114,8 +117,22 @@ public:
 
       return m_lambda * EGl.trace() * Id + 2.0 * m_mu * EGl;
    }
+   
+   //1D case
+   scalar_type
+   compute_PK2(const scalar_type& CauchyGreenDroit)
+   {
+      scalar_type EGl = compute_GreenLagrangeTensor(CauchyGreenDroit);
+      
+      return m_lambda * EGl  + 2.0 * m_mu * EGl;
+   }
 
-
+   tensor_1d
+   compute_tangent_moduli(const static_matrix<scalar_type,1,1>& CauchyGreenDroit)
+   {
+      return elasticity_tensor_1d;
+   }
+   
    tensor_2d
    compute_tangent_moduli(const static_matrix<scalar_type,2,2>& CauchyGreenDroit)
    {
@@ -128,6 +145,13 @@ public:
       return elasticity_tensor_3d;
    }
 
+   std::pair<scalar_type, scalar_type>
+   compute_whole(const scalar_type& CauchyGreenDroit)
+   {
+      scalar_type PK2 = compute_PK2(CauchyGreenDroit);
+      
+      return std::make_pair(PK2, elasticity_tensor_1d);
+   }
 
    std::pair<static_matrix<scalar_type, 2, 2>, static_tensor<scalar_type, 2> >
    compute_whole(const static_matrix<scalar_type, 2, 2>& CauchyGreenDroit)

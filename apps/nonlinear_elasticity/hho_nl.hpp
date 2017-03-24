@@ -473,6 +473,32 @@ compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
     return ret;
 }
 
+template<typename CellBasisType, typename Mesh>
+typename Mesh::scalar_type
+compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
+                    const dynamic_vector<typename Mesh::scalar_type>& gradrec_coeff,
+                    const point<typename Mesh::scalar_type,1>& pt, const size_t degree)
+{
+   typedef typename Mesh::scalar_type               scalar_type;
+   typedef static_matrix<scalar_type,1,1>            gradient_value_type;
+
+   CellBasisType cell_basis          = CellBasisType(degree+1);
+
+   auto G_range = cell_basis.range(1, degree+1);
+
+   scalar_type ret = 0.0;
+
+   auto dphi = cell_basis.eval_gradients(msh, cl, pt);
+   assert(cell_basis.size() == dphi.size());
+   assert((G_range.to()-G_range.from()) == gradrec_coeff.size());
+
+   for(size_t i = G_range.from(); i< G_range.to(); i++){
+      ret += gradrec_coeff(i - G_range.from())  * dphi.at(i);
+   }
+
+   return ret;
+}
+
 
 template<typename CellBasisType, typename CellQuadType, typename Mesh>
 std::pair<dynamic_matrix<typename Mesh::scalar_type>, dynamic_vector<typename Mesh::scalar_type> >
@@ -496,7 +522,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
     vector_type R = vector_type::Zero(dim_mat);
 
     //  a automatiser
-    StVenantKirchhoffLaw<scalar_type>  law(1.0,1.0);
+    StVenantKirchhoffLaw<scalar_type>  law(1.0,0.0);
     //NeoHookeanLaw<scalar_type>  law(1.0,1.0, 1);
 
     auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
@@ -507,22 +533,33 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
         auto gradu = compute_gradient_pt<CellBasisType, Mesh>(msh, cl, gradrec_coeff, qp.point(), degree);
         //compute F(u) and F(u)^T
         auto fu = compute_FTensor(gradu);
-        auto transpo_fu = fu.transpose();
+        auto transpo_fu = fu; //fu.transpose(); A REMAITRE POUR DIM > 1
 
         //compute transpo_fu * dphi
         decltype(dphi) fdphi;
         fdphi.reserve(dphi.size());
 
-        for(size_t i = 0; i < dphi.size(); i++)
-            fdphi.push_back(transpo_fu * dphi.at(i));
+        for(size_t i = 0; i < dphi.size(); i++){
+           fdphi.push_back(transpo_fu * dphi.at(i));
+        }
 
         //compute behavior C et S
         auto cu = compute_CauchyGreenRightTensor(fu);
+
+        std::cout << "Fu" << std::endl;
+        std::cout << fu << std::endl;
+        std::cout << "Cu" << std::endl;
+        std::cout << cu << std::endl;
 
         auto tensor_behavior = law.compute_whole(cu);
         //std::cout << "PK2" << tensor_behavior.first << '\n';
         auto pk2 = tensor_behavior.first;
         auto Ce = tensor_behavior.second;
+
+        std::cout << "PK2" << std::endl;
+        std::cout << pk2 << std::endl;
+        std::cout << "Ce" << std::endl;
+        std::cout << Ce << std::endl;
 
         //compute C(u) : transpo_fu * dphi
         decltype(dphi) cdphi;
@@ -530,8 +567,8 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
 
         for(size_t i = 0; i < fdphi.size(); i++)
         {
-            // cdphi.push_back(tm_prod(Ce, fdphi.at(i)) );
-            cdphi.push_back(fdphi.at(i));
+            cdphi.push_back(tm_prod(Ce, fdphi.at(i)) );
+            //cdphi.push_back(fdphi.at(i));
         }
 
 
@@ -556,7 +593,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
                 K(i - G_range.from(), j - G_range.from()) += qp.weight() * mm_prod(sdphi.at(i), dphi.at(j));
 
         //compute F(u) * S(u)
-        decltype(fu) fsu = fu /* * pk2 */;
+        decltype(fu) fsu = fu  * pk2 ;
 
         //compure R_int
         for (size_t i = G_range.from(); i < G_range.to(); i++)
@@ -564,9 +601,9 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
     }
 
     //we use the symetrie of K
-    for (size_t i = 0; i < dim_mat; i++)
-         for (size_t j = i + 1; j < dim_mat; j++)
-             K(j,i) = K(i,j);
+   for (size_t i = 0; i < dim_mat; i++)
+      for (size_t j = i + 1; j < dim_mat; j++)
+         K(j,i) = K(i,j);
 
 
     return std::make_pair(K,R);
@@ -596,6 +633,11 @@ assemble_rhs(const dynamic_matrix<T>& GT, const dynamic_vector<T>& STu,
     assert(GT.rows() == Rint.rows());
     assert(GT.cols() == STu.rows());
     assert(STu.rows() == Rext.rows());
+
+    std::cout << "Rint" << std::endl;
+    std::cout << Rint << std::endl;
+    std::cout << "Rext" << std::endl;
+    std::cout << Rext << std::endl;
 
     return (GT.transpose() * Rint + coeff_stab * STu - Rext);
 }

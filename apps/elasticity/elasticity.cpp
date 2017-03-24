@@ -208,8 +208,8 @@ int main(void)
      mesh_type msh;
     disk::netgen_mesh_loader<RealType, 2> loader;
     //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/3D_tetras/netgen/convt01.mesh"))
-    //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
-    if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    //if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
     {
         std::cout << "Problem loading mesh." << std::endl;
         return 1;
@@ -223,6 +223,13 @@ int main(void)
     typedef static_vector<scalar_type, 2> result_type;
 
 
+    auto f1 = [](const point<scalar_type, 1>& p) -> auto {
+       return  2.0*M_PI *  M_PI * sin(p.x() * M_PI);
+    };
+
+    auto sf1 = [](const point<scalar_type, 1>& p) -> auto {
+       return sin(p.x() * M_PI);
+    };
 
     auto f2 = [](const point<scalar_type,2>& p) -> result_type {
         const scalar_type lambda =1.0;
@@ -309,14 +316,55 @@ int main(void)
 //     };
 
 
-   test_condensation(msh, sf2, 1);
+   //test_condensation(msh, sf2, 1);
    //test_divergence(msh, f2,  sfdiv2, 3);
 
-   test_gradient(msh, fgrad2, sfgrad2, 1);
-   test_gradient(msh, fgrad2, sfgrad2, 2);
-   test_gradient(msh, fgrad2, sfgrad2, 3);
+    test_gradient(msh, fgrad2, sfgrad2, 1);
+//    test_gradient(msh, fgrad2, sfgrad2, 2);
+//    test_gradient(msh, fgrad2, sfgrad2, 3);
 
 
-   test_new_elasticity(msh, f2, sf2, 2);
+   //test_new_elasticity(msh, f2, sf2, 2);
+
+
+
+
+
+   ////////////////// 1D //////////////////////////
+    std::cout << "Mesh format: 1D uniform" << std::endl;
+    int elems_1d = 2;
+    auto msh1D = disk::load_uniform_1d_mesh<RealType>(0, 1, elems_1d);
+    //test_condensation(msh1D, sf1, 1);
+
+    auto load = [](const point<scalar_type,1>& p) -> auto {
+       const scalar_type lambda = scalar_type{0.0};
+       const scalar_type mu = scalar_type{1.0};
+       return 0.0;
+    };
+
+    auto solution = [](const point<scalar_type,1>& p) -> auto {
+       return p.x();
+    };
+
+
+    test_gradient(msh1D, load, solution, 1);
+//     test_gradient(msh1D, sf1, sf1, 2);
+ //    test_gradient(msh1D, f1, sf1, 5);
+
+
+
+     auto fe1 = [](const point<scalar_type, 1>& p) -> auto {
+        return  3.0*M_PI *  M_PI * sin(p.x() * M_PI);
+     };
+
+     auto sfe1 = [](const point<scalar_type, 1>& p) -> auto {
+        return sin(p.x() * M_PI);
+     };
+ //    test_new_elasticity(msh1D, fe1, sfe1, 1);
+//      test_new_elasticity(msh1D, fe1, sfe1, 3);
+//      test_new_elasticity(msh1D, fe1, sfe1, 4);
+//      test_new_elasticity(msh1D, fe1, sfe1, 5);
+
+   return 0;
 
 }
