@@ -181,6 +181,84 @@ public:
     }
 };
 
+template<typename Mesh, typename CellBasisType, typename CellQuadType,
+         typename FaceBasisType, typename FaceQuadType,
+          typename Solution>
+dynamic_vector<typename Mesh::scalar_type>
+compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
+            const Solution& as, dynamic_matrix<typename Mesh::scalar_type> G,
+          size_t degree)
+{
+   typedef dynamic_vector<typename Mesh::scalar_type> vector_type;
+
+   auto cell_basis     = CellBasisType(degree+1);
+   auto cell_quad      = CellQuadType(2*(degree+1));
+
+
+   disk::projector<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk(degree);
+
+   disk::projector<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk1(degree+1);
+   // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
+   auto proju = projk.compute_whole(msh, cl, as);
+
+   //keep only the part of uT
+   // multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
+   auto Gu = G * proju;
+
+   auto cell_quadpoints = cell_quad.integrate(msh, cl);
+   size_t j = 0;
+   vector_type ret = vector_type::Zero(cell_quadpoints.size());
+   // test the reconstructed solution at the gauss point
+   for (auto& qp : cell_quadpoints)
+   {
+      auto phi = cell_basis.eval_functions(msh, cl, qp.point());
+      auto val = as(qp.point()); // value of the analytiqual solution
+      ret(j) = proju(0); // the constant for the continuity
+      assert(Gu.size() == (cell_basis.size()-1)); // verify the size
+
+      //reconstruct the solution
+      for (size_t i = 1; i < cell_basis.size(); i++)
+      ret(j) += Gu(i-1) * phi[i];
+
+      std::cout << "recons :" << val << " " << ret(j) << " " << ret(j)-val << '\n';
+      j++;
+   }
+
+   return ret;
+}
+
+
+template<typename Mesh, typename CellBasisType, typename CellQuadType,
+         typename FaceBasisType, typename FaceQuadType,
+          typename Solution>
+void
+test_gradient_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
+            const Solution& as, dynamic_matrix<typename Mesh::scalar_type> G,
+          size_t degree)
+{
+   disk::projector_elas<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk(degree);
+
+   disk::projector_elas<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk1(degree+1);
+   // projetion of the solution on P^(k)_d (solution of (u,v) = (f,v))
+   auto proju = projk.compute_whole(msh, cl, as);
+
+   //keep only the part of uT
+   // multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
+   auto Gu = G * proju;
+
+   // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
+   auto sol = projk1.compute_cell(msh, cl, as);
+
+   for (size_t i = 0; i < Gu.size(); i++) {
+      std::cout << sol(i+1) << " vs " << Gu(i) << " " << Gu(i)-sol(i+1) << '\n';
+   }
+
+}
+
 template<typename MeshType, typename Solution>
 void
 test_condensation(const MeshType& msh, const Solution& solution, const size_t degree)
@@ -388,17 +466,21 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
     timecounter tc;
 
     tc.tic();
+    size_t cell_i = 0;
     for (auto& cl : msh)
     {
         gradrec.compute(msh, cl);
         stab.compute(msh, cl, gradrec.oper);
 
+        test_gradient_reconstruction<mesh_type, cell_basis_type, cell_quadrature_type,
+                                         face_basis_type, face_quadrature_type, Solution>
+                                         (msh, cl, solution, gradrec.oper, degree);
         auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(msh, cl, load, degree);
 
 //         std::cout << "gradrec" << std::endl;
 //         std::cout << gradrec.oper << std::endl;
-//         std::cout << "stab" << std::endl;
-//         std::cout << stab.data << std::endl;
+      //   std::cout << "stab" << std::endl;
+      //   std::cout << stab.data << std::endl;
 //         std::cout << "rhs" << std::endl;
 //         std::cout << cell_rhs << std::endl;
         //std::cout << cell_rhs << '\n';
@@ -414,6 +496,9 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
 
 
         assembler.assemble(msh, cl, sc);
+        cell_i++;
+        if(cell_i == 4)
+         assert(false);
     }
 
     assembler.impose_boundary_conditions(msh, solution);
@@ -494,13 +579,13 @@ void test_gradient(MeshType& msh, const Function& load, const Solution& solution
 
         auto dof_true = proj.compute_whole(msh, cl, solution);
 
-        std::cout << "STU" << std::endl;
-        std::cout << stab.data * x << std::endl;
+      //   std::cout << "STU" << std::endl;
+      //   std::cout << stab.data * x << std::endl;
         std::cout << "USTU " << x.transpose() * stab.data * x << std::endl;
 
-        std::cout << "STU true" << std::endl;
-        std::cout << stab.data * dof_true << std::endl;
-        std::cout << "USTU " << dof_true.transpose() * stab.data * dof_true << std::endl;
+      //   std::cout << "STU true" << std::endl;
+      //   std::cout << stab.data * dof_true << std::endl;
+        std::cout << "USTU true " << dof_true.transpose() * stab.data * dof_true << std::endl;
 
 //         std::cout << "recover" << std::endl;
 //         std::cout << x << std::endl;

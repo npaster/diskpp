@@ -208,8 +208,8 @@ int main(void)
      mesh_type msh;
     disk::netgen_mesh_loader<RealType, 2> loader;
     //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/3D_tetras/netgen/convt01.mesh"))
-    if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
-    //if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    //if (!loader.read_mesh("/home/C00976/Documents/Disk++/meshes/2D_triangles/netgen/tri01.mesh2d"))
+    if (!loader.read_mesh("/users/npignet/Documents/Diskpp/meshes/2D_triangles/netgen/tri01.mesh2d"))
     {
         std::cout << "Problem loading mesh." << std::endl;
         return 1;
@@ -319,9 +319,9 @@ int main(void)
    //test_condensation(msh, sf2, 1);
    //test_divergence(msh, f2,  sfdiv2, 3);
 
-    test_gradient(msh, fgrad2, sfgrad2, 1);
+    //test_gradient(msh, fgrad2, sfgrad2, 1);
 //    test_gradient(msh, fgrad2, sfgrad2, 2);
-//    test_gradient(msh, fgrad2, sfgrad2, 3);
+    test_gradient(msh, fgrad2, sfgrad2, 4);
 
 
    //test_new_elasticity(msh, f2, sf2, 2);
@@ -347,9 +347,9 @@ int main(void)
     };
 
 
-    test_gradient(msh1D, load, solution, 1);
-//     test_gradient(msh1D, sf1, sf1, 2);
- //    test_gradient(msh1D, f1, sf1, 5);
+    test_gradient(msh1D, f1, sf1, 1);
+     test_gradient(msh1D, f1, sf1, 2);
+     test_gradient(msh1D, f1, sf1, 5);
 
 
 

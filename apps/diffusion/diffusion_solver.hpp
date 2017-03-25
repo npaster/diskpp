@@ -63,18 +63,28 @@ compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
 
 
     disk::projector<Mesh, CellBasisType, CellQuadType,
-               FaceBasisType, FaceQuadType> projk(degree+1);
+               FaceBasisType, FaceQuadType> projk(degree);
+
+               disk::projector<Mesh, CellBasisType, CellQuadType,
+                          FaceBasisType, FaceQuadType> projk1(degree+1);
  // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
-   auto proju = projk.compute_cell(msh, cl, as);
+   auto proju = projk.compute_whole(msh, cl, as);
 
-//keep only the part of uT 
+//keep only the part of uT
 // multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
-   auto Gu = G.block(0,0, G.rows() ,proju.rows()-1) *
-                  proju.block(1,0, proju.rows()-1 ,1);
+   auto Gu = G * proju; //G.block(0,0, G.rows() ,proju.rows()-1) *
+                  //proju.block(0,0, proju.rows() ,1);
 
-    auto cell_quadpoints = cell_quad.integrate(msh, cl);
-    size_t j = 0;
-    vector_type ret = vector_type::Zero(cell_quadpoints.size());
+
+   auto sol = projk1.compute_cell(msh, cl, as);
+
+   for (size_t i = 0; i < Gu.size(); i++) {
+      std::cout << sol(i+1) << " vs " << Gu(i) << " " << Gu(i)-sol(i+1) << '\n';
+   }
+
+     auto cell_quadpoints = cell_quad.integrate(msh, cl);
+     size_t j = 0;
+     vector_type ret = vector_type::Zero(cell_quadpoints.size());
     // test the reconstructed solution at the gauss point
     for (auto& qp : cell_quadpoints)
     {
@@ -87,7 +97,7 @@ compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
         for (size_t i = 1; i < cell_basis.size(); i++)
             ret(j) += Gu(i-1) * phi[i];
 
-         std::cout << val << " " << ret(j) << " " << ret(j)-val << '\n';
+         std::cout << "recons :" << val << " " << ret(j) << " " << ret(j)-val << '\n';
          j++;
     }
 
