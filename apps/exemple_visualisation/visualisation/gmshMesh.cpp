@@ -28,6 +28,9 @@ namespace visu{
 Gmesh::Gmesh() : _dim_topology(0), _nodes(), _vertices(), _edges(), _triangles(), _quadrangles(),
                  _tetrahedra() , _hexahedra(), _prisms(), _pyramids(), _number_of_elements(0) {}
 
+Gmesh::Gmesh(size_t dim) : _dim_topology(dim), _nodes(), _vertices(), _edges(), _triangles(), _quadrangles(),
+                 _tetrahedra() , _hexahedra(), _prisms(), _pyramids(), _number_of_elements(0) {}
+
 Gmesh::Gmesh(const size_t dim, const std::vector<Node>& nodes, const std::vector<Vertice>& vertices,
       const std::vector<Edge>& edges) :
       _dim_topology(dim), _nodes(nodes), _vertices(vertices), _edges(edges), _triangles(), _quadrangles(),

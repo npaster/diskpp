@@ -192,19 +192,19 @@ public:
 
             mm  += qp.weight() * phi * phi.transpose();
             rhs += qp.weight() * f(qp.point()) * phi;
-            
+
             for(size_t i=0; i < phi.size(); i++){
                std::cout << "rhs_v " <<i<< " " << f(qp.point()) << " " << phi(i) << std::endl;
             }
         }
 
         cell_mm = mm;
-        
-        std::cout << "mat_proj" << std::endl;
-        std::cout << cell_mm << std::endl;
-        std::cout << "rhs_proj" << std::endl;
-        std::cout << rhs << std::endl;
-        
+
+      //   std::cout << "mat_proj" << std::endl;
+      //   std::cout << cell_mm << std::endl;
+      //   std::cout << "rhs_proj" << std::endl;
+      //   std::cout << rhs << std::endl;
+
         return mm.llt().solve(rhs);
     }
 
@@ -1054,7 +1054,7 @@ public:
 
         size_t cell_size = dsr.cell_range().size();
         size_t face_size = dsr.all_faces_range().size();
-        
+
         assert( cell_size ==  cell_rhs.rows() && "wrong rhs dimension");
         assert( (cell_size + face_size) == local_mat.rows() && "wrong lhs rows dimension");
         assert( (cell_size + face_size) == local_mat.cols() && "wrong lhs cols dimension");
@@ -1079,7 +1079,7 @@ public:
 
         return std::make_pair(AC, bC);
     }
-    
+
     std::pair<matrix_type, vector_type>
     compute(const mesh_type& msh, const cell_type& cl,
             const matrix_type& local_mat,
@@ -1095,7 +1095,7 @@ public:
 
         size_t cell_size = dsr.cell_range().size();
         size_t faces_size = dsr.all_faces_range().size();
-        
+
         assert( (cell_size + faces_size) ==  rhs.rows() && "wrong rhs dimension");
         assert( (cell_size + faces_size) ==  local_mat.rows() && "wrong lhs rows dimension");
         assert( (cell_size + faces_size) ==  local_mat.cols() && "wrong lhs cols dimension");
@@ -1110,10 +1110,10 @@ public:
         assert(K_TT.rows() + K_FT.rows() == local_mat.rows());
         assert(K_TF.rows() + K_FF.rows() == local_mat.rows());
         assert(K_FT.cols() + K_FF.cols() == local_mat.cols());
-        
+
         vector_type rhs_cell = rhs.block(0,0, cell_size, 1);
         vector_type rhs_faces = rhs.block(cell_size,0, faces_size, 1);
-        
+
         assert((rhs_cell.rows() + rhs_faces.rows() ) ==  rhs.rows() && "wrong rhs decomposition");
 
         auto K_TT_ldlt = K_TT.llt();
@@ -1142,7 +1142,7 @@ public:
 
         size_t cell_size        = dsr.cell_range().size();
         size_t all_faces_size   = dsr.all_faces_range().size();
-        
+
         assert(cell_rhs.rows() == cell_size && "wrong rhs_cell dimension");
         assert(solF.rows() == all_faces_size && "wrong solF dimension");
         assert( (cell_size + all_faces_size) == local_mat.rows() && "wrong lhs rows dimension");
@@ -1152,7 +1152,7 @@ public:
 
         matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
         matrix_type K_TF = local_mat.topRightCorner(cell_size, all_faces_size);
-        
+
         assert(K_TT.cols() == cell_size && "wrong K_TT dimension");
         assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
 
@@ -1166,8 +1166,8 @@ public:
 
         return ret;
     }
-    
-   
+
+
 
 };
 
@@ -1697,10 +1697,14 @@ public:
             for(size_t i=0; i< dphi.size(); i++){
                for(size_t j=i; j< dphi.size(); j++){
                   stiff_mat(i,j) += qp.weight() * mm_prod(dphi.at(i), dphi.at(j));
-                  stiff_mat(j,i) = stiff_mat(i,j);
                }
             }
         }
+
+        // lower part
+        for(size_t i=1; i< cell_basis.size(); i++)
+           for(size_t j=0; j< i-1; j++)
+             stiff_mat(i,j) = stiff_mat(j,i);
 
         /* LHS: take basis functions derivatives from degree 1 to K+1 */
         auto MG_rowcol_range = cell_basis.range(1, m_degree+1);
@@ -1908,7 +1912,7 @@ public:
                     for(size_t id=0; id< DIM; id++){
                        if(DIM==1)
                         dphi_ds=dphi_d(i, id);
-                       //else 
+                       //else
                         //dphi_ds(id)=dphi_d(i,id);
                     }
                     BD(i,j) -= qp.weight() * mm_prod(dphi_ds, phi.at(j));
@@ -2076,7 +2080,7 @@ public:
                 auto f_phi = face_basis.eval_functions(msh, fc, qp.point());
                 auto c_phi = cell_basis.eval_functions(msh, cl, qp.point());
                 //auto q_f_phi = qp.weight() * f_phi;
-                
+
                 assert(f_phi.size() == fbs);
                 assert(c_phi.size() == cell_basis.size());
 
@@ -2113,7 +2117,7 @@ public:
 
             assert(proj2.rows() == proj3.rows());
             assert(proj2.cols() == proj3.cols());
-            
+
             matrix_type BRF = proj2 + proj3;
 
             data += BRF.transpose() * face_mass_matrix * BRF / h;
@@ -2197,7 +2201,7 @@ public:
 
         auto fcs = faces(msh, cl);
         std::vector<size_t> l2g(fcs.size() * face_basis.size());
-        
+
         assert(dpkf == face_basis.size());
 
         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
@@ -2415,24 +2419,24 @@ public:
         }
 
         cell_mm = mm;
-        
+
 //         std::cout << "mat_proj" << std::endl;
 //         std::cout << cell_mm << std::endl;
 //         std::cout << "rhs_proj" << std::endl;
 //         std::cout << rhs << std::endl;
-        
-        
+
+
         return mm.llt().solve(rhs);
     }
-    
-    
+
+
     template<typename Function>
     vector_type
     compute_whole(const mesh_type& msh, const cell_type& cl, const Function& f)
     {
         auto fcs = faces(msh, cl);
         vector_type ret = vector_type::Zero(cell_basis.size() + fcs.size()*face_basis.size());
-        whole_mm = matrix_type::Zero(cell_basis.size() + fcs.size()*face_basis.size(), 
+        whole_mm = matrix_type::Zero(cell_basis.size() + fcs.size()*face_basis.size(),
                                            cell_basis.size() + fcs.size()*face_basis.size());
 
         ret.block(0, 0, cell_basis.size(), 1) = compute_cell(msh, cl, f);
@@ -2448,7 +2452,7 @@ public:
             for (auto& qp : face_quadpoints)
             {
                 auto phi = face_basis.eval_functions(msh, fc, qp.point());
-                
+
                 for(size_t i=0; i < phi.size(); i++)
                     for(size_t j=0; j < phi.size(); j++)
                         mm(i,j)  += qp.weight() *mm_prod(phi.at(i), phi.at(j));

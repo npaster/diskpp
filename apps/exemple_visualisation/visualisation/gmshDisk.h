@@ -128,6 +128,77 @@ Hexahedron convertHexahedron( const DiskHexa& hexahedron, const size_t index)
 }
 
 
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, size_t DIM, typename Cell>
+auto cell_nodes(const Mesh<T, DIM, Storage>& mesh, const Cell& cl)
+{
+   typedef Mesh<T, DIM, Storage>                 mesh_type;
+   static_assert(sizeof(mesh_type) == -1, "convert: not suitable for the requested kind of mesh");
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Cell>
+auto cell_nodes(const Mesh<T, 1, Storage>& mesh, const Cell& cl)
+{
+   auto storage = mesh.backend_storage();
+   auto cell_id = mesh.lookup(cl);
+   return (storage->edges[cell_id]).point_ids();
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Cell>
+auto cell_nodes(const Mesh<T, 2, Storage>& mesh, const Cell& cl)
+{
+   auto storage = mesh.backend_storage();
+   auto cell_id = mesh.lookup(cl);
+   return (storage->surfaces[cell_id]).point_ids();
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Cell>
+auto cell_nodes(const Mesh<T, 3, Storage>& mesh, const Cell& cl)
+{
+   auto storage = mesh.backend_storage();
+   auto cell_id = mesh.lookup(cl);
+   return (storage->volumes[cell_id]).point_ids();
+}
+
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, size_t DIM, typename Face>
+auto face_nodes(const Mesh<T, DIM, Storage>& mesh, const Face& fc)
+{
+   typedef Mesh<T, DIM, Storage>                 mesh_type;
+   static_assert(sizeof(mesh_type) == -1, "convert: not suitable for the requested kind of mesh");
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Face>
+auto face_nodes(const Mesh<T, 1, Storage>& mesh, const Face& fc)
+{
+   auto storage = mesh.backend_storage();
+   auto face_id = mesh.lookup(fc);
+   return (storage->nodes[face_id]).point_ids();
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Face>
+auto face_nodes(const Mesh<T, 2, Storage>& mesh, const Face& fc)
+{
+   auto storage = mesh.backend_storage();
+   auto face_id = mesh.lookup(fc);
+   return (storage->edges[face_id]).point_ids();
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage, typename Face>
+auto face_nodes(const Mesh<T, 3, Storage>& mesh, const Face& fc)
+{
+   auto storage = mesh.backend_storage();
+   auto face_id = mesh.lookup(fc);
+   return (storage->surfaces[face_id]).point_ids();
+}
+
 } //visu
 
 #endif

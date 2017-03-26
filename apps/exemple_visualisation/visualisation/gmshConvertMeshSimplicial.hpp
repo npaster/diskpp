@@ -38,6 +38,41 @@
 namespace visu{
 
 
+   template<typename T>
+   Gmesh convertMesh(const disk::simplicial_mesh<T,1> mesh)
+   {
+      Gmesh msh;
+
+      auto storage = mesh.backend_storage();
+
+
+      // conversion point in node
+      size_t nb_node(0);
+      for(auto point :  storage->points){
+         nb_node +=1;
+         msh.addNode(convertPoint(point, nb_node));
+
+         Vertice vert(nb_node, nb_node, 0, 0);
+         msh.addVertice(vert);
+      }
+      assert(storage->points.size() == msh.getNumberofNodes());
+
+
+      // conversion edge
+      size_t nb_edge(0);
+      for(auto edge :  storage->edges){
+         nb_edge +=1;
+         msh.addEdge(convertEdge(edge, nb_edge));
+      }
+      assert(storage->edges.size() == msh.getEdges().size());
+
+      assert((storage->edges.size() +  storage->nodes.size())
+      == msh.getNumberofElements());
+
+      return msh;
+
+   };
+
 template<typename T>
 Gmesh convertMesh(const disk::simplicial_mesh<T,2> mesh)
 {

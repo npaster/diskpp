@@ -50,10 +50,11 @@ struct solve_info
 };
 
 
-template<typename Mesh, typename Point>
+template<template<typename, size_t , typename> class Mesh,
+typename T, size_t DIM, typename Storage, typename Point>
 class NL_elasticity_solver
 {
-   typedef Mesh                                       mesh_type;
+   typedef Mesh<T, DIM, Storage>                      mesh_type;
    typedef typename mesh_type::scalar_type            scalar_type;
    typedef typename mesh_type::cell                   cell_type;
    typedef typename mesh_type::face                   face_type;
@@ -190,7 +191,7 @@ public:
 
       timecounter tc;
 
-      NewtonRaphson_solver_elasticity<Mesh> newton_solver(m_msh, m_degree, 0);
+      NewtonRaphson_solver_elasticity<Mesh<T,DIM,Storage>> newton_solver(m_msh, m_degree, 0);
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
@@ -298,7 +299,7 @@ void
                 auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
 
                 vector_dynamic pot = vector_dynamic::Zero(dim);
-                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size()/dim; i+=dim)
+                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i+=dim)
                     for(size_t j=0; j<dim; j++)
                             pot(j) += phi.at(i+j)(j) * x(i+j);
 
@@ -348,7 +349,7 @@ void
                 auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
 
                 vector_dynamic pot = vector_dynamic::Zero(dim);
-                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size()/dim; i+=dim)
+                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i+=dim)
                     for(size_t j=0; j<dim; j++)
                             pot(j) += phi.at(i+j)(j) * x(i+j);
 
@@ -373,4 +374,87 @@ void
 
         nodedata.saveNodeData(filename, msh); // save the view
     }
+
+
+    void
+    saveMesh(const std::string& filename)
+    {
+      visu::Gmesh gmsh = visu::convertMesh(m_msh);
+      gmsh.writeGmesh(filename, DIM);
+    }
+
+   void
+    compute_deformed(const std::string& filename)
+    {
+      visu::Gmesh gmsh(DIM);
+      auto storage = m_msh.backend_storage();
+
+      cell_basis_type cell_basis          = cell_basis_type(m_degree);
+      cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+
+      size_t cell_i(0);
+      size_t nb_nodes(0);
+      for (auto& cl : m_msh)
+      {
+          vector_dynamic x = m_solution_cells.at(cell_i++);
+          auto cell_nodes = visu::cell_nodes(m_msh, cl);
+          std::vector<visu::Node> new_nodes;
+          for (size_t i = 0; i < cell_nodes.size(); i++)
+          {
+             nb_nodes++;
+             auto point_ids = cell_nodes[i];
+             auto pt = storage->points[point_ids];
+
+             auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+
+              std::vector<scalar_type> coor(3, scalar_type{0});
+              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
+                  for(size_t j=0; j < DIM; j++)
+                          coor[j] += phi.at(i+j)(j) * x(i+j); // a voir
+
+             visu::Node tmp_node(coor, nb_nodes, 0);
+             new_nodes.push_back(tmp_node);
+             gmsh.addNode(tmp_node);
+          }
+          // add new element
+       }
+      gmsh.writeGmesh(filename, DIM);
+    }
+
+       void
+        compute_deformed1D(const std::string& filename)
+        {
+          visu::Gmesh gmsh(1);
+          auto storage = m_msh.backend_storage();
+
+          cell_basis_type cell_basis          = cell_basis_type(m_degree);
+          cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+
+          size_t cell_i(0);
+          size_t nb_nodes(0);
+          for (auto& cl : m_msh)
+          {
+              vector_dynamic x = m_solution_cells.at(cell_i++);
+              auto cell_nodes = visu::cell_nodes(m_msh, cl);
+              std::vector<visu::Node> new_nodes;
+              for (size_t i = 0; i < cell_nodes.size(); i++)
+              {
+                 nb_nodes++;
+                 auto point_ids = cell_nodes[i];
+                 auto pt = storage->points[point_ids];
+
+                 auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+
+                  std::vector<scalar_type> coor(3, scalar_type{0});
+                  for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i++)
+                     coor[0] += phi.at(i) * x(i); // a voir
+
+                 visu::Node tmp_node(coor, nb_nodes, 0);
+                 new_nodes.push_back(tmp_node);
+                 gmsh.addNode(tmp_node);
+              }
+              // add new element
+           }
+          gmsh.writeGmesh(filename, 2);
+        }
 };
