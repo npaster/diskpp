@@ -32,6 +32,7 @@
 
 #include "../exemple_visualisation/visualisation/gmshDisk.h"
 #include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
+#include "../exemple_visualisation/visualisation/gmshDeformed.hpp"
 
 #include "timecounter.h"
 
@@ -408,6 +409,7 @@ void
              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
 
               std::vector<scalar_type> coor(3, scalar_type{0});
+              visu::init_coor(pt, coor);
               for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
                   for(size_t j=0; j < DIM; j++)
                           coor[j] += phi.at(i+j)(j) * x(i+j); // a voir
@@ -417,6 +419,7 @@ void
              gmsh.addNode(tmp_node);
           }
           // add new element
+          visu::add_element(gmsh, new_nodes);
        }
       gmsh.writeGmesh(filename, DIM);
     }
