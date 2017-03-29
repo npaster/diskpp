@@ -30,7 +30,7 @@
 #include "NewtonSolver/newton_solver.hpp"
 
 
-#include "../exemple_visualisation/visualisation/gmshDisk.h"
+#include "../exemple_visualisation/visualisation/gmshDisk.hpp"
 #include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
 #include "../exemple_visualisation/visualisation/gmshDeformed.hpp"
 
@@ -132,8 +132,8 @@ public:
       {
          gradrec.compute(m_msh, cl);
 //          stab.compute(m_msh, cl, gradrec.oper);
-         dynamic_matrix<scalar_type> loc = gradrec.oper;// + stab.data;
-         m_data_offline.push_back(loc);
+         //dynamic_matrix<scalar_type> loc = gradrec.oper;// + stab.data;
+         m_data_offline.push_back(gradrec.oper);
       }
       tc.toc();
       ai.time_offline += tc.to_double();
@@ -162,6 +162,8 @@ public:
 
       const size_t num_cell_dofs = cell_basis.size();
       const size_t num_face_dofs = face_basis.size();
+      const size_t total_dof = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
+      const size_t total_lagr = m_msh.boundary_faces_size() * num_face_dofs;
 
       for(auto& cl : m_msh)
       {
@@ -179,6 +181,31 @@ public:
       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
          m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));
       }
+
+
+      if(m_verbose){
+         std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
+         std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
+         std::cout << "** After static condensation: "  << std::endl;
+         std::cout << "** Numbers of dofs: " << m_msh.faces_size() * num_face_dofs + total_lagr  << std::endl;
+         std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
+      }
+      //provisoire
+
+//       for(size_t i = 0; i < m_msh.cells_size(); i++)
+//       {
+//          m_solution_data[i].setConstant(0.001);
+//          m_solution_cells[i].setConstant(0.001);
+//       }
+//
+//       for(size_t i = 0; i < m_msh.faces_size(); i++)
+//       {
+//          m_solution_faces[i].setConstant(0.001);
+//       }
+//
+//       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
+//          m_solution_lagr[i].setConstant(0.001);
+//      }
    }
 
    template<typename LoadFunction, typename BoundaryConditionFunction>
@@ -227,6 +254,10 @@ public:
          if(m_verbose){
             std::cout << "** Time in this step " << tc.to_double() << " sec" << std::endl;
             std::cout << "**** Assembly time: " << newton_info.time_assembly << " sec" << std::endl;
+            std::cout << "****** Gradient reconstruction: " << newton_info.time_gradrec << " sec" << std::endl;
+            std::cout << "****** Stabilisation: " << newton_info.time_stab << " sec" << std::endl;
+            std::cout << "****** Elementary computation: " << newton_info.time_elem << " sec" << std::endl;
+            std::cout << "****** Static condensation: " << newton_info.time_statcond << " sec" << std::endl;
             std::cout << "**** Solver time: " << newton_info.time_solve << " sec" << std::endl;
             std::cout << "**** Postprocess time: " << newton_info.time_post << " sec" << std::endl;
          }
@@ -254,7 +285,7 @@ public:
     scalar_type
     compute_l2_error(const AnalyticalSolution& as)
     {
-        scalar_type err_dof = 0.0;
+        scalar_type err_dof = scalar_type{0.0};
 
         disk::projector_elas<mesh_type, cell_basis_type, cell_quadrature_type,
                         face_basis_type, face_quadrature_type> projk(m_degree);
@@ -323,45 +354,45 @@ void
     }
 
 
-    template<typename AnalyticalSolution>
-    void
-    plot_l2error_at_gausspoint(const std::string& filename, const AnalyticalSolution& as)
-    {
-       std::cout << "Compute L2 error at Gauss points" << std::endl;
-       visu::Gmesh msh; //creta a mesh
+   template<typename AnalyticalSolution>
+   void
+   plot_l2error_at_gausspoint(const std::string& filename, const AnalyticalSolution& as)
+   {
+      std::cout << "Compute L2 error at Gauss points" << std::endl;
+      visu::Gmesh msh; //creta a mesh
 
-        std::vector<visu::Data> data; //create data (not used)
-        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-        size_t nb_node =  msh.getNumberofNodes();
+      std::vector<visu::Data> data; //create data (not used)
+      std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+      size_t nb_node =  msh.getNumberofNodes();
 
-        size_t dim = m_msh.dimension;
+      size_t dim = m_msh.dimension;
 
-        cell_basis_type cell_basis          = cell_basis_type(m_degree);
-        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+      cell_basis_type cell_basis          = cell_basis_type(m_degree);
+      cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
 
-        size_t cell_i = 0;
-        for (auto& cl : m_msh)
-        {
+      size_t cell_i = 0;
+      for (auto& cl : m_msh)
+      {
             vector_dynamic x = m_solution_cells.at(cell_i++);
             auto qps = cell_quadrature.integrate(m_msh, cl);
             for (auto& qp : qps)
             {
 
-                auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
+               auto phi = cell_basis.eval_functions(m_msh, cl, qp.point());
 
-                vector_dynamic pot = vector_dynamic::Zero(dim);
-                for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i+=dim)
-                    for(size_t j=0; j<dim; j++)
-                            pot(j) += phi.at(i+j)(j) * x(i+j);
+               vector_dynamic pot = vector_dynamic::Zero(dim);
+               for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i+=dim)
+                  for(size_t j=0; j<dim; j++)
+                           pot(j) += phi.at(i+j)(j) * x(i+j);
 
-                auto true_pot = as(qp.point()); // a voir et projeté
+               auto true_pot = as(qp.point()); // a voir et projeté
 
                nb_node += 1;
                visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
                std::vector<double> value(1,0.0);
                double l2error = 0.0;
                for(size_t j=0; j<dim; j++)
-                   l2error +=  double((pot(j)-true_pot(j))*(pot(j)-true_pot(j))); // save the solution at gauss point
+                  l2error +=  double((pot(j)-true_pot(j))*(pot(j)-true_pot(j))); // save the solution at gauss point
 
                value[0] = sqrt(l2error);
                visu::SubData sdata(value, snode);
@@ -369,24 +400,23 @@ void
 
 
             }
-        }
+      }
 
-        visu::NodeData nodedata(1, 0.0, "l2error_gp", data, subdata); // create and init a nodedata view
+      visu::NodeData nodedata(1, 0.0, "l2error_gp", data, subdata); // create and init a nodedata view
 
-        nodedata.saveNodeData(filename, msh); // save the view
-    }
-
+      nodedata.saveNodeData(filename, msh); // save the view
+   }
 
     void
     saveMesh(const std::string& filename)
     {
-      visu::Gmesh gmsh = visu::convertMesh(m_msh);
-      gmsh.writeGmesh(filename, DIM);
+       visu::Gmesh gmsh = visu::convertMesh(m_msh);
+       gmsh.writeGmesh(filename, DIM);
     }
 
    void
-    compute_deformed(const std::string& filename)
-    {
+   compute_deformed(const std::string& filename)
+   {
       visu::Gmesh gmsh(DIM);
       auto storage = m_msh.backend_storage();
 
@@ -397,67 +427,127 @@ void
       size_t nb_nodes(0);
       for (auto& cl : m_msh)
       {
-          vector_dynamic x = m_solution_cells.at(cell_i++);
-          auto cell_nodes = visu::cell_nodes(m_msh, cl);
-          std::vector<visu::Node> new_nodes;
-          for (size_t i = 0; i < cell_nodes.size(); i++)
-          {
-             nb_nodes++;
-             auto point_ids = cell_nodes[i];
-             auto pt = storage->points[point_ids];
+         vector_dynamic x = m_solution_cells.at(cell_i++);
+         auto cell_nodes = visu::cell_nodes(m_msh, cl);
+         std::vector<visu::Node> new_nodes;
+         for (size_t i = 0; i < cell_nodes.size(); i++)
+         {
+            nb_nodes++;
+            auto point_ids = cell_nodes[i];
+            auto pt = storage->points[point_ids];
 
-             auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+            auto phi = cell_basis.eval_functions(m_msh, cl, pt);
 
-              std::vector<scalar_type> coor(3, scalar_type{0});
-              visu::init_coor(pt, coor);
-              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
-                  for(size_t j=0; j < DIM; j++)
-                          coor[j] += phi.at(i+j)(j) * x(i+j); // a voir
+            std::vector<scalar_type> coor(3, scalar_type{0});
+            std::vector<scalar_type> depl(3, scalar_type{0});
 
-             visu::Node tmp_node(coor, nb_nodes, 0);
-             new_nodes.push_back(tmp_node);
-             gmsh.addNode(tmp_node);
-          }
-          // add new element
-          visu::add_element(gmsh, new_nodes);
-       }
+            visu::init_coor(pt, coor);
+            for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
+               for(size_t j=0; j < DIM; j++)
+                  depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+
+            for(size_t j=0; j < DIM; j++)
+               coor[j] += depl[j];
+
+            visu::Node tmp_node(coor, nb_nodes, 0);
+            new_nodes.push_back(tmp_node);
+            gmsh.addNode(tmp_node);
+
+         }
+         // add new element
+         visu::add_element<DIM>(gmsh, new_nodes);
+      }
       gmsh.writeGmesh(filename, DIM);
-    }
 
-       void
-        compute_deformed1D(const std::string& filename)
-        {
-          visu::Gmesh gmsh(1);
-          auto storage = m_msh.backend_storage();
+   }
 
-          cell_basis_type cell_basis          = cell_basis_type(m_degree);
-          cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
 
-          size_t cell_i(0);
-          size_t nb_nodes(0);
-          for (auto& cl : m_msh)
-          {
-              vector_dynamic x = m_solution_cells.at(cell_i++);
-              auto cell_nodes = visu::cell_nodes(m_msh, cl);
-              std::vector<visu::Node> new_nodes;
-              for (size_t i = 0; i < cell_nodes.size(); i++)
-              {
-                 nb_nodes++;
-                 auto point_ids = cell_nodes[i];
-                 auto pt = storage->points[point_ids];
+   void
+   compute_discontinuous_solution(const std::string& filename)
+   {
+      visu::Gmesh gmsh(DIM);
+      auto storage = m_msh.backend_storage();
 
-                 auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+      cell_basis_type cell_basis          = cell_basis_type(m_degree);
+      cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
 
-                  std::vector<scalar_type> coor(3, scalar_type{0});
-                  for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i++)
-                     coor[0] += phi.at(i) * x(i); // a voir
+      std::vector<visu::Data> data; //create data (not used)
+      std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
 
-                 visu::Node tmp_node(coor, nb_nodes, 0);
-                 new_nodes.push_back(tmp_node);
-                 gmsh.addNode(tmp_node);
-              }
-              // add new element
-           }
-          gmsh.writeGmesh(filename, 2);
-        }
+      size_t cell_i(0);
+      size_t nb_nodes(0);
+      for (auto& cl : m_msh)
+      {
+         vector_dynamic x = m_solution_cells.at(cell_i++);
+         auto cell_nodes = visu::cell_nodes(m_msh, cl);
+         std::vector<visu::Node> new_nodes;
+         for (size_t i = 0; i < cell_nodes.size(); i++)
+         {
+            nb_nodes++;
+            auto point_ids = cell_nodes[i];
+            auto pt = storage->points[point_ids];
+
+            auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+
+            std::vector<scalar_type> coor(3, scalar_type{0});
+            std::vector<scalar_type> depl(3, scalar_type{0});
+
+            visu::init_coor(pt, coor);
+            visu::Node tmp_node(coor, nb_nodes, 0);
+            new_nodes.push_back(tmp_node);
+            gmsh.addNode(tmp_node);
+
+            // plot magnitude at node
+            for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
+               for(size_t j=0; j < DIM; j++)
+                  depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+
+            visu::Data datatmp(nb_nodes, depl);
+            data.push_back(datatmp);
+         }
+         // add new element
+         visu::add_element<DIM>(gmsh, new_nodes);
+      }
+
+      visu::NodeData nodedata(3, 0.0, "depl_node", data, subdata); // create and init a nodedata view
+
+      nodedata.saveNodeData(filename, gmsh); // save the view
+   }
+
+//     void
+//     compute_deformed1D(const std::string& filename)
+//     {
+//        visu::Gmesh gmsh(1);
+//        auto storage = m_msh.backend_storage();
+//
+//        cell_basis_type cell_basis          = cell_basis_type(m_degree);
+//        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
+//
+//        size_t cell_i(0);
+//        size_t nb_nodes(0);
+//        for (auto& cl : m_msh)
+//        {
+//           vector_dynamic x = m_solution_cells.at(cell_i++);
+//           auto cell_nodes = visu::cell_nodes(m_msh, cl);
+//           std::vector<visu::Node> new_nodes;
+//           for (size_t i = 0; i < cell_nodes.size(); i++)
+//           {
+//              nb_nodes++;
+//              auto point_ids = cell_nodes[i];
+//              auto pt = storage->points[point_ids];
+//
+//              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+//
+//              std::vector<scalar_type> coor(3, scalar_type{0});
+//              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i++)
+//                 coor[0] += phi.at(i) * x(i); // a voir
+//
+//                 visu::Node tmp_node(coor, nb_nodes, 0);
+//              new_nodes.push_back(tmp_node);
+//              gmsh.addNode(tmp_node);
+//           }
+//           // add new element
+//        }
+//        gmsh.writeGmesh(filename, 2);
+//     }
 };

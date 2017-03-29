@@ -28,7 +28,7 @@
 #include "hho_nl_diffusion.hpp"
 #include "NewtonSolver_diffusion/newton_solver_diffusion.hpp"
 
-#include "../exemple_visualisation/visualisation/gmshDisk.h"
+#include "../exemple_visualisation/visualisation/gmshDisk.hpp"
 #include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
@@ -133,7 +133,7 @@ public:
       }
       tc.toc();
       ai.time_offline += tc.to_double();
-      
+
       assert(m_data_offline.size() == m_msh.cells_size());
 
       return ai;

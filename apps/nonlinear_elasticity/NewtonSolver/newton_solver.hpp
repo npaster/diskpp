@@ -39,6 +39,7 @@ struct newton_info
 {
     size_t  linear_system_size;
     double  time_assembly, time_solve, time_post;
+    double  time_gradrec, time_statcond, time_stab, time_elem;
 };
 
 
@@ -146,14 +147,19 @@ public:
       while (iter < iter_max && !m_convergence) {
           tc.tic();
           //assemble lhs and rhs
-          newton_step.assemble(lf, bf);
+          auto time_assembly = newton_step.assemble(lf, bf, offline_data);
           tc.toc();
           ai.time_assembly += tc.to_double();
+
+          ai.time_gradrec +=  time_assembly.time_gradrec;
+          ai.time_stab +=  time_assembly.time_stab;
+          ai.time_statcond +=  time_assembly.time_statcond;
+          ai.time_elem +=  time_assembly.time_elem;
          // test convergence
          if(iter > 0)
-            m_convergence = newton_step.test_convergence(epsilon, iter - 1);
+            m_convergence = newton_step.test_convergence(epsilon, iter);
 
-         if(!m_convergence){
+         if(iter < (iter_max-1) && !m_convergence){
             // test recompute lu decomposition
              if((iter%reac_iter) == 0)
                  reactualise = true;
@@ -171,7 +177,7 @@ public:
             ai.time_solve += tc.to_double();
             // update unknowns
             tc.tic();
-            newton_step.postprocess(lf);
+            newton_step.postprocess(lf, offline_data);
             newton_step.update_solution();
             tc.toc();
             ai.time_post += tc.to_double();

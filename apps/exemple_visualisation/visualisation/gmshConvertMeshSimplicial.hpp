@@ -31,9 +31,9 @@
 #include "loaders/loader.hpp"
 #include "geometry/geometry.hpp"
 #include "mesh/point.hpp"
-#include "gmshMesh.h"
-#include "gmshElement.h"
-#include "gmshDisk.h"
+#include "gmshMesh.hpp"
+#include "gmshElement.hpp"
+#include "gmshDisk.hpp"
 
 namespace visu{
 

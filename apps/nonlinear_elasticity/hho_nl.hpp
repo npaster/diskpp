@@ -31,189 +31,6 @@
 
 namespace disk {
 
-template<typename Mesh, typename CellBasisType, typename CellQuadType,
-                        typename FaceBasisType, typename FaceQuadType>
-class gradient_reconstruction_elas
-{
-    typedef Mesh                                mesh_type;
-    typedef typename mesh_type::scalar_type     scalar_type;
-    typedef typename mesh_type::cell            cell_type;
-    typedef typename mesh_type::face            face_type;
-
-    typedef CellBasisType                       cell_basis_type;
-    typedef CellQuadType                        cell_quadrature_type;
-    typedef FaceBasisType                       face_basis_type;
-    typedef FaceQuadType                        face_quadrature_type;
-
-    typedef dynamic_matrix<scalar_type>         matrix_type;
-    typedef dynamic_vector<scalar_type>         vector_type;
-
-
-
-    typedef material_tensor<scalar_type, mesh_type::dimension, mesh_type::dimension>
-                                                material_tensor_type;
-
-    cell_basis_type                             cell_basis;
-    cell_quadrature_type                        cell_quadrature;
-
-    face_basis_type                             face_basis;
-    face_quadrature_type                        face_quadrature;
-
-    size_t                                      m_degree;
-
-public:
-    matrix_type     oper;
-    matrix_type     data;
-
-    gradient_reconstruction_elas()
-        : m_degree(1)
-    {
-        cell_basis          = cell_basis_type(m_degree+1);
-        cell_quadrature     = cell_quadrature_type(2*(m_degree+1));
-        face_basis          = face_basis_type(m_degree);
-        face_quadrature     = face_quadrature_type(2*m_degree);
-    }
-
-    gradient_reconstruction_elas(size_t degree)
-        : m_degree(degree)
-    {
-        cell_basis          = cell_basis_type(m_degree+1);
-        cell_quadrature     = cell_quadrature_type(2*(m_degree+1));
-        face_basis          = face_basis_type(m_degree);
-        face_quadrature     = face_quadrature_type(2*m_degree);
-    }
-
-    void compute(const mesh_type& msh, const cell_type& cl)
-    {
-        material_tensor_type id_tens;
-        id_tens = material_tensor_type::Identity();
-        compute(msh, cl, id_tens);
-    }
-
-    void compute(const mesh_type& msh, const cell_type& cl,
-                 const material_tensor_type& mtens)
-    {
-       const size_t DIM= msh.dimension;
-       const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-       const size_t dpk0 = DIM * binomial( DIM, 0);
-       const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
-       const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
-
-        matrix_type stiff_mat = matrix_type::Zero(cell_basis.size(), cell_basis.size());
-
-        auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
-        for (auto& qp : cell_quadpoints)
-        {
-            auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
-            assert(cell_basis.size() == dphi.size());
-            assert(dpk1 == dphi.size());
-            for(size_t i=0; i< dphi.size(); i++){
-               for(size_t j=0; j< dphi.size(); j++){
-               //    std::cout << dphi.at(i) << '\n';
-               //    std::cout << dphi.at(j) << '\n';
-               //   std::cout << i << " " << j << " " <<  mm_prod(dphi.at(i), dphi.at(j)) << '\n';
-                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi.at(i), dphi.at(j));
-               }
-            }
-            // std::cout << " " << '\n';
-        }
-
-        /* LHS: take basis functions derivatives from degree 1 to K+1 */
-        auto MG_rowcol_range = cell_basis.range(1, m_degree+1);
-        assert(MG_rowcol_range.size() == (dpk1 - dpk0));
-        matrix_type MG = take(stiff_mat, MG_rowcol_range, MG_rowcol_range);
-
-        /* RHS, volumetric part. */
-        auto BG_row_range = cell_basis.range(1, m_degree+1);
-        auto BG_col_range = cell_basis.range(0, m_degree);
-
-        assert(BG_row_range.size() == (dpk1 - dpk0));
-        assert(BG_col_range.size() == dpk) ;
-
-        auto fcs = faces(msh, cl);
-        auto num_faces = fcs.size();
-
-        auto num_cell_dofs = cell_basis.range(0, m_degree).size();
-        auto num_face_dofs = face_basis.size();
-
-        assert(num_cell_dofs == dpk);
-        assert(num_face_dofs == dpkf);
-
-        dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
-
-        assert(dsr.total_size() == (num_cell_dofs + num_faces * num_face_dofs));
-
-        matrix_type BG = matrix_type::Zero(BG_row_range.size(), dsr.total_size());
-
-        BG.block(0, 0, BG_row_range.size(), BG_col_range.size()) =
-                                take(stiff_mat, BG_row_range, BG_col_range);
-
-        for (size_t face_i = 0; face_i < num_faces; face_i++)
-        {
-            auto current_face_range = dsr.face_range(face_i);
-            auto fc = fcs[face_i];
-            auto n = normal(msh, cl, fc);
-            auto face_quadpoints = face_quadrature.integrate(msh, fc);
-
-            for (auto& qp : face_quadpoints)
-            {
-                auto c_phi =
-                    cell_basis.eval_functions(msh, cl, qp.point()); // 0, m_degree);
-                auto c_dphi =
-                    cell_basis.eval_gradients(msh, cl, qp.point()); // 1, m_degree+1);
-
-                decltype(c_phi) c_dphi_n;
-
-                assert(BG_row_range.from() == dpk0);
-                assert(BG_row_range.to() == dpk1);
-
-                for(size_t i=BG_row_range.from(); i< BG_row_range.to(); i++){
-                  c_dphi_n.push_back(mm_prod(c_dphi.at(i) , n));
-                }
-
-                assert(c_dphi_n.size() == (dpk1 - dpk0));
-
-                matrix_type  T= matrix_type::Zero(BG.rows(), BG_col_range.size());
-
-                assert(c_dphi_n.size() == BG.rows());
-
-                for(size_t i=0; i< BG.rows(); i++){
-                  for(size_t j=0; j<BG_col_range.size(); j++){
-                     T(i,j) = qp.weight() * mm_prod(c_dphi_n.at(i), c_phi.at(j));
-                  }
-               }
-
-
-                BG.block(0, 0, BG.rows(), BG_col_range.size()) -= T;
-
-                auto f_phi = face_basis.eval_functions(msh, fc, qp.point());
-
-                assert(f_phi.size() == dpkf);
-
-                matrix_type  F= matrix_type::Zero(BG.rows(), current_face_range.size());
-
-                for(size_t i=0; i< BG.rows(); i++){
-                  for(size_t j=0; j<current_face_range.size(); j++){
-                     F(i,j) = qp.weight() * mm_prod(c_dphi_n.at(i), f_phi.at(j));
-                  }
-               }
-
-
-                BG.block(0, current_face_range.min(),
-                         BG.rows(), current_face_range.size()) += F;
-            }
-        }
-
-        assert(MG.rows() ==MG.cols());
-        assert(MG.cols() == BG.rows());
-
-        oper  = MG.llt().solve(BG);    // GT
-        data  = BG.transpose() * oper;  // A
-    }
-};
-
-
-
     template<typename Mesh, //typename CellBasisType, typename CellQuadType,
                         typename FaceBasisType, typename FaceQuadType>
 class assembler_nl_elas
@@ -269,48 +86,60 @@ public:
     void
     assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
     {
-        auto fcs = faces(msh, cl);
-        std::vector<size_t> l2g(fcs.size() * face_basis.size());
-        for (size_t face_i = 0; face_i < fcs.size(); face_i++)
-        {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+       const size_t DIM= msh.dimension;
+       const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
+       const size_t dpk0 = DIM * binomial( DIM, 0);
+       const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
+       const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
 
-            auto face_offset = face_id * face_basis.size();
 
-            auto pos = face_i * face_basis.size();
+       auto fcs = faces(msh, cl);
+       std::vector<size_t> l2g(fcs.size() * face_basis.size());
 
-            for (size_t i = 0; i < face_basis.size(); i++)
-                l2g[pos+i] = face_offset+i;
-        }
+       assert(dpkf == face_basis.size());
 
-        assert(lc.first.rows() == lc.first.cols());
-        assert(lc.first.rows() == lc.second.size());
-        assert(lc.second.size() == l2g.size());
+       for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+       {
+          auto fc = fcs[face_i];
+          auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+          if (!eid.first)
+             throw std::invalid_argument("This is a bug: face not found");
 
-        //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+          auto face_id = eid.second;
 
-#ifdef FILL_COLMAJOR
-        for (size_t j = 0; j < lc.first.cols(); j++)
-        {
-            for (size_t i = 0; i < lc.first.rows(); i++)
-                m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+          auto face_offset = face_id * face_basis.size();
 
-            rhs(l2g.at(j)) += lc.second(j);
-        }
-#else
-        for (size_t i = 0; i < lc.first.rows(); i++)
-        {
-            for (size_t j = 0; j < lc.first.cols(); j++)
-                m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+          auto pos = face_i * face_basis.size();
 
-            rhs(l2g.at(i)) += lc.second(i);
-        }
-#endif
+          for (size_t i = 0; i < face_basis.size(); i++)
+             l2g[pos+i] = face_offset+i;
+       }
+
+       assert(lc.first.rows() == fcs.size()*dpkf);
+       assert(lc.first.rows() == lc.first.cols());
+       assert(lc.first.rows() == lc.second.size());
+       assert(lc.second.size() == l2g.size());
+
+       //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+       #ifdef FILL_COLMAJOR
+       for (size_t j = 0; j < lc.first.cols(); j++)
+       {
+          for (size_t i = 0; i < lc.first.rows(); i++)
+             m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+
+          rhs(l2g.at(j)) += lc.second(j);
+       }
+       #else
+       for (size_t i = 0; i < lc.first.rows(); i++)
+       {
+          for (size_t j = 0; j < lc.first.cols(); j++)
+             m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+
+          rhs(l2g.at(i)) += lc.second(i);
+       }
+       #endif
     }
 
     template<typename Function>
@@ -378,7 +207,6 @@ public:
                 rhs(face_offset+j) -= rhs_l(j);
             }
 #endif
-
             face_i++;
             lagr_i++;
         }
@@ -440,7 +268,7 @@ compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
     assert(cell_basis.size() == dphi.size());
     assert((G_range.to()-G_range.from()) == gradrec_coeff.size());
 
-    for(size_t i = G_range.from(); i< G_range.to(); i++){
+    for(size_t i = G_range.from(); i < G_range.to(); i++){
         ret += gradrec_coeff(i - G_range.from()) * dphi.at(i);
     }
 
@@ -466,7 +294,7 @@ compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
     assert(cell_basis.size() == dphi.size());
     assert((G_range.to()-G_range.from()) == gradrec_coeff.size());
 
-    for(size_t i = G_range.from(); i< G_range.to(); i++){
+    for(size_t i = G_range.from(); i < G_range.to(); i++){
         ret += gradrec_coeff(i - G_range.from())  * dphi.at(i);
     }
 
@@ -512,7 +340,17 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
     CellBasisType cell_basis          = CellBasisType(degree+1);
     CellQuadType cell_quadrature      = CellQuadType(2*(degree+1));
 
+    const size_t DIM= msh.dimension;
+    const size_t dpk1 = DIM * binomial(degree +1 + DIM, degree +1);
+    const size_t dpk0 = DIM * binomial( DIM, 0);
+    const size_t dpk = DIM * binomial(degree  + DIM, degree );
+    const size_t dpkf = DIM * binomial(degree  + DIM -1, degree );
+
     auto G_range = cell_basis.range(1, degree+1);
+
+    assert(G_range.from() == dpk0);
+    assert(G_range.to() == dpk1);
+    assert(G_range.size() == (dpk1 - dpk0));
 
     size_t dim_mat = G_range.to()-G_range.from();
 
@@ -529,11 +367,21 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
     for (auto& qp : cell_quadpoints)
     {
         auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
+        assert(dphi.size() == dpk1);
+
         //Compoute G(u)
         auto gradu = compute_gradient_pt<CellBasisType, Mesh>(msh, cl, gradrec_coeff, qp.point(), degree);
+
+
+//         std::cout << "Gu" << std::endl;
+//         std::cout << gradu << std::endl;
+
+//         gradu.setZero();
+//         gradu(1,1) = 0.1;
+
         //compute F(u) and F(u)^T
         auto fu = compute_FTensor(gradu);
-        auto transpo_fu = fu; //fu.transpose(); A REMAITRE POUR DIM > 1
+        auto transpo_fu = fu.transpose(); /// A REMAITRE POUR DIM > 1
 
         //compute transpo_fu * dphi
         decltype(dphi) fdphi;
@@ -543,23 +391,30 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
            fdphi.push_back(transpo_fu * dphi.at(i));
         }
 
+        assert(fdphi.size() == dpk1);
+
         //compute behavior C et S
         auto cu = compute_CauchyGreenRightTensor(fu);
 
-        std::cout << "Fu" << std::endl;
-        std::cout << fu << std::endl;
-        std::cout << "Cu" << std::endl;
-        std::cout << cu << std::endl;
+
+//         std::cout << "Fu" << std::endl;
+//         std::cout << fu << std::endl;
+//         std::cout << "Cu" << std::endl;
+//         std::cout << cu << std::endl;
 
         auto tensor_behavior = law.compute_whole(cu);
         //std::cout << "PK2" << tensor_behavior.first << '\n';
         auto pk2 = tensor_behavior.first;
         auto Ce = tensor_behavior.second;
 
-        std::cout << "PK2" << std::endl;
-        std::cout << pk2 << std::endl;
-        std::cout << "Ce" << std::endl;
-        std::cout << Ce << std::endl;
+//         std::cout << "PK2" << std::endl;
+//         std::cout << pk2 << std::endl;
+//         std::cout << "Ce" << std::endl;
+//         std::cout << Ce << std::endl;
+
+//         auto eigen = Ce.eigenvalues();
+//
+//         std::cout << eigen << std::endl;
 
         //compute C(u) : transpo_fu * dphi
         decltype(dphi) cdphi;
@@ -568,11 +423,7 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
         for(size_t i = 0; i < fdphi.size(); i++)
         {
             cdphi.push_back(tm_prod(Ce, fdphi.at(i)) );
-            //cdphi.push_back(fdphi.at(i));
         }
-
-
-            //cdphi.push_back( mm_prod(Ce, fdphi.at(i)));
 
         //compure K_geom
         for (size_t i = G_range.from(); i < G_range.to(); i++)
@@ -601,9 +452,9 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
     }
 
     //we use the symetrie of K
-   for (size_t i = 0; i < dim_mat; i++)
-      for (size_t j = i + 1; j < dim_mat; j++)
-         K(j,i) = K(i,j);
+   for (size_t i = 1; i < dim_mat; i++)
+      for (size_t j = 0; j < (i-1); j++)
+         K(i,j) = K(j,i);
 
 
     return std::make_pair(K,R);
@@ -634,12 +485,51 @@ assemble_rhs(const dynamic_matrix<T>& GT, const dynamic_vector<T>& STu,
     assert(GT.cols() == STu.rows());
     assert(STu.rows() == Rext.rows());
 
-    std::cout << "Rint" << std::endl;
-    std::cout << Rint << std::endl;
-    std::cout << "Rext" << std::endl;
-    std::cout << Rext << std::endl;
+//     std::cout << "Rint" << std::endl;
+//     std::cout << Rint << std::endl;
+//     std::cout << "Rext" << std::endl;
+//     std::cout << Rext << std::endl;
 
     return (GT.transpose() * Rint + coeff_stab * STu - Rext);
+}
+
+
+template<typename Mesh, typename CellBasisType, typename CellQuadType,
+typename FaceBasisType, typename FaceQuadType,
+typename Solution>
+void
+test_gradient_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
+                             const Solution& as, dynamic_matrix<typename Mesh::scalar_type> G,
+                             size_t degree)
+{
+   disk::projector_elas<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk(degree);
+
+   disk::projector_elas<Mesh, CellBasisType, CellQuadType,
+   FaceBasisType, FaceQuadType> projk1(degree+1);
+   // projetion of the solution on P^(k)_d (solution of (u,v) = (f,v))
+   auto proju = projk.compute_whole(msh, cl, as);
+
+   //keep only the part of uT
+   // multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
+   auto Gu = (G * proju).eval();
+
+   // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
+   auto sol = projk1.compute_cell(msh, cl, as);
+
+   size_t dim = msh.dimension;
+
+
+
+   double l2error = 0.0;
+
+   for (size_t i = 0; i < Gu.size(); i++) {
+      l2error +=  (Gu(i)-sol(i+dim))*( Gu(i)-sol(i+dim));
+      //std::cout << sol(i+dim) <<  " vs " << Gu(i)  << " "  <<   Gu(i)-sol(i+dim)  <<  '\n';
+   }
+
+          std::cout <<  "l2error grad: "  <<   sqrt(l2error)  <<  '\n';
+
 }
 
 

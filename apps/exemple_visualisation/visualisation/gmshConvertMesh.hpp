@@ -27,10 +27,10 @@
 #include "loaders/loader.hpp"
 #include "geometry/geometry.hpp"
 #include "mesh/point.hpp"
-#include "gmshMesh.h"
-#include "gmshElement.h"
-#include "gmshData.h"
-#include "gmshDisk.h"
+#include "gmshMesh.hpp"
+#include "gmshElement.hpp"
+#include "gmshData.hpp"
+#include "gmshDisk.hpp"
 
 namespace visu{
 // template<template<typename, size_t, typename> class Mesh,

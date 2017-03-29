@@ -15,8 +15,8 @@
  */
 
 
-#include "gmshMesh.h"
-#include "gmshElement.h"
+#include "gmshMesh.hpp"
+#include "gmshElement.hpp"
 #include<iostream>
 #include<fstream>
 #include <assert.h>

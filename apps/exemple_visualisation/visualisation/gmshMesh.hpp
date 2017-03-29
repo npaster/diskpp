@@ -19,7 +19,7 @@
 
 #include<vector>
 #include<string>
-#include "gmshElement.h"
+#include "gmshElement.hpp"
 
 namespace visu{
 

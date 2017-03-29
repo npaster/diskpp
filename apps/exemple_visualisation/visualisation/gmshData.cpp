@@ -14,14 +14,16 @@
  * cite it.
  */
 
- #include "gmshMesh.h"
- #include "gmshData.h"
- #include "gmshElement.h"
  #include<vector>
  #include<string>
  #include<utility>
  #include<fstream>
  #include<iostream>
+ 
+ #include "gmshMesh.hpp"
+ #include "gmshData.hpp"
+ #include "gmshElement.hpp"
+
 
  namespace visu{
 

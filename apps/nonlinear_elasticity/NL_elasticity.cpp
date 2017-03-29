@@ -47,67 +47,66 @@ struct run_params
     bool    verbose;
 };
 
-template<template<typename, size_t , typename> class Mesh,
-typename T, typename Storage>
-void
-run_NL_elasticity_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
-{
-   typedef Mesh<T, 1, Storage> mesh_type;
-
+// template<template<typename, size_t , typename> class Mesh,
+// typename T, typename Storage>
+// void
+// run_NL_elasticity_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
+// {
+//    typedef Mesh<T, 1, Storage> mesh_type;
+//
+// //    auto load = [](const point<T,1>& p) -> auto {
+// //       const T lambda = T{0.0};
+// //       const T mu = T{1.0};
+// //       return (T{2.0} * mu + lambda) * M_PI *  M_PI * sin(p.x() * M_PI);
+// //    };
+// //
+// //    auto solution = [](const point<T,1>& p) -> auto {
+// //       return sin(p.x() * M_PI);
+// //    };
+//
 //    auto load = [](const point<T,1>& p) -> auto {
-//       const T lambda = T{0.0};
+//       const T lambda = T{0.0}3
 //       const T mu = T{1.0};
-//       return (T{2.0} * mu + lambda) * M_PI *  M_PI * sin(p.x() * M_PI);
+//       return 0.0;
 //    };
 //
 //    auto solution = [](const point<T,1>& p) -> auto {
-//       return sin(p.x() * M_PI);
+//       return p.x();
 //    };
-
-   auto load = [](const point<T,1>& p) -> auto {
-      const T lambda = T{0.0};
-      const T mu = T{1.0};
-      return 0.0;
-   };
-
-   auto solution = [](const point<T,1>& p) -> auto {
-      return p.x();
-   };
-
-   NL_elasticity_solver<Mesh, T, 1, Storage, point<T, 1> > nl(msh, rp.degree);
-   nl.verbose(rp.verbose);
-
-   //auto info_offline = nl.compute_offline();
-
-   //    if(nl.verbose()){
-   //       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
-   //    }
-
-   nl.compute_initial_state();
-
-   if(nl.verbose()){
-      std::cout << "Solve the problem: " << '\n';
-   }
-
-   const size_t n_time_step = 1;
-
-   solve_info solve_info = nl.compute(load, solution, n_time_step);
-
-   if(nl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
-   }
-
-
-   if(nl.test_convergence()){
-
-      std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
-
-      std::cout << "Post-processing: " << std::endl;
-      //nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
-      //nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution);
-      nl.compute_deformed1D("deforme1D.msh");
-   }
-}
+//
+//    NL_elasticity_solver<mesh_type,  point<T, 1> > nl(msh, rp.degree);
+//    nl.verbose(rp.verbose);
+//
+//    //auto info_offline = nl.compute_offline();
+//
+//    //    if(nl.verbose()){
+//    //       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+//    //    }
+//
+//    nl.compute_initial_state();
+//
+//    if(nl.verbose()){
+//       std::cout << "Solve the problem: " << '\n';
+//    }
+//
+//    const size_t n_time_step = 1;
+//
+//    solve_info solve_info = nl.compute(load, solution, n_time_step);
+//
+//    if(nl.verbose()){
+//       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+//    }
+//
+//
+//    if(nl.test_convergence()){
+//
+//       std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+//
+//       std::cout << "Post-processing: " << std::endl;
+//       //nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
+//       //nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution);
+//    }
+// }
 
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
@@ -117,29 +116,73 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
 
-   auto load = [](const point<T,2>& p) -> result_type {
+   auto loadg = [](const point<T,2>& p) -> result_type {
       const T lambda =0.0;
-      T fx = 2.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
-      T fy = 2.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
+      T fx = 4.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
+      T fy = 4.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
       return result_type{fx,fy};
    };
 
-   auto solution = [](const point<T,2>& p) -> result_type {
+   auto solutiong = [](const point<T,2>& p) -> result_type {
       const T lambda =1.0;
-      T fx = sin(M_PI*p.x())*sin(M_PI*p.y()) + 0.5/lambda*p.x();
-      T fy = cos(M_PI*p.x())*cos(M_PI*p.y()) + 0.5/lambda*p.y();
+      T fx = sin(M_PI*p.x())*sin(M_PI*p.y());
+      T fy = cos(M_PI*p.x())*cos(M_PI*p.y());
 
       return result_type{fx,fy};
    };
 
-   NL_elasticity_solver<Mesh, T, 2, Storage, point<T, 2> > nl(msh, rp.degree);
+
+   auto load_square = [](const point<T,2>& p) -> result_type {
+      const T lambda =0.0;
+      const T mu = 1.0;
+      T scale = 0.01;
+      T fx = scale * scale * 4.*(lambda + 2.0 * mu) * (2.0 *p.x() +1.0);
+      T fy = scale * scale * 4.*(lambda + 2.0 * mu) * (2.0 *p.y() +1.0);
+      return result_type{fx,fy};
+   };
+
+   auto solution_square = [](const point<T,2>& p) -> result_type {
+      T scale = 0.01;
+      T fx = scale * p.x() * p.x();
+      T fy = scale * p.y() * p.y();
+
+      return result_type{fx,fy};
+   };
+
+
+
+   auto load_lin = [](const point<T,2>& p) -> result_type {
+      return result_type{0.0,0.0};
+   };
+
+   auto solution_lin = [](const point<T,2>& p) -> result_type {
+      const T scale = 0.1;
+      T fx = scale * p.x();
+      T fy = scale * p.y();
+
+      return result_type{fx,fy};
+   };
+
+   auto load_traction = [](const point<T,2>& p) -> result_type {
+      return result_type{0.0,0.0};
+   };
+
+   auto solution_traction = [](const point<T,2>& p) -> result_type {
+      const T scale = 0.1;
+      T fx = 0.0;
+      T fy = scale * p.y();
+
+      return result_type{fx,fy};
+   };
+
+   NL_elasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
-   //auto info_offline = nl.compute_offline();
+   auto info_offline = nl.compute_offline();
 
-//    if(nl.verbose()){
-//       std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
-//    }
+   if(nl.verbose()){
+      std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+   }
 
    nl.compute_initial_state();
 
@@ -149,7 +192,7 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
 
    const size_t n_time_step = 1;
 
-   solve_info solve_info = nl.compute(load, solution, n_time_step);
+   solve_info solve_info = nl.compute(load_lin, solution_lin, n_time_step);
 
    if(nl.verbose()){
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
@@ -158,14 +201,16 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
 
    if(nl.test_convergence()){
 
-        std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+        std::cout << "l2 error: " << nl.compute_l2_error(solution_lin) << std::endl;
 
         std::cout << "Post-processing: " << std::endl;
         nl.plot_solution_at_gausspoint("sol_elas_2d.msh");
-        nl.plot_l2error_at_gausspoint("error_gp_2d.msh", solution);
+        nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution_lin);
    }
 
-   nl.saveMesh("mesh_2D.msh");
+   nl.saveMesh("msh2d.msh");
+   nl.compute_deformed("deforme2d.msh");
+   nl.compute_discontinuous_solution("depl2d.msh");
 }
 
 template<template<typename, size_t, typename> class Mesh,
@@ -207,14 +252,28 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
       return result_type{fx,fy,fz};
    };
 
-   NL_elasticity_solver<Mesh, T, 3, Storage, point<T, 3> > nl(msh, rp.degree);
+
+   auto load_lin = [](const point<T,3>& p) -> result_type {
+      return result_type{0.0,0.0,0.0};
+   };
+
+   auto solution_lin = [](const point<T,3>& p) -> result_type {
+      const T scale = 0.1;
+      T fx = scale * p.x();
+      T fy = scale * p.y();
+      T fz = scale * p.z();
+      return result_type{fx,fy,fz};
+   };
+
+
+   NL_elasticity_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp.degree);
    nl.verbose(rp.verbose);
 
-   // auto info_offline = nl.compute_offline();
-   //
-   // if(nl.verbose()){
-   //    std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
-   // }
+   auto info_offline = nl.compute_offline();
+
+   if(nl.verbose()){
+      std::cout << "Off_line computations: " << info_offline.time_offline << " sec"  << '\n';
+   }
 
    nl.compute_initial_state();
 
@@ -224,7 +283,7 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
 
    const size_t n_time_step = 1;
 
-   auto solve_info = nl.compute(load, solution, n_time_step);
+   auto solve_info = nl.compute(load_lin, solution_lin, n_time_step);
 
    if(nl.verbose()){
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
@@ -232,14 +291,12 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
 
    if(nl.test_convergence()){
 
-        std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
+        std::cout << "l2 error: " << nl.compute_l2_error(solution_lin) << std::endl;
 
         std::cout << "Post-processing: " << std::endl;
         nl.plot_solution_at_gausspoint("sol_elas_3d.msh");
-        nl.plot_l2error_at_gausspoint("error_gp_3d.msh", solution);
+        nl.plot_l2error_at_gausspoint("error_gp_3d_.msh", solution_lin);
    }
-
-   nl.saveMesh("mesh_3D.msh");
 }
 
 
@@ -315,7 +372,7 @@ int main(int argc, char **argv)
     {
         std::cout << "Mesh format: 1D uniform (Not avaible)" << std::endl;
         auto msh = disk::load_uniform_1d_mesh<RealType>(0, 1, elems_1d);
-        run_NL_elasticity_solver(msh, rp);
+        //run_NL_elasticity_solver(msh, rp);
         return 0;
     }
 
