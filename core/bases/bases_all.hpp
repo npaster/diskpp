@@ -608,301 +608,207 @@ make_test_points(const Mesh<T,1,Storage>& msh,
 }
 
 
-
-
-
+// vectorial basis function
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 class scaled_monomial_vector_basis<Mesh<T,3,Storage>, typename Mesh<T,3,Storage>::cell>
-    : public priv::monomial_basis_bones<3,3>
+: public priv::monomial_basis_bones<3,3>
 {
-    typedef Mesh<T,3,Storage>                       mesh_type;
-    typedef typename mesh_type::scalar_type         scalar_type;
-    typedef typename mesh_type::cell                cell_type;
-    typedef priv::monomial_basis_bones<3,3>           base;
+   typedef Mesh<T,3,Storage>                       mesh_type;
+   typedef typename mesh_type::scalar_type         scalar_type;
+   typedef typename mesh_type::cell                cell_type;
+   typedef priv::monomial_basis_bones<3,3>           base;
 
 public:
-    typedef static_vector<T,3>              function_value_type;
-    typedef static_matrix<T,3,3>            gradient_value_type;
+   typedef static_vector<T,3>              function_value_type;
+   typedef static_matrix<T,3,3>            gradient_value_type;
 
-    scaled_monomial_vector_basis()
-        : base(1)
-    {}
+   scaled_monomial_vector_basis()
+   : base(1)
+   {}
 
-    scaled_monomial_vector_basis(size_t degree)
-        : base(degree)
-    {}
-
-    std::vector<function_value_type>
-    eval_functions(const mesh_type& msh, const cell_type& cl,
-                   const point<T,3>& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
-
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
-
-        auto ep = (pt - bar)/h;
-
-        std::vector<function_value_type> ret;
-        ret.reserve( eval_range.size());
-
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 3> pow(ep, this->max_degree()+1);
-#endif
-
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
-
-#ifdef POWER_CACHE
-            auto vx = pow.x(m[0]);
-            auto vy = pow.y(m[1]);
-            auto vz = pow.z(m[2]);
-#else
-            auto vx = iexp_pow(ep.x(), m[0]);
-            auto vy = iexp_pow(ep.y(), m[1]);
-            auto vz = iexp_pow(ep.z(), m[2]);
-#endif
-            auto val = vx * vy * vz;
-            ret.push_back( static_vector<T,3>({val,   0,   0}) );
-            ret.push_back( static_vector<T,3>({  0, val,   0}) );
-            ret.push_back( static_vector<T,3>({  0,   0, val}) );
-
-        }
-
-        return ret;
-    }
-
-    std::vector<gradient_value_type>
-    eval_gradients(const mesh_type& msh, const cell_type& cl,
-                   const point<T,3>& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
-
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
-        auto ih = 1./h;
-
-        auto ep = (pt - bar)/h;
-
-        std::vector<gradient_value_type> ret;
-        ret.reserve( eval_range.size());
-
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 3> pow(ep, this->max_degree()+1);
-#endif
+   scaled_monomial_vector_basis(size_t degree)
+      : base(degree)
+      {}
 
 
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
+   std::vector<function_value_type>
+   eval_functions(const mesh_type& msh, const cell_type& cl, const point<T,3>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-#ifdef POWER_CACHE
-            auto px = pow.x(m[0]);
-            auto py = pow.y(m[1]);
-            auto pz = pow.z(m[2]);
+      auto ep = (pt - bar)/h;
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*pow.x(m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*pow.y(m[1]-1);
-            auto dz = (m[2] == 0) ? 0 : m[2]*ih*pow.z(m[2]-1);
-#else
-            auto px = iexp_pow(ep.x(), m[0]);
-            auto py = iexp_pow(ep.y(), m[1]);
-            auto pz = iexp_pow(ep.z(), m[2]);
+      std::vector<function_value_type> ret;
+      ret.reserve( this->size() );
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*iexp_pow(ep.x(), m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*iexp_pow(ep.y(), m[1]-1);
-            auto dz = (m[2] == 0) ? 0 : m[2]*ih*iexp_pow(ep.z(), m[2]-1);
-#endif
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
+         auto vx = iexp_pow(ep.x(), m[0]);
+         auto vy = iexp_pow(ep.y(), m[1]);
+         auto vz = iexp_pow(ep.z(), m[2]);
+         auto val = vx * vy * vz;
+         ret.push_back( static_vector<T,3>({val,   0,   0}) );
+         ret.push_back( static_vector<T,3>({  0, val,   0}) );
+         ret.push_back( static_vector<T,3>({  0,   0, val}) );
+      }
 
+      return ret;
+   }
 
+   std::vector<gradient_value_type>
+   eval_sgradients(const mesh_type& msh, const cell_type& cl, const point<T,3>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-            auto val1 = dx * py * pz;
-            auto val2 = px * dy * pz;
-            auto val3 = px * py * dz;
+      auto ep = (pt - bar)/h;
 
-            gradient_value_type sg;
-            sg = gradient_value_type::Zero();
-            sg(0,0) = val1;
-            sg(0,1) = val2;
-            sg(0,2) = val3;
-            ret.push_back(sg);
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-            sg = gradient_value_type::Zero();
-            sg(1,0) = val1;
-            sg(1,1) = val2;
-            sg(1,2) = val3;
-            ret.push_back(sg);
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
-            sg = gradient_value_type::Zero();
-            sg(2,0) = val1;
-            sg(2,1) = val2;
-            sg(2,2) = val3;
-            ret.push_back(sg);
+         auto px = iexp_pow(ep.x(), m[0]);
+         auto py = iexp_pow(ep.y(), m[1]);
+         auto pz = iexp_pow(ep.z(), m[2]);
 
-        }
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
+         auto dy = (m[1] == 0) ? 0 : (m[1]/h)*iexp_pow(ep.y(), m[1]-1);
+         auto dz = (m[2] == 0) ? 0 : (m[2]/h)*iexp_pow(ep.z(), m[2]-1);
 
-        return ret;
-    }
+         auto val1 = dx * py * pz;
+         auto val2 = px * dy * pz;
+         auto val3 = px * py * dz;
 
+         gradient_value_type sg;
+         sg = gradient_value_type::Zero();
+         sg(0,0) = val1;
+         sg(0,1) = val2;
+         sg(0,2) = val3;
+         ret.push_back(0.5*(sg + sg.transpose()));
 
-    std::vector<gradient_value_type>
-    eval_sgradients(const mesh_type& msh, const cell_type& cl,
-                   const point<T,3>& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+         sg = gradient_value_type::Zero();
+         sg(1,0) = val1;
+         sg(1,1) = val2;
+         sg(1,2) = val3;
+         ret.push_back(0.5*(sg + sg.transpose()));
 
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
-        auto ih = 1./h;
+         sg = gradient_value_type::Zero();
+         sg(2,0) = val1;
+         sg(2,1) = val2;
+         sg(2,2) = val3;
+         ret.push_back(0.5*(sg + sg.transpose()));
+      }
 
-        auto ep = (pt - bar)/h;
-
-        std::vector<gradient_value_type> ret;
-        ret.reserve( eval_range.size());
-
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 3> pow(ep, this->max_degree()+1);
-#endif
+      return ret;
+   }
 
 
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
+   std::vector<gradient_value_type>
+   eval_gradients(const mesh_type& msh, const cell_type& cl, const point<T,3>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-#ifdef POWER_CACHE
-            auto px = pow.x(m[0]);
-            auto py = pow.y(m[1]);
-            auto pz = pow.z(m[2]);
+      auto ep = (pt - bar)/h;
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*pow.x(m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*pow.y(m[1]-1);
-            auto dz = (m[2] == 0) ? 0 : m[2]*ih*pow.z(m[2]-1);
-#else
-            auto px = iexp_pow(ep.x(), m[0]);
-            auto py = iexp_pow(ep.y(), m[1]);
-            auto pz = iexp_pow(ep.z(), m[2]);
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*iexp_pow(ep.x(), m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*iexp_pow(ep.y(), m[1]-1);
-            auto dz = (m[2] == 0) ? 0 : m[2]*ih*iexp_pow(ep.z(), m[2]-1);
-#endif
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
+         auto px = iexp_pow(ep.x(), m[0]);
+         auto py = iexp_pow(ep.y(), m[1]);
+         auto pz = iexp_pow(ep.z(), m[2]);
 
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
+         auto dy = (m[1] == 0) ? 0 : (m[1]/h)*iexp_pow(ep.y(), m[1]-1);
+         auto dz = (m[2] == 0) ? 0 : (m[2]/h)*iexp_pow(ep.z(), m[2]-1);
 
-            auto val1 = dx * py * pz;
-            auto val2 = px * dy * pz;
-            auto val3 = px * py * dz;
+         auto val1 = dx * py * pz;
+         auto val2 = px * dy * pz;
+         auto val3 = px * py * dz;
 
-            gradient_value_type sg;
-            sg = gradient_value_type::Zero();
-            sg(0,0) = val1;
-            sg(0,1) = val2;
-            sg(0,2) = val3;
-            ret.push_back(0.5*(sg + sg.transpose()));
+         gradient_value_type sg;
+         sg = gradient_value_type::Zero();
+         sg(0,0) = val1;
+         sg(0,1) = val2;
+         sg(0,2) = val3;
+         ret.push_back(sg);
 
-            sg = gradient_value_type::Zero();
-            sg(1,0) = val1;
-            sg(1,1) = val2;
-            sg(1,2) = val3;
-            ret.push_back(0.5*(sg + sg.transpose()));
+         sg = gradient_value_type::Zero();
+         sg(1,0) = val1;
+         sg(1,1) = val2;
+         sg(1,2) = val3;
+         ret.push_back(sg);
 
-            sg = gradient_value_type::Zero();
-            sg(2,0) = val1;
-            sg(2,1) = val2;
-            sg(2,2) = val3;
-            ret.push_back(0.5*(sg + sg.transpose()));
+         sg = gradient_value_type::Zero();
+         sg(2,0) = val1;
+         sg(2,1) = val2;
+         sg(2,2) = val3;
+         ret.push_back(sg);
+      }
 
-        }
-
-        return ret;
-    }
+      return ret;
+   }
 };
 
 
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 class scaled_monomial_vector_basis<Mesh<T,3,Storage>, typename Mesh<T,3,Storage>::face>
-    : public priv::monomial_basis_bones<2,3>
+: public priv::monomial_basis_bones<2,3>
 {
-    typedef Mesh<T,3,Storage>                   mesh_type;
-    typedef typename mesh_type::scalar_type     scalar_type;
-    typedef typename mesh_type::face            face_type;
+   typedef Mesh<T,3,Storage>                   mesh_type;
+   typedef typename mesh_type::scalar_type     scalar_type;
+   typedef typename mesh_type::face            face_type;
 
-    typedef priv::monomial_basis_bones<2,3>   base;
+   typedef priv::monomial_basis_bones<2,3>   base;
 
 public:
-    typedef static_vector<T,3>                      function_value_type;
+   typedef static_vector<T,3>                      function_value_type;
 
-    scaled_monomial_vector_basis()
-        : base(1)
-    {}
+   scaled_monomial_vector_basis()
+      : base(1)
+      {}
 
-    scaled_monomial_vector_basis(size_t degree)
-        : base(degree)
-    {}
+   scaled_monomial_vector_basis(size_t degree)
+      : base(degree)
+      {}
 
-    std::vector<function_value_type>
-    eval_functions(const mesh_type& msh, const face_type& fc,
-                   const point<T,3>& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+   std::vector<function_value_type>
+   eval_functions(const mesh_type& msh, const face_type& fc, const point<T,3>& pt) const
+   {
+      //auto bar = barycenter(msh, fc);
+      //auto h = measure(msh, fc);
 
-        auto ep = map_point(msh, fc, pt);
+      auto ep = map_point(msh, fc, pt);
 
-        std::vector<function_value_type> ret;
-        ret.reserve( eval_range.size());
+      std::vector<function_value_type> ret;
+      ret.reserve( this->size() );
 
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 2> pow(ep, this->max_degree()+1);
-#endif
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
+         auto vx = iexp_pow(ep.x(), m[0]);
+         auto vy = iexp_pow(ep.y(), m[1]);
 
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
+         auto val = vx * vy;
 
-#ifdef POWER_CACHE
-            auto vx = pow.x(m[0]);
-            auto vy = pow.y(m[1]);
-#else
-            auto vx = iexp_pow(ep.x(), m[0]);
-            auto vy = iexp_pow(ep.y(), m[1]);
-#endif
+         ret.push_back( static_vector<T,3>({val,   0,   0}) );
+         ret.push_back( static_vector<T,3>({  0, val,   0}) );
+         ret.push_back( static_vector<T,3>({  0,   0, val}) );
+      }
 
-            auto val = vx * vy;
-
-            ret.push_back( static_vector<T,3>({val,   0,   0}) );
-            ret.push_back( static_vector<T,3>({  0, val,   0}) );
-            ret.push_back( static_vector<T,3>({  0,   0, val}) );
-        }
-
-        return ret;
-    }
+      return ret;
+   }
 };
 
 
@@ -910,246 +816,180 @@ public:
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 class scaled_monomial_vector_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>::cell>
-    : public priv::monomial_basis_bones<2,2>
+: public priv::monomial_basis_bones<2,2>
 {
-    typedef Mesh<T,2,Storage>                       mesh_type;
-    typedef typename mesh_type::scalar_type         scalar_type;
-    typedef typename mesh_type::cell                cell_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef priv::monomial_basis_bones<2,2>           base;
+   typedef Mesh<T,2,Storage>                       mesh_type;
+   typedef typename mesh_type::scalar_type         scalar_type;
+   typedef typename mesh_type::cell                cell_type;
+   typedef typename mesh_type::point_type          point_type;
+   typedef priv::monomial_basis_bones<2,2>           base;
 
 public:
-    typedef static_vector<T,2>              function_value_type;
-    typedef static_matrix<T,2,2>            gradient_value_type;
+   typedef static_vector<T,2>              function_value_type;
+   typedef static_matrix<T,2,2>            gradient_value_type;
 
-    scaled_monomial_vector_basis()
-        : base(1)
-    {}
+   scaled_monomial_vector_basis()
+      : base(1)
+      {}
 
-    scaled_monomial_vector_basis(size_t degree)
-        : base(degree)
-    {}
+   scaled_monomial_vector_basis(size_t degree)
+      : base(degree)
+      {}
 
-    std::vector<function_value_type>
-    eval_functions(const mesh_type& msh, const cell_type& cl,
-                   const point_type& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+   std::vector<function_value_type>
+   eval_functions(const mesh_type& msh, const cell_type& cl, const point<T,2>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
+      auto ep = (pt - bar)/h;
 
-        auto ep = (pt - bar)/h;
+      std::vector<function_value_type> ret;
+      ret.reserve( this->size() );
 
-        std::vector<function_value_type> ret;
-        ret.reserve( eval_range.size() );
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
+         auto vx = iexp_pow(ep.x(), m[0]);
+         auto vy = iexp_pow(ep.y(), m[1]);
+         auto val = vx * vy;
+         ret.push_back( static_vector<T,2>({val,   0}) );
+         ret.push_back( static_vector<T,2>({  0, val}) );
+      }
 
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 2> pow(ep, this->max_degree()+1);
-#endif
+      return ret;
+   }
 
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
-#ifdef POWER_CACHE
-            auto vx = pow.x(m[0]);
-            auto vy = pow.y(m[1]);
-#else
-            auto vx = iexp_pow(ep.x(), m[0]);
-            auto vy = iexp_pow(ep.y(), m[1]);
-#endif
-            auto val = vx * vy;
-            ret.push_back( static_vector<T,2>({val,   0}) );
-            ret.push_back( static_vector<T,2>({  0, val}) );
-        }
+   std::vector<gradient_value_type>
+   eval_sgradients(const mesh_type& msh, const cell_type& cl, const point<T,2>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-        return ret;
-    }
+      auto ep = (pt - bar)/h;
 
-    std::vector<gradient_value_type>
-    eval_gradients(const mesh_type& msh, const cell_type& cl,
-                   const point_type& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
-        auto ih = 1./h;
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
-        auto ep = (pt - bar)/h;
+         auto px = iexp_pow(ep.x(), m[0]);
+         auto py = iexp_pow(ep.y(), m[1]);
 
-        std::vector<gradient_value_type> ret;
-        ret.reserve( eval_range.size() );
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
+         auto dy = (m[1] == 0) ? 0 : (m[1]/h)*iexp_pow(ep.y(), m[1]-1);
 
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 2> pow(ep, this->max_degree()+1);
-#endif
-        size_t i = 0;
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
+         auto val1 = dx * py;
+         auto val2 = px * dy;
 
-#ifdef POWER_CACHE
-            auto px = pow.x(m[0]);
-            auto py = pow.y(m[1]);
+         gradient_value_type sg;
+         sg = gradient_value_type::Zero();
+         sg(0,0) = val1 ;
+         sg(0,1) = val2 ;
+         ret.push_back(0.5*(sg + sg.transpose()));
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*pow.x(m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*pow.y(m[1]-1);
-#else
-            auto px = iexp_pow(ep.x(), m[0]);
-            auto py = iexp_pow(ep.y(), m[1]);
+         sg = gradient_value_type::Zero();
+         sg(1,0) = val1 ;
+         sg(1,1) = val2 ;
+         ret.push_back(0.5*(sg + sg.transpose()));
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*iexp_pow(ep.x(), m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*iexp_pow(ep.y(), m[1]-1);
-#endif
-            auto val1 = dx * py;
-            auto val2 = px * dy;
+      }
 
-            gradient_value_type sg;
-            sg = gradient_value_type::Zero();
-            sg(0,0) = val1 ;
-            sg(0,1) = val2 ;
-            ret.push_back(sg);
+      return ret;
+   }
 
-            sg = gradient_value_type::Zero();
-            sg(1,0) = val1 ;
-            sg(1,1) = val2 ;
-            ret.push_back(sg);
-        }
+   std::vector<gradient_value_type>
+   eval_gradients(const mesh_type& msh, const cell_type& cl, const point<T,2>& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = measure(msh, cl);
 
-        return ret;
-    }
+      auto ep = (pt - bar)/h;
 
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-    std::vector<gradient_value_type>
-    eval_sgradients(const mesh_type& msh, const cell_type& cl,
-                   const point_type& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
-        auto bar = barycenter(msh, cl);
-        auto h = diameter(msh, cl);
-        auto ih = 1./h;
+         auto px = iexp_pow(ep.x(), m[0]);
+         auto py = iexp_pow(ep.y(), m[1]);
 
-        auto ep = (pt - bar)/h;
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
+         auto dy = (m[1] == 0) ? 0 : (m[1]/h)*iexp_pow(ep.y(), m[1]-1);
 
-        std::vector<gradient_value_type> ret;
-        ret.reserve( eval_range.size() );
+         auto val1 = dx * py;
+         auto val2 = px * dy;
 
-#ifdef POWER_CACHE
-        power_cache<scalar_type, 2> pow(ep, this->max_degree()+1);
-#endif
-        size_t i = 0;
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
+         gradient_value_type sg;
+         sg = gradient_value_type::Zero();
+         sg(0,0) = val1 ;
+         sg(0,1) = val2 ;
+         ret.push_back(sg);
 
-#ifdef POWER_CACHE
-            auto px = pow.x(m[0]);
-            auto py = pow.y(m[1]);
+         sg = gradient_value_type::Zero();
+         sg(1,0) = val1 ;
+         sg(1,1) = val2 ;
+         ret.push_back(sg);
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*pow.x(m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*pow.y(m[1]-1);
-#else
-            auto px = iexp_pow(ep.x(), m[0]);
-            auto py = iexp_pow(ep.y(), m[1]);
+      }
 
-            auto dx = (m[0] == 0) ? 0 : m[0]*ih*iexp_pow(ep.x(), m[0]-1);
-            auto dy = (m[1] == 0) ? 0 : m[1]*ih*iexp_pow(ep.y(), m[1]-1);
-#endif
-            auto val1 = dx * py;
-            auto val2 = px * dy;
-
-            gradient_value_type sg;
-            sg = gradient_value_type::Zero();
-            sg(0,0) = val1 ;
-            sg(0,1) = val2 ;
-            ret.push_back(0.5*(sg + sg.transpose()));
-
-            sg = gradient_value_type::Zero();
-            sg(1,0) = val1 ;
-            sg(1,1) = val2 ;
-            ret.push_back(0.5*(sg + sg.transpose()));
-        }
-
-        return ret;
-    }
+      return ret;
+   }
 };
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 class scaled_monomial_vector_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>::face>
-    : public priv::monomial_basis_bones<1,2>
+: public priv::monomial_basis_bones<1,2>
 {
-    typedef Mesh<T,2,Storage>                       mesh_type;
-    typedef typename mesh_type::scalar_type         scalar_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::face                face_type;
-    typedef priv::monomial_basis_bones<1,2>           base;
+   typedef Mesh<T,2,Storage>                       mesh_type;
+   typedef typename mesh_type::scalar_type         scalar_type;
+   typedef typename mesh_type::point_type          point_type;
+   typedef typename mesh_type::face                face_type;
+   typedef priv::monomial_basis_bones<1,2>           base;
 
 public:
-    typedef static_vector<T,2>                      function_value_type;
+   typedef static_vector<T,2>                      function_value_type;
 
-    scaled_monomial_vector_basis()
-        : base(1)
-    {}
+   scaled_monomial_vector_basis()
+      : base(1)
+      {}
 
-    scaled_monomial_vector_basis(size_t degree)
-        : base(degree)
-    {}
+   scaled_monomial_vector_basis(size_t degree)
+      : base(degree)
+      {}
 
-     std::vector<function_value_type>
-    eval_functions(const mesh_type& msh, const face_type& fc,
-                   const point_type& pt,
-                   size_t mindeg = 0, size_t maxdeg = VERY_HIGH_DEGREE) const
-    {
-        maxdeg = (maxdeg == VERY_HIGH_DEGREE) ? max_degree() : maxdeg;
-        auto eval_range = range(mindeg, maxdeg);
+   std::vector<function_value_type>
+   eval_functions(const mesh_type& msh, const face_type& fc, const point<T,2>& pt) const
+   {
+      auto pts = points(msh, fc);
+      auto bar = barycenter(msh, fc);
+      auto h = diameter(msh, fc);
+      auto v = (pts[1] - pts[0]).to_vector();
+      auto t = (pt - bar).to_vector();
+      T dot = v.dot(t);
+      auto ep = point<T, 1>({dot/(h*h)});
 
-        auto pts = points(msh, fc);
-        auto bar = barycenter(msh, fc);
-        auto h = diameter(msh, fc);
-        auto v = (pts[1] - pts[0]).to_vector();
-        auto t = (pt - bar).to_vector();
-        T dot = v.dot(t);
-        auto ep = point<T, 1>({dot/(h*h)});
+      std::vector<function_value_type> ret;
+      ret.reserve( this->size() );
 
-        std::vector<function_value_type> ret;
-        ret.reserve( eval_range.size());
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
+         auto vx = iexp_pow(ep.x(), m[0]);
+         //std::cout << ep.x() <<" " << m[0] << " " << vx << '\n';
 
-        auto begin = this->monomials_begin();
-        std::advance(begin, eval_range.min());
-        auto end = this->monomials_begin();
-        std::advance(end, eval_range.max());
-        for (auto itor = begin; itor != end; itor++)
-        {
-            auto m = *itor;
-            auto vx = iexp_pow(ep.x(), m[0]);
-            auto val = vx ;
+         auto val = vx ;
 
-            ret.push_back( static_vector<T,2>({val,   0}) );
-            ret.push_back( static_vector<T,2>({  0, val}) );
-        }
+         ret.push_back( static_vector<T,2>({val,   0}) );
+         ret.push_back( static_vector<T,2>({  0, val}) );
+      }
 
-        return ret;
-    }
+      return ret;
+   }
 };
 
 
@@ -1169,91 +1009,86 @@ public:
    typedef T           gradient_value_type;
 
    scaled_monomial_vector_basis()
-   : base(1)
-   {}
+      : base(1)
+      {}
 
    scaled_monomial_vector_basis(size_t degree)
-   : base(degree)
-   {}
+      : base(degree)
+      {}
 
    std::vector<function_value_type>
-   eval_functions(const mesh_type& msh, const cell_type& cl,
-                  const point_type& pt) const
-                  {
-                     auto bar = barycenter(msh, cl);
-                     auto h = diameter(msh, cl);
+   eval_functions(const mesh_type& msh, const cell_type& cl, const point_type& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = diameter(msh, cl);
 
-                     auto ep = (pt - bar)/h;
+      auto ep = (pt - bar)/h;
 
-                     std::vector<function_value_type> ret;
-                     ret.reserve( this->size() );
+      std::vector<function_value_type> ret;
+      ret.reserve( this->size() );
 
-                     for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
-                     {
-                        auto m = *itor;
-                        auto vx = iexp_pow(ep.x(), m[0]);
-                        function_value_type val;
-                        val = vx;
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
+         auto vx = iexp_pow(ep.x(), m[0]);
+         function_value_type val;
+         val = vx;
 
-                        ret.push_back(val);
-                     }
+         ret.push_back(val);
+      }
 
-                     return ret;
-                  }
+      return ret;
+   }
 
+   std::vector<gradient_value_type>
+   eval_gradients(const mesh_type& msh, const cell_type& cl, const point_type& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = diameter(msh, cl);
 
+      auto ep = (pt - bar)/h;
 
- std::vector<gradient_value_type>
- eval_gradients(const mesh_type& msh, const cell_type& cl,
-                 const point_type& pt) const
-                 {
-                    auto bar = barycenter(msh, cl);
-                    auto h = diameter(msh, cl);
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-                    auto ep = (pt - bar)/h;
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
-                    std::vector<gradient_value_type> ret;
-                    ret.reserve( this->size() );
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
 
-                    for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
-                    {
-                       auto m = *itor;
+         gradient_value_type sg;
+         sg = dx ;
+         ret.push_back(sg);
+      }
 
-                       auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
+      return ret;
+   }
 
-                       gradient_value_type sg;
-                       sg = dx ;
-                       ret.push_back(sg);
-                    }
+   std::vector<gradient_value_type>
+   eval_sgradients(const mesh_type& msh, const cell_type& cl, const point_type& pt) const
+   {
+      auto bar = barycenter(msh, cl);
+      auto h = diameter(msh, cl);
 
-                    return ret;
-                 }
+      auto ep = (pt - bar)/h;
 
- std::vector<gradient_value_type>
- eval_sgradients(const mesh_type& msh, const cell_type& cl,
-                 const point_type& pt) const
-                 {
-                    auto bar = barycenter(msh, cl);
-                    auto h = diameter(msh, cl);
+      std::vector<gradient_value_type> ret;
+      ret.reserve( this->size() );
 
-                    auto ep = (pt - bar)/h;
+      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
+      {
+         auto m = *itor;
 
-                    std::vector<gradient_value_type> ret;
-                    ret.reserve( this->size() );
+         auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
 
-                    for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
-                    {
-                       auto m = *itor;
+         gradient_value_type sg;
+         sg = dx ;
+         ret.push_back(sg);
+      }
 
-                       auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
-
-                       gradient_value_type sg;
-                       sg = dx ;
-                       ret.push_back(sg);
-                    }
-
-                    return ret;
-                 }
+      return ret;
+   }
 };
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -1270,12 +1105,12 @@ public:
    typedef T              function_value_type;
 
    scaled_monomial_vector_basis()
-   : base(1)
-   {}
+      : base(1)
+      {}
 
    scaled_monomial_vector_basis(size_t degree)
-   : base(degree)
-   {}
+      : base(degree)
+      {}
 
    std::vector<function_value_type>
    eval_functions(const mesh_type& msh, const face_type& fc, const point_type& pt) const

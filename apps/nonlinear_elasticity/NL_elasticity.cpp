@@ -378,14 +378,14 @@ int main(int argc, char **argv)
 
     mesh_filename = argv[0];
 
-   //  /* FVCA5 2D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
-   //      auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* FVCA5 2D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
+    {
+        std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
+        auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
+        run_NL_elasticity_solver(msh, rp);
+        return 0;
+    }
 
     /* Netgen 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$") ))
@@ -396,14 +396,14 @@ int main(int argc, char **argv)
         return 0;
     }
 
-   //  /* DiSk++ cartesian 2D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.quad$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
-   //      auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* DiSk++ cartesian 2D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.quad$") ))
+    {
+        std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
+        auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
+        run_NL_elasticity_solver(msh, rp);
+        return 0;
+    }
 
     /* Netgen 3D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$") ))
@@ -414,13 +414,13 @@ int main(int argc, char **argv)
         return 0;
     }
 
-   //  /* DiSk++ cartesian 3D */
-   //  if (std::regex_match(mesh_filename, std::regex(".*\\.hex$") ))
-   //  {
-   //      std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
-   //      auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
-   //      run_NL_elasticity_solver(msh, rp);
-   //      return 0;
-   //  }
+    /* DiSk++ cartesian 3D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.hex$") ))
+    {
+        std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
+        auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
+        run_NL_elasticity_solver(msh, rp);
+        return 0;
+    }
 
 }

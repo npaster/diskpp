@@ -122,9 +122,10 @@ void add_element( Gmesh& gmsh, const std::vector<Node>& list_nodes)
       else {
          std::vector<size_t> index_nodes_tri(3,0);
          index_nodes_tri[0] = index_nodes[0];
-         index_nodes_tri[1] = index_nodes[1];
-         for(size_t i = 2; i < list_nodes.size(); i++){
-            index_nodes_tri[2] = index_nodes[i];
+
+         for(size_t i = 1; i < (list_nodes.size()-1); i++){
+            index_nodes_tri[1] = index_nodes[i];
+            index_nodes_tri[2] = index_nodes[i+1];
             Triangle tri(index_nodes_tri, gmsh.getNumberofElements() +1, 0, 0 );
             gmsh.addTriangle(tri);
          }
