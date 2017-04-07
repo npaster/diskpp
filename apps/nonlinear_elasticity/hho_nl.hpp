@@ -443,12 +443,10 @@ compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
             for (size_t j = i; j < G_range.to(); j++)
                 K(i - G_range.from(), j - G_range.from()) += qp.weight() * mm_prod(sdphi.at(i), dphi.at(j));
 
-        //compute F(u) * S(u)
-        decltype(fu) fsu = fu  * pk2 ;
 
         //compure R_int
         for (size_t i = G_range.from(); i < G_range.to(); i++)
-            R(i - G_range.from()) += qp.weight() * mm_prod(fsu, dphi.at(i));
+            R(i - G_range.from()) += qp.weight() * mm_prod(pk2, fdphi.at(i));
     }
 
     //we use the symetrie of K

@@ -98,6 +98,8 @@ class NewtonRaphson_step_elasticity
         typedef Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver_type;
     #endif
 
+    scalar_type             init_l2_error;
+
     sparse_matrix_type     m_system_matrix;
     vector_type            m_system_rhs, m_system_solution;
 
@@ -818,13 +820,12 @@ public:
         }
     }
 
+    // OK verif
     bool test_convergence(const scalar_type epsilon, const size_t iter)
     {
-      // a calculer erreur
-      scalar_type relative_error(0);
       scalar_type max_error(0);
 
-      relative_error = m_system_rhs.dot(m_system_rhs);
+      scalar_type l2_error = sqrt(m_system_rhs.dot(m_system_rhs));
 
 //       std::cout << "m_rhs_systeme" << std::endl;
 //       std::cout << m_system_rhs << std::endl;
@@ -835,18 +836,15 @@ public:
               max_error = test_error;
       }
 
-// OLD TEST based on increment
-//         for(size_t i=0; i < m_postprocess_data.size(); i++ ){
-//             relative_error += (m_postprocess_data.at(i)).dot(m_postprocess_data.at(i));
-//             relative_error = m_system_rhs.dot(m_system_rhs);
-//
-//             for (size_t j = 0; j < (m_postprocess_data.at(i)).size(); j++){
-//                 scalar_type test_error = std::abs((m_postprocess_data.at(i))(j));
-//                 if( test_error > max_error)
-//             }
-//         }
 
-      relative_error = sqrt(relative_error);
+
+      if(iter == 0)
+         init_l2_error = l2_error;
+
+      scalar_type relative_error(0);
+
+      if(init_l2_error > scalar_type{0})
+         relative_error = l2_error / init_l2_error;
 
       std::string s_iter = "   " + std::to_string(iter) + "               ";
       s_iter.resize(9);
@@ -857,19 +855,20 @@ public:
          std::cout << "----------------------------------------------" << std::endl;
 
       }
-      std::ios::fmtflags f( std::cout.flags() );
-      std::cout.precision(5);
-      std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-      std::cout << "| " << s_iter << " |   " << relative_error << "  |  " << max_error << "  |" << std::endl;
-      std::cout << "----------------------------------------------" << std::endl;
-      std::cout.flags( f );
 
-      if(relative_error <= epsilon){
+      if(iter > 0){
+         std::ios::fmtflags f( std::cout.flags() );
+         std::cout.precision(5);
+         std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
+         std::cout << "| " << s_iter << " |   " << relative_error << "  |  " << max_error << "  |" << std::endl;
+         std::cout << "----------------------------------------------" << std::endl;
+         std::cout.flags( f );
+      }
+
+      if(relative_error <= epsilon && iter > 0)
          return true;
-      }
-      else {
+      else
          return false;
-      }
 
    }
 

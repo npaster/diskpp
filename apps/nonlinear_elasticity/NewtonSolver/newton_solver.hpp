@@ -156,8 +156,7 @@ public:
           ai.time_statcond +=  time_assembly.time_statcond;
           ai.time_elem +=  time_assembly.time_elem;
          // test convergence
-         if(iter > 0)
-            m_convergence = newton_step.test_convergence(epsilon, iter);
+         m_convergence = newton_step.test_convergence(epsilon, iter);
 
          if(iter < (iter_max-1) && !m_convergence){
             // test recompute lu decomposition
