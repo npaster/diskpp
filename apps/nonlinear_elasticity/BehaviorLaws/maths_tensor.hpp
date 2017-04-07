@@ -148,6 +148,8 @@ computeKroneckerProduct(const static_matrix<T, M, N>& A, const static_matrix<T, 
    static_assert( (M == N && N == P && P == Q),  "Kronecker product : Not yet develloped");
 }
 
+//T_ijkl = A_ij B_kl
+
 template<typename T, int DIM>
 static_tensor<T, DIM>
 computeKroneckerProduct(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
@@ -159,6 +161,40 @@ computeKroneckerProduct(const static_matrix<T, DIM, DIM>& A, const static_matrix
          ret.block(i*DIM, j*DIM, DIM, DIM) = A(i,j) * B;
 
    return ret;
+}
+
+//T_ijkl = A_ik B_jl
+
+template<typename T, int DIM>
+static_tensor<T, DIM>
+computeProductSup(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
+{
+   static_tensor<T, DIM> ret;
+
+   for (size_t i = 0; i < DIM; i++)
+      for (size_t j = 0; j < DIM; j++)
+         for (size_t k = 0; k < DIM; k++)
+            for (size_t l = 0; l < DIM; l++)
+               ret(i*DIM + k, j*DIM + l) = A(i,k) * B(j,l);
+
+      return ret;
+}
+
+//T_ijkl = A_il B_jk
+
+template<typename T, int DIM>
+static_tensor<T, DIM>
+computeProductInf(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
+{
+   static_tensor<T, DIM> ret;
+
+   for (size_t i = 0; i < DIM; i++)
+      for (size_t j = 0; j < DIM; j++)
+         for (size_t k = 0; k < DIM; k++)
+            for (size_t l = 0; l < DIM; l++)
+               ret(i*DIM + k, j*DIM + l) = A(i,l) * B(j,k);
+
+            return ret;
 }
 
 
@@ -186,6 +222,55 @@ compute_IdentityTensor()
       ret(4, 8) = one;  // I2323
       ret(8, 0) = one;  // I3131
       ret(8, 4) = one;  // I3232
+      ret(8, 8) = one;  // I3333
+   }
+   else
+      static_assert((DIM == 1 || DIM == 2 || DIM == 3), "Wrong dimension only 2 and 3");
+
+   return ret;
+}
+
+
+template<typename T, int  DIM>
+static_tensor<T, DIM>
+compute_IdentitySymTensor()
+{
+   static_tensor<T, DIM> ret = static_tensor<T,DIM>::Zero();
+   T one = T{1};
+   T half = T{0.5};
+
+   if(DIM == 1)
+      ret(0, 0) = one;  // I1111
+   if(DIM == 2){
+      ret(0, 3) = half;  // I1212
+      ret(1, 2) = half;  // I1221
+      ret(2, 1) = half;  // I2121
+      ret(3, 0) = half;  // I2112
+
+      ret(0, 0) = one;  // I1111
+      ret(3, 3) = one;  // I2222
+   }
+   else if( DIM == 3){
+      //delta_ik delta_jl => I*$*$
+
+      ret(0, 4) = half;  // I1212
+      ret(0, 8) = half;  // I1313
+      ret(4, 0) = half;  // I2121
+      ret(4, 8) = half;  // I2323
+      ret(8, 0) = half;  // I3131
+      ret(8, 4) = half;  // I3232
+
+      //delta_jk delta_il => I*$$*
+
+      ret(1, 3) = half;  // I1221
+      ret(2, 6) = half;  // I1331
+      ret(3, 1) = half;  // I2112
+      ret(5, 7) = half;  // I2332
+      ret(6, 2) = half;  // I3113
+      ret(7, 5) = half;  // I3223
+
+      ret(0, 0) = one;  // I1111
+      ret(4, 4) = one;  // I2222
       ret(8, 8) = one;  // I3333
    }
    else
