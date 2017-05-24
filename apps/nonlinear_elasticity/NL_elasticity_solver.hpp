@@ -411,7 +411,7 @@ void
     saveMesh(const std::string& filename)
     {
        visu::Gmesh gmsh = visu::convertMesh(m_msh);
-       gmsh.writeGmesh(filename, DIM);
+       gmsh.writeGmesh(filename, 2);
     }
 
    void
