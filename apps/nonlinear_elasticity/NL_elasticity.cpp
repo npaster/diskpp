@@ -281,7 +281,7 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
       std::cout << "Solve the problem: " << '\n';
    }
 
-   const size_t n_time_step = 0;
+   const size_t n_time_step = 1;
 
    auto solve_info = nl.compute(load_lin, solution_lin, n_time_step);
 
@@ -299,6 +299,8 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
    }
 
    nl.saveMesh3D("msh3d.msh");
+   nl.compute_deformed("deforme3d.msh");
+   nl.compute_discontinuous_solution("depl3d.msh");
 }
 
 

@@ -464,7 +464,7 @@ void
          // add new element
          visu::add_element<DIM>(gmsh, new_nodes);
       }
-      gmsh.writeGmesh(filename, DIM);
+      gmsh.writeGmesh(filename, 2);
 
    }
 

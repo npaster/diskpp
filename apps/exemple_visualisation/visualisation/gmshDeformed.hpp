@@ -25,6 +25,7 @@
 #include "mesh/point.hpp"
 #include "gmshMesh.hpp"
 #include "gmshElement.hpp"
+#include "gmshConvertMesh.hpp"
 
 namespace visu{
 
@@ -38,55 +39,6 @@ void init_coor( const point<T,DIM>& point, std::vector<double>& coor)
    }
 }
 
-std::vector<size_t>
-sort_nodes(const std::vector<Node>& list_nodes)
-{
-   //Works only for 2D case
-   //compute barycenter
-   std::vector<double> bar(2,0.0);
-
-   for(size_t i = 0; i < list_nodes.size(); i++) {
-      std::vector<double> coor_node = list_nodes[i].getCoordinate();
-      bar[0] += coor_node[0];
-      bar[1] += coor_node[1];
-   }
-
-   bar[0] /= double(list_nodes.size());
-   bar[1] /= double(list_nodes.size());
-
-   //compute angle
-   std::vector<double> angle(list_nodes.size(), 0.0);
-   for(size_t i = 0; i < list_nodes.size(); i++) {
-      std::vector<double> coor_node = list_nodes[i].getCoordinate();
-      double x = coor_node[0] - bar[0];
-      double y = coor_node[1] - bar[1];
-      angle[i] = atan2(y,x);
-   }
-
-   std::vector<size_t> ret(list_nodes.size(), 0);
-
-   for(size_t i = 0; i < list_nodes.size(); i++) {
-      ret[i] = i;
-   }
-
-   for(size_t i = 0; i < (list_nodes.size()-1); i++) {
-      double vmin = angle[ret[i]];
-      size_t imin = i;
-
-      for(size_t j = i+1; j < list_nodes.size(); j++) {
-         if( angle[ret[j]] < vmin) {
-            vmin = angle[ret[j]];
-            imin = j;
-         }
-      }
-
-      size_t itmp = ret[i];
-      ret[i] = ret[imin];
-      ret[imin] = itmp;
-   }
-
-   return ret;
-}
 
 template< size_t DIM>
 void add_element( Gmesh& gmsh, const std::vector<Node>& list_nodes)
@@ -104,7 +56,7 @@ void add_element( Gmesh& gmsh, const std::vector<Node>& list_nodes)
    else if(DIM == 2) {
       assert(list_nodes.size() >= 3);
       // sort node
-      std::vector<size_t> nodes_sorted = sort_nodes(list_nodes);
+      std::vector<size_t> nodes_sorted = sort_nodes_2D(list_nodes);
 
       std::vector<size_t> index_nodes;
       for (size_t i = 0; i < list_nodes.size(); i++) {
@@ -130,6 +82,25 @@ void add_element( Gmesh& gmsh, const std::vector<Node>& list_nodes)
             gmsh.addTriangle(tri);
          }
 
+      }
+   }
+   else if(DIM == 3) {
+      assert(list_nodes.size() >= 4);
+      // sort node
+      std::vector<size_t> nodes_sorted = sort_nodes_3D(list_nodes);
+
+      std::vector<size_t> index_nodes;
+      for (size_t i = 0; i < list_nodes.size(); i++) {
+         index_nodes.push_back(list_nodes[nodes_sorted[i]].getIndex());
+      }
+
+      if(list_nodes.size() == 4){// this is a tetrahedra
+         Tetrahedron new_tetra(index_nodes, gmsh.getNumberofElements() +1, 0, 0 );
+         gmsh.addTetrahedron(new_tetra);
+      }
+      else if(list_nodes.size() == 8){// this is a tetrahedra
+         Hexahedron new_hexa(index_nodes, gmsh.getNumberofElements() +1, 0, 0 );
+         gmsh.addHexahedron(new_hexa);
       }
    }
    else
