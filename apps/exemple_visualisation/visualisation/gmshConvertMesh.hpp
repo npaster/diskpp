@@ -32,6 +32,7 @@
 #include "gmshDisk.hpp"
 
 namespace visu{
+
    std::vector<size_t>
    sort_nodes_2D(const std::vector<Node>& list_nodes)
    {
@@ -82,8 +83,103 @@ namespace visu{
       return ret;
    }
 
+   std::vector<size_t>
+   sort_nodes_3D(const std::vector<Node>& list_nodes)
+   {
+      std::vector<size_t> ret(list_nodes.size(), 0);
+      if(list_nodes.size() == 4){
+         //Works only for tetrahedron
+         std::vector<double> v0 = list_nodes[0].getCoordinate();
+         std::vector<double> v1 = list_nodes[1].getCoordinate();
+         std::vector<double> v2 = list_nodes[2].getCoordinate();
+         std::vector<double> v3 = list_nodes[3].getCoordinate();
+
+         //
+         v1[0] -= v0[0]; v1[1] -= v0[1]; v1[2] -= v0[2];
+         v2[0] -= v0[0]; v2[1] -= v0[1]; v2[2] -= v0[2];
+         v3[0] -= v0[0]; v3[1] -= v0[1]; v3[2] -= v0[2];
+
+         //
+         std::vector<double> v4(3, 0.0);
+
+         // v4 = v2 cross v3
+         v4[0] = v1[1]*v2[2] - v1[2]*v2[1];
+         v4[1] = -(v1[0]*v2[2] - v1[2]*v2[0]);
+         v4[2] = v1[0]*v2[1] - v1[1]*v2[0];
+
+         double volume_signed = (v3[0]*v4[0] + v3[1]*v4[1] + v3[2]*v4[2] );
+
+         if(volume_signed > 0.0){
+            ret = {0,1,2,3};
+         }
+         else{
+            ret = {0,3,2,1};
+         }
+      }
+      else if (list_nodes.size() == 8){
+         ret = {0,1,3,2,4,5,7,6};
+      }
+      else {
+         for (size_t i = 0; i < list_nodes.size(); i++) {
+            ret[i] = i;
+         }
+      }
+
+      return ret;
+   }
+
    template<typename Mesh>
    Gmesh convertMesh(const Mesh& mesh)
+   {
+      Gmesh msh;
+      return msh;
+   }
+
+   template<typename Mesh>
+   Gmesh convertMesh1D(const Mesh& mesh)
+   {
+
+      Gmesh msh;
+
+      auto storage = mesh.backend_storage();
+
+      // Find the dimension of the mesh
+      size_t DIM = mesh.dimension;
+
+      // Fill the gmsh's mesh
+      // conversion point in node
+      size_t nb_node(0);
+      for(auto point :  storage->points){
+         nb_node +=1;
+         msh.addNode(convertPoint(point, nb_node));
+
+         Vertice vert(nb_node, nb_node, 0, 0);
+         msh.addVertice(vert);
+      }
+      assert(storage->points.size() == msh.getNumberofNodes());
+
+
+      // conversion edge
+      size_t nb_edge(0);
+      for(auto edge :  storage->edges){
+         nb_edge +=1;
+         auto list_nodes = edge.point_ids();
+         assert(list_nodes.size() == 2);
+         std::vector<size_t> index_nodes;
+         for (size_t i = 0; i < 2; i++) {
+            index_nodes.push_back(list_nodes[i] + 1);
+         }
+
+         Edge new_edge(index_nodes, msh.getNumberofElements() +1, 0, 0 );
+         msh.addEdge(new_edge);
+      }
+      assert(storage->edges.size() == msh.getEdges().size());
+
+      return msh;
+   };
+
+   template<typename Mesh>
+   Gmesh convertMesh2D(const Mesh& mesh)
    {
 
       Gmesh msh;
@@ -175,6 +271,91 @@ namespace visu{
       }
 
       return msh;
-
    };
+
+   template<typename Mesh>
+   Gmesh convertMesh3D(const Mesh& mesh)
+   {
+
+      Gmesh msh;
+
+      auto storage = mesh.backend_storage();
+
+      // Find the dimension of the mesh
+      size_t DIM = mesh.dimension;
+
+      assert(DIM == 3);
+
+      // Fill the gmsh's mesh
+      // conversion point in node
+      size_t nb_node(0);
+      for(auto point :  storage->points){
+         nb_node +=1;
+         msh.addNode(convertPoint(point, nb_node));
+
+         Vertice vert(nb_node, nb_node, 0, 0);
+         msh.addVertice(vert);
+      }
+      assert(storage->points.size() == msh.getNumberofNodes());
+
+
+      // conversion edge
+      size_t nb_edge(0);
+      for(auto edge :  storage->edges){
+         nb_edge +=1;
+         auto list_nodes = edge.point_ids();
+         assert(list_nodes.size() == 2);
+         std::vector<size_t> index_nodes;
+         for (size_t i = 0; i < 2; i++) {
+            index_nodes.push_back(list_nodes[i] + 1);
+         }
+
+         Edge new_edge(index_nodes, msh.getNumberofElements() +1, 0, 0 );
+         msh.addEdge(new_edge);
+      }
+      assert(storage->edges.size() == msh.getEdges().size());
+
+
+      if(DIM == 3){
+         // conversion surface
+         size_t nb_volumes(0);
+         for(auto volume :  storage->volumes){
+            nb_volumes +=1;
+            auto list_nodes_index = volume.point_ids();
+            std::vector<Node> list_nodes;
+
+            //recup the coordinate of nodes
+            for (size_t i = 0; i < list_nodes_index.size(); i++) {
+               auto pt = storage->points[list_nodes_index[i]];
+               std::vector<double> coor(3, double{0});
+
+               for (size_t i = 0; i < 3; i++) {
+                  coor[i] = double(pt.at(i));
+               }
+
+               Node tmp_node(coor, i+1, 0);
+               list_nodes.push_back(tmp_node);
+            }
+
+            std::vector<size_t> nodes_sorted = sort_nodes_3D(list_nodes);
+            std::vector<size_t> index_nodes;
+            for (size_t i = 0; i < list_nodes.size(); i++) {
+               index_nodes.push_back(list_nodes_index[nodes_sorted[i]] + 1);
+            }
+
+            if(list_nodes.size() == 4){// this is a tetrahedra
+               Tetrahedron new_tetra(index_nodes, msh.getNumberofElements() +1, 0, 0 );
+               msh.addTetrahedron(new_tetra);
+            }
+            else if(list_nodes.size() == 8){// this is a tetrahedra
+               Hexahedron new_hexa(index_nodes, msh.getNumberofElements() +1, 0, 0 );
+               msh.addHexahedron(new_hexa);
+            }
+         }
+      }
+
+      return msh;
+   };
+
+
 } //visu

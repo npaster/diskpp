@@ -407,12 +407,19 @@ void
       nodedata.saveNodeData(filename, msh); // save the view
    }
 
-    void
-    saveMesh(const std::string& filename)
+   void
+    saveMesh2D(const std::string& filename)
     {
-       visu::Gmesh gmsh = visu::convertMesh(m_msh);
+       visu::Gmesh gmsh = visu::convertMesh2D(m_msh);
        gmsh.writeGmesh(filename, 2);
     }
+
+     void
+     saveMesh3D(const std::string& filename)
+     {
+        visu::Gmesh gmsh = visu::convertMesh3D(m_msh);
+        gmsh.writeGmesh(filename, 2);
+     }
 
    void
    compute_deformed(const std::string& filename)
