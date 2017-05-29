@@ -28,8 +28,9 @@
 
 #include "timecounter.h"
 
-#include "visualisation/gmshDisk.h"
+#include "visualisation/gmshDisk.hpp"
 #include "visualisation/gmshConvertMesh.hpp"
+#include "visualisation/gmshDeformed.hpp"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -86,6 +87,8 @@ class diffusion_solver
     std::vector<dynamic_vector<scalar_type>>        m_postprocess_data;
 
     bool m_verbose;
+
+    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
 public:
     diffusion_solver(const mesh_type& msh, size_t degree, int l = 0)
@@ -388,5 +391,116 @@ public:
 //
 //       visu::NodeData nodedata(1, 0.0, "sol_at_nodes", data, subdata); // create and init a nodedata view
 //       nodedata.saveNodeData(filename, msh); // save the view
+   }
+
+   void
+   compute_discontinuous_solution(const std::string& filename, const size_t DIM)
+   {
+      visu::Gmesh gmsh(DIM);
+      auto storage = m_msh.backend_storage();
+
+      cell_basis_type cell_basis          = cell_basis_type(m_cell_degree);
+      cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_cell_degree);
+
+      std::vector<visu::Data> data; //create data (not used)
+      std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+
+      size_t cell_i(0);
+      size_t nb_nodes(0);
+      for (auto& cl : m_msh)
+      {
+         vector_dynamic x = m_postprocess_data.at(cell_i++);
+         auto cell_nodes = visu::cell_nodes(m_msh, cl);
+         std::vector<visu::Node> new_nodes;
+         for (size_t i = 0; i < cell_nodes.size(); i++)
+         {
+            nb_nodes++;
+            auto point_ids = cell_nodes[i];
+            auto pt = storage->points[point_ids];
+
+            auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+
+            std::vector<scalar_type> coor(3, scalar_type{0});
+
+            visu::init_coor(pt, coor);
+            visu::Node tmp_node(coor, nb_nodes, 0);
+            new_nodes.push_back(tmp_node);
+            gmsh.addNode(tmp_node);
+
+            // plot magnitude at node
+            scalar_type pot(0.0);
+            for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_cell_degree).size(); i++) //compute solution at the node
+               pot += phi[i] * x(i);
+
+            std::vector<double> value = {double(pot)};
+            visu::Data datatmp(nb_nodes, value);
+            data.push_back(datatmp);
+         }
+         // add new element
+         visu::add_element(gmsh, new_nodes);
+      }
+
+      visu::NodeData nodedata(1, 0.0, "sol_node", data, subdata); // create and init a nodedata view
+
+      nodedata.saveNodeData(filename, gmsh); // save the view
+   }
+
+
+   void
+   compute_deformed(const std::string& filename, const size_t DIM)
+   {
+      if(DIM >= 3)
+         std::cout << "Compute deformed only in 1D or 2D" << '\n';
+      else {
+         visu::Gmesh gmsh(DIM);
+         auto storage = m_msh.backend_storage();
+
+         cell_basis_type cell_basis          = cell_basis_type(m_cell_degree);
+         cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_cell_degree);
+
+         std::vector<visu::Data> data; //create data (not used)
+         std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+
+         size_t cell_i(0);
+         size_t nb_nodes(0);
+         for (auto& cl : m_msh)
+         {
+            vector_dynamic x = m_postprocess_data.at(cell_i++);
+            auto cell_nodes = visu::cell_nodes(m_msh, cl);
+            std::vector<visu::Node> new_nodes;
+            for (size_t i = 0; i < cell_nodes.size(); i++)
+            {
+               nb_nodes++;
+               auto point_ids = cell_nodes[i];
+               auto pt = storage->points[point_ids];
+
+               auto phi = cell_basis.eval_functions(m_msh, cl, pt);
+
+               std::vector<scalar_type> coor(3, scalar_type{0});
+
+               visu::init_coor(pt, coor);
+               visu::Node tmp_node(coor, nb_nodes, 0);
+               new_nodes.push_back(tmp_node);
+               gmsh.addNode(tmp_node);
+
+               // plot magnitude at node
+               scalar_type pot(0.0);
+               for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_cell_degree).size(); i++) //compute solution at the node
+                  pot += phi[i] * x(i);
+
+               std::vector<double> value(3, 0.0);
+               value[DIM+1 -1] = {double(pot)};
+               visu::Data datatmp(nb_nodes, value);
+
+               data.push_back(datatmp);
+            }
+            // add new element
+            visu::add_element(gmsh, new_nodes);
+         }
+
+         visu::NodeData nodedata(3, 0.0, "sol_node_deformed", data, subdata); // create and init a nodedata view
+
+         nodedata.saveNodeData(filename, gmsh); // save the view
+      }
    }
 };

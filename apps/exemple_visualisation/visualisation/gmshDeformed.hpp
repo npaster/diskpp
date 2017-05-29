@@ -40,9 +40,9 @@ void init_coor( const point<T,DIM>& point, std::vector<double>& coor)
 }
 
 
-template< size_t DIM>
 void add_element( Gmesh& gmsh, const std::vector<Node>& list_nodes)
 {
+   size_t DIM = gmsh.getDim();
    if(DIM == 1) {
       assert(list_nodes.size() == 2);
       std::vector<size_t> index_nodes;

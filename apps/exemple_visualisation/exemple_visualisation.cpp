@@ -32,7 +32,7 @@
 
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
-#include "apps/exemple_visualisation/visualisation/gmshDisk.h"
+#include "apps/exemple_visualisation/visualisation/gmshDisk.hpp"
 #include "apps/exemple_visualisation/visualisation/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
@@ -72,6 +72,8 @@ run_diffusion_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
     dp.postprocess(load);
     dp.plot_solution_at_gausspoint("solgp.msh");
     dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
+    dp.compute_discontinuous_solution("visu1d.msh", 1);
+    dp.compute_deformed("visu1d_deformed.msh", 1);
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -98,6 +100,8 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
     dp.postprocess(load);
     dp.plot_solution_at_gausspoint("solgp.msh");
     dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
+    dp.compute_discontinuous_solution("visu2d.msh", 2);
+    dp.compute_deformed("visu2d_deformed.msh", 2);
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -124,6 +128,7 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
     dp.postprocess(load);
     dp.plot_solution_at_gausspoint("solgp.msh");
     dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
+    dp.compute_discontinuous_solution("visu3d.msh", 3);
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
