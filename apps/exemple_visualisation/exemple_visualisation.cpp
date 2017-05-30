@@ -70,10 +70,11 @@ run_diffusion_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
     dp.assemble(load, solution);
     dp.solve();
     dp.postprocess(load);
-    dp.plot_solution_at_gausspoint("solgp.msh");
-    dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
-    dp.compute_discontinuous_solution("visu1d.msh", 1);
-    dp.compute_deformed("visu1d_deformed.msh", 1);
+    dp.plot_solution_at_gausspoint("solgp1d.msh");
+    dp.plot_l2error_at_gausspoint("errorgp1d.msh", solution);
+    dp.compute_discontinuous_solution("visu1d.msh");
+    dp.compute_deformed("visu1d_deformed.msh");
+    dp.saveMesh("saveMesh1D.msh");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -98,10 +99,11 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
     dp.assemble(load, solution);
     dp.solve();
     dp.postprocess(load);
-    dp.plot_solution_at_gausspoint("solgp.msh");
-    dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
-    dp.compute_discontinuous_solution("visu2d.msh", 2);
-    dp.compute_deformed("visu2d_deformed.msh", 2);
+    dp.plot_solution_at_gausspoint("solgp2d.msh");
+    dp.plot_l2error_at_gausspoint("errorgp2d.msh", solution);
+    dp.compute_discontinuous_solution("visu2d.msh");
+    dp.compute_deformed("visu2d_deformed.msh");
+    dp.saveMesh("saveMesh2D.msh");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -126,9 +128,10 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
     dp.assemble(load, solution);
     dp.solve();
     dp.postprocess(load);
-    dp.plot_solution_at_gausspoint("solgp.msh");
-    dp.plot_l2error_at_gausspoint("errorgp.msh", solution);
-    dp.compute_discontinuous_solution("visu3d.msh", 3);
+    dp.plot_solution_at_gausspoint("solgp3d.msh");
+    dp.plot_l2error_at_gausspoint("errorgp3d.msh", solution);
+    dp.compute_discontinuous_solution("visu3d.msh");
+    dp.saveMesh("saveMesh3D.msh");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 

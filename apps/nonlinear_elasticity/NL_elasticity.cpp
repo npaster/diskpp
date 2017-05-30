@@ -208,7 +208,7 @@ run_NL_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
         nl.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution_lin);
    }
 
-   nl.saveMesh2D("msh2d.msh");
+   nl.saveMesh("msh2d.msh");
    nl.compute_deformed("deforme2d.msh");
    nl.compute_discontinuous_solution("depl2d.msh");
 }
@@ -298,7 +298,7 @@ run_NL_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
         nl.plot_l2error_at_gausspoint("error_gp_3d_.msh", solution_lin);
    }
 
-   nl.saveMesh3D("msh3d.msh");
+   nl.saveMesh("msh3d.msh");
    nl.compute_deformed("deforme3d.msh");
    nl.compute_discontinuous_solution("depl3d.msh");
 }

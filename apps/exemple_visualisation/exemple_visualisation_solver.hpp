@@ -30,7 +30,6 @@
 
 #include "visualisation/gmshDisk.hpp"
 #include "visualisation/gmshConvertMesh.hpp"
-#include "visualisation/gmshDeformed.hpp"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -394,9 +393,10 @@ public:
    }
 
    void
-   compute_discontinuous_solution(const std::string& filename, const size_t DIM)
+   compute_discontinuous_solution(const std::string& filename)
    {
-      visu::Gmesh gmsh(DIM);
+      const size_t dim = m_msh.dimension;
+      visu::Gmesh gmsh(dim);
       auto storage = m_msh.backend_storage();
 
       cell_basis_type cell_basis          = cell_basis_type(m_cell_degree);
@@ -447,8 +447,9 @@ public:
 
 
    void
-   compute_deformed(const std::string& filename, const size_t DIM)
+   compute_deformed(const std::string& filename)
    {
+      const size_t DIM = m_msh.dimension;
       if(DIM >= 3)
          std::cout << "Compute deformed only in 1D or 2D" << '\n';
       else {
@@ -503,4 +504,11 @@ public:
          nodedata.saveNodeData(filename, gmsh); // save the view
       }
    }
+
+   void
+    saveMesh(const std::string& filename)
+    {
+       visu::Gmesh gmsh = visu::convertMesh(m_msh);
+       gmsh.writeGmesh(filename, 2);
+    }
 };

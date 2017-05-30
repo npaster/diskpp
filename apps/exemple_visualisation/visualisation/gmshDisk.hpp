@@ -126,6 +126,13 @@ Hexahedron convertHexahedron( const DiskHexa& hexahedron, const size_t index)
    return hexa;
 }
 
+template<typename T, size_t DIM>
+void init_coor( const point<T,DIM>& point, std::vector<double>& coor)
+{
+   for(size_t i = 0; i < DIM; i++){
+      coor[i] = double(point.at(i));
+   }
+}
 
 template<template<typename, size_t, typename> class Mesh,
          typename T, typename Storage, size_t DIM, typename Cell>

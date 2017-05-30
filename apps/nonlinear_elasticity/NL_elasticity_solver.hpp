@@ -32,7 +32,6 @@
 
 #include "../exemple_visualisation/visualisation/gmshDisk.hpp"
 #include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
-#include "../exemple_visualisation/visualisation/gmshDeformed.hpp"
 
 #include "timecounter.h"
 
@@ -407,17 +406,11 @@ void
       nodedata.saveNodeData(filename, msh); // save the view
    }
 
-   void
-    saveMesh2D(const std::string& filename)
-    {
-       visu::Gmesh gmsh = visu::convertMesh2D(m_msh);
-       gmsh.writeGmesh(filename, 2);
-    }
 
      void
-     saveMesh3D(const std::string& filename)
+     saveMesh(const std::string& filename)
      {
-        visu::Gmesh gmsh = visu::convertMesh3D(m_msh);
+        visu::Gmesh gmsh = visu::convertMesh(m_msh);
         gmsh.writeGmesh(filename, 2);
      }
 
@@ -462,7 +455,7 @@ void
 
          }
          // add new element
-         visu::add_element<DIM>(gmsh, new_nodes);
+         visu::add_element(gmsh, new_nodes);
       }
       gmsh.writeGmesh(filename, 2);
 
@@ -513,7 +506,7 @@ void
             data.push_back(datatmp);
          }
          // add new element
-         visu::add_element<DIM>(gmsh, new_nodes);
+         visu::add_element(gmsh, new_nodes);
       }
 
       visu::NodeData nodedata(3, 0.0, "depl_node", data, subdata); // create and init a nodedata view
