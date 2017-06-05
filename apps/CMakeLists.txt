@@ -9,5 +9,6 @@
 add_subdirectory(linear_elasticity)
 #add_subdirectory(vector_laplacian)
 add_subdirectory(nonlinear_laplacian)
+add_subdirectory(Cahn_Hilliard_mixte)
 #add_subdirectory(exemple_visualisation)
 #add_subdirectory(fvca5_meshinfo)
