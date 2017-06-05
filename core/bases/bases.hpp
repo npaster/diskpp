@@ -34,6 +34,13 @@ class scaled_monomial_vector_basis
     static_assert(sizeof(Element) == -1, "scaled_monomial_vector_basis: not suitable for the requested kind of element");
 };
 
+template<typename MeshType, typename Element>
+class scaled_monomial_matrix_basis
+{
+    static_assert(sizeof(MeshType) == -1, "scaled_monomial_matrix_basis: not suitable for the requested kind of mesh");
+    static_assert(sizeof(Element) == -1, "scaled_monomial_matrix_basis: not suitable for the requested kind of element");
+};
+
 } //namespace disk
 
 #define POWER_CACHE

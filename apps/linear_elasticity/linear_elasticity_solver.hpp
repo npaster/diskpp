@@ -86,7 +86,7 @@ class linear_elasticity_solver
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-   typedef disk::gradient_reconstruction_elas< mesh_type,
+   typedef disk::sgradient_reconstruction_elas< mesh_type,
                                                 cell_basis_type, cell_quadrature_type,
                                                 face_basis_type, face_quadrature_type/*,
                                                 matrix_basis_type, matrix_quadrature_type*/>          sgradrec_type;

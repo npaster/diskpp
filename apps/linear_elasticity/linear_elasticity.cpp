@@ -76,15 +76,15 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Ela
 
 
    auto load = [material_data](const point<T,2>& p) -> result_type {
-      T fx = 4.*material_data.mu*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
-      T fy = 4.*material_data.mu*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
+      T fx = 2.*material_data.mu*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
+      T fy = 2.*material_data.mu*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
 
       return result_type{fx,fy};
    };
 
    auto solution = [material_data](const point<T,2>& p) -> result_type {
-      T fx =material_data.mu*sin(M_PI*p.x())*sin(M_PI*p.y()) + 1.0/(2.0*material_data.lambda) * p.x();
-      T fy = material_data.mu*cos(M_PI*p.x())*cos(M_PI*p.y()) + 1.0/(2.0*material_data.lambda) * p.y();
+      T fx = sin(M_PI*p.x())*sin(M_PI*p.y()) + 1.0/(2.0*material_data.lambda) * p.x();
+      T fy = cos(M_PI*p.x())*cos(M_PI*p.y()) + 1.0/(2.0*material_data.lambda) * p.y();
 
       return result_type{fx,fy};
    };
