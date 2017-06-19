@@ -148,17 +148,53 @@ computeKroneckerProduct(const static_matrix<T, M, N>& A, const static_matrix<T, 
    static_assert( (M == N && N == P && P == Q),  "Kronecker product : Not yet develloped");
 }
 
+//T_ijkl = A_ij B_kl
+
 template<typename T, int DIM>
 static_tensor<T, DIM>
 computeKroneckerProduct(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
 {
    static_tensor<T, DIM> ret;
-
+   
    for (size_t i = 0; i < DIM; i++)
       for (size_t j = 0; j < DIM; j++)
          ret.block(i*DIM, j*DIM, DIM, DIM) = A(i,j) * B;
+      
+      return ret;
+}
 
-   return ret;
+//T_ijkl = A_ik B_jl
+
+template<typename T, int DIM>
+static_tensor<T, DIM>
+computeProductSup(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
+{
+   static_tensor<T, DIM> ret;
+   
+   for (size_t i = 0; i < DIM; i++)
+      for (size_t j = 0; j < DIM; j++)
+         for (size_t k = 0; k < DIM; k++)
+            for (size_t l = 0; l < DIM; l++)
+               ret(i*DIM + k, j*DIM + l) = A(i,k) * B(j,l);
+            
+            return ret;
+}
+
+//T_ijkl = A_il B_jk
+
+template<typename T, int DIM>
+static_tensor<T, DIM>
+computeProductInf(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
+{
+   static_tensor<T, DIM> ret;
+   
+   for (size_t i = 0; i < DIM; i++)
+      for (size_t j = 0; j < DIM; j++)
+         for (size_t k = 0; k < DIM; k++)
+            for (size_t l = 0; l < DIM; l++)
+               ret(i*DIM + k, j*DIM + l) = A(i,l) * B(j,k);
+            
+            return ret;
 }
 
 

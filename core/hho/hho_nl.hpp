@@ -21,6 +21,7 @@
 #include "bases/bases_ranges.hpp"
 #include "timecounter.h"
 #include "hho/hho.hpp"
+#include "hho/hho_vector.hpp"
 #include "BehaviorLaws/behaviorlaws.hpp"
 #include "BehaviorLaws/maths_tensor.hpp"
 #include "BehaviorLaws/material_parameters.hpp"
@@ -285,145 +286,23 @@ compute_gradient_pt(const Mesh& msh, const typename Mesh::cell& cl,
 {
    typedef typename Mesh::scalar_type               scalar_type;
    typedef static_matrix<scalar_type,2,2>            gradient_value_type;
-   
+
    GradBasisType grad_basis          = GradBasisType(degree);
-   
+
    const size_t DIM = msh.dimension;
    const size_t tpk = DIM * DIM * binomial(degree  + DIM, degree );
-   
+
    gradient_value_type ret = gradient_value_type::Zero(2,2);
-   
+
    auto gphi = grad_basis.eval_functions(msh, cl, pt);
    assert(gphi.size() == gradrec_coeff.size());
    assert(gphi.size() == tpk);
-   
+
    for(size_t i = 0; i < gphi.size(); i++){
       ret += gradrec_coeff(i) * gphi.at(i);
    }
-   
+
    return ret;
-}
-
-
-
-
-
-template< typename GradBasisType, typename GradQuadType, typename Mesh>
-std::pair<dynamic_matrix<typename Mesh::scalar_type>, dynamic_vector<typename Mesh::scalar_type> >
-compute_elem(const Mesh& msh, const typename Mesh::cell& cl,
-            const dynamic_vector<typename Mesh::scalar_type>& gradrec_coeff, const size_t degree)
-{
-    typedef typename Mesh::scalar_type  scalar_type;
-    typedef dynamic_vector<scalar_type> vector_type;
-    typedef dynamic_matrix<scalar_type> matrix_type;
-    
-    GradBasisType grad_basis          = GradBasisType(degree);
-    GradQuadType grad_quadrature      = GradQuadType(2*degree);
-
-    const size_t DIM= msh.dimension;
-    const size_t dpk1 = DIM * binomial(degree +1 + DIM, degree +1);
-    const size_t dpk0 = DIM * binomial( DIM, 0);
-    const size_t dpk = DIM * binomial(degree  + DIM, degree );
-    const size_t gpk = DIM * DIM * binomial(degree  + DIM, degree );
-    const size_t dpkf = DIM * binomial(degree  + DIM -1, degree );
-
-    auto G_range = grad_basis.range(0, degree);
-
-    assert(G_range.from() == 0);
-    assert(G_range.to() == dpk);
-    assert(DIM *(G_range.size()) == gpk);
-
-    size_t dim_mat = gpk;
-
-    assert(gradrec_coeff.size() == dim_mat);
-
-    matrix_type K = matrix_type::Zero(dim_mat,dim_mat);
-    vector_type R = vector_type::Zero(dim_mat);
-
-    //  a automatiser
-    LaplaceLaw<scalar_type>  law(3);
-
-    auto grad_quadpoints = grad_quadrature.integrate(msh, cl);
-    for (auto& qp : grad_quadpoints)
-    {
-        auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
-        assert(gphi.size() == gpk);
-
-        //Compoute G(u)
-        auto gradu = compute_gradient_pt<GradBasisType, Mesh>(msh, cl, gradrec_coeff, qp.point(), degree);
-
-
-//         std::cout << "Gu" << std::endl;
-//         std::cout << gradu << std::endl;
-
-        auto tensor_behavior = law.compute_whole(gradu);
-        //std::cout << "PK2" << tensor_behavior.first << '\n';
-        auto P = tensor_behavior.first;
-        auto A = tensor_behavior.second;
-
-//         std::cout << "P" << std::endl;
-//         std::cout << P << std::endl;
-//         std::cout << "A" << std::endl;
-//         std::cout << A << std::endl;
-
-//         auto eigen = Ce.eigenvalues();
-//
-//         std::cout << eigen << std::endl;
-
-        //compute A(u) : gphi
-        decltype(gphi) Agphi;
-        Agphi.reserve(gphi.size());
-
-        for(size_t i = 0; i < gphi.size(); i++)
-        {
-            Agphi.push_back(tm_prod(A, gphi.at(i)) );
-        }
-
-        //compure K
-        for (size_t i = 0; i < gphi.size(); i++)
-            for (size_t j = 0; j < gphi.size(); j++)
-                K(i,j) += qp.weight() * mm_prod(gphi.at(i), Agphi.at(j));
-
-
-        //compure R_int
-        for (size_t i = 0; i < gphi.size(); i++)
-            R(i) += qp.weight() * mm_prod(P, gphi.at(i));
-    }
-
-    return std::make_pair(K,R);
-}
-
-
-
-template<typename T>
-dynamic_matrix<T>
-assemble_lhs(const dynamic_matrix<T>& GT, const dynamic_matrix<T>& ST, const dynamic_matrix<T>& K,
-              const T coeff_stab)
-{
-    assert(K.cols() == GT.rows());
-    assert(K.rows() == K.cols());
-    assert(GT.cols() == ST.rows());
-    assert(ST.cols() == ST.rows());
-
-    return (GT.transpose() * K * GT + coeff_stab * ST);
-}
-
-template<typename T>
-dynamic_vector<T>
-assemble_rhs(const dynamic_matrix<T>& GT, const dynamic_vector<T>& STu,
-             const dynamic_vector<T>& Rint, const dynamic_vector<T>& Rext,
-              const T coeff_stab)
-{
-    assert(GT.rows() == Rint.rows());
-    assert(GT.cols() == STu.rows());
-    assert(STu.rows() == Rext.rows());
-
-//     std::cout << "Rint" << std::endl;
-//     std::cout << Rint << std::endl;
-//     std::cout << "Rext" << std::endl;
-//     std::cout << Rext << std::endl;
-
-    return (GT.transpose() * Rint + coeff_stab * STu - Rext);
 }
 
 

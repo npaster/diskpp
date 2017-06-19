@@ -127,6 +127,16 @@ public:
       return m_lambda * EGl  + 2.0 * m_mu * EGl;
    }
 
+   
+   template<int DIM>
+   static_matrix<scalar_type, DIM, DIM>
+   compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
+   {
+      static_matrix<scalar_type, DIM, DIM> CauchyGreenDroit = compute_CauchyGreenRightTensor(F);
+      return F * compute_PK2(CauchyGreenDroit);
+   }
+   
+   
    tensor_1d
    compute_tangent_moduli(const static_matrix<scalar_type,1,1>& CauchyGreenDroit)
    {
@@ -146,7 +156,7 @@ public:
    }
 
    std::pair<scalar_type, scalar_type>
-   compute_whole(const scalar_type& CauchyGreenDroit)
+   compute_whole_PK2(const scalar_type& CauchyGreenDroit)
    {
       scalar_type PK2 = compute_PK2(CauchyGreenDroit);
       
@@ -154,7 +164,7 @@ public:
    }
 
    std::pair<static_matrix<scalar_type, 2, 2>, static_tensor<scalar_type, 2> >
-   compute_whole(const static_matrix<scalar_type, 2, 2>& CauchyGreenDroit)
+   compute_whole_PK2(const static_matrix<scalar_type, 2, 2>& CauchyGreenDroit)
    {
       static_matrix<scalar_type, 2, 2> PK2 = compute_PK2(CauchyGreenDroit);
 
@@ -162,11 +172,35 @@ public:
    }
 
    std::pair<static_matrix<scalar_type, 3, 3>, static_tensor<scalar_type, 3> >
-   compute_whole(const static_matrix<scalar_type, 3, 3>& CauchyGreenDroit)
+   compute_whole_PK2(const static_matrix<scalar_type, 3, 3>& CauchyGreenDroit)
    {
       static_matrix<scalar_type, 3, 3> PK2 = compute_PK2(CauchyGreenDroit);
 
       return std::make_pair(PK2, elasticity_tensor_3d);
    }
 
+   
+   std::pair<static_matrix<scalar_type, 2, 2>, static_tensor<scalar_type, 2> >
+   compute_whole_PK1(const static_matrix<scalar_type, 2, 2>& F)
+   {
+      static_matrix<scalar_type, 2, 2> CG = compute_CauchyGreenRightTensor(F);
+      static_matrix<scalar_type, 2, 2> PK2 = compute_PK2(CG);
+      static_matrix<scalar_type, 2, 2> PK1 = F*PK2;
+      
+      static_tensor<scalar_type, 2> A = convertto_elastic_moduli_2(F, PK2, elasticity_tensor_2d);
+      
+      return std::make_pair(PK1, A);
+   }
+   
+   std::pair<static_matrix<scalar_type, 3, 3>, static_tensor<scalar_type, 3> >
+   compute_whole_PK1(const static_matrix<scalar_type, 3, 3>& F)
+   {
+      static_matrix<scalar_type, 3, 3> CG = compute_CauchyGreenRightTensor(F);
+      static_matrix<scalar_type, 3, 3> PK2 = compute_PK2(CG);
+      static_matrix<scalar_type, 3, 3> PK1 = F*PK2;
+      
+      static_tensor<scalar_type, 3> A = convertto_elastic_moduli_2(F, PK2, elasticity_tensor_3d);
+      
+      return std::make_pair(PK1, A);
+   }
 };

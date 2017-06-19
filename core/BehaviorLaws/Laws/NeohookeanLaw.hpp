@@ -20,6 +20,7 @@
 
 #include <sstream>
 #include <string>
+#include <math.h>
 
 #include "BehaviorLaws/material_parameters.hpp"
 #include "common/eigen.hpp"
@@ -174,7 +175,7 @@ public:
 
    template<int DIM>
    static_tensor<scalar_type, DIM>
-   compute_tangent_moduli(const static_matrix<scalar_type, DIM, DIM>& CauchyGreenDroit)
+   compute_tangent_moduli_C(const static_matrix<scalar_type, DIM, DIM>& CauchyGreenDroit)
    {
       static_matrix<scalar_type, DIM, DIM> dJ_dC = computeJacobianFirstDerivate(CauchyGreenDroit);
       static_tensor<scalar_type, DIM> d2J_dC2 = computeJacobianSecondDerivate(CauchyGreenDroit);
@@ -193,7 +194,7 @@ public:
 
    template<int DIM>
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
-   compute_whole(const static_matrix<scalar_type, DIM, DIM>& CauchyGreenDroit)
+   compute_whole_PK2(const static_matrix<scalar_type, DIM, DIM>& CauchyGreenDroit)
    {
       static_matrix<scalar_type, DIM, DIM> Id = static_matrix<scalar_type, DIM, DIM>::Identity();
       static_matrix<scalar_type, DIM, DIM> dJ_dC = computeJacobianFirstDerivate(CauchyGreenDroit);
@@ -212,6 +213,53 @@ public:
       auto Kvol = scalar_type{4} * m_lambda * ((UJp * UJp + UJ * UJs) * square_dJ_dC + UJ * UJp * d2J_dC2);
 
       return std::make_pair(Siso + Svol, Kiso + Kvol);
+   }
+   
+   
+   template< int DIM>
+   static_matrix<scalar_type, DIM, DIM>
+   compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
+   {
+      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      scalar_type J = F.determinant();
+      
+      return  m_mu * F + ( m_lambda * log(J) - m_mu) * invF.transpose();
+   }
+   
+   
+   
+   template<int DIM>
+   static_tensor<scalar_type, DIM>
+   compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F)
+   {
+      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
+      scalar_type J = F.determinant();
+      
+      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      
+      return m_lambda * computeKroneckerProduct(invFt, invFt) + m_mu * I4 + (m_mu - m_lambda * log(J)) * computeProductInf(invFt, invF);
+   }
+   
+   
+   template<int DIM>
+   std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
+   compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
+   {
+      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
+      scalar_type J = F.determinant();
+      
+      if(J <=0.0) 
+         std::cout << "J <= 0 : " << J << std::endl;
+      
+      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      
+      auto PK1 = m_mu * F + ( m_lambda * log(J) - m_mu) * invF.transpose();
+      
+      auto A = m_lambda * computeKroneckerProduct(invFt, invFt) + m_mu * I4 + (m_mu - m_lambda * log(J)) * computeProductInf(invFt, invF);
+      
+      return std::make_pair(PK1, A);
    }
 
 };

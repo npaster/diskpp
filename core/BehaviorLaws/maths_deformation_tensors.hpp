@@ -75,3 +75,15 @@ compute_CauchyGreenLeftTensor(const static_matrix<T, DIM, DIM>& FTensor)
 {
    return FTensor * FTensor.transpose();
 }
+
+
+//convert C to A
+
+template<typename T, int  DIM>
+static_tensor<T, DIM>
+convertto_elastic_moduli_2(const static_matrix<T, DIM, DIM>& F, const static_matrix<T, DIM, DIM>& PK2,
+                         const static_tensor<T, DIM>& C)
+{
+   static_matrix<T, DIM, DIM> Id = static_matrix<T, DIM,DIM>::Identity();
+   return computeKroneckerProduct( PK2, Id) + 2.0 * computeKroneckerProduct(tm_prod(C,F), F );
+}

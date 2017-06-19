@@ -1,6 +1,6 @@
 /*
  *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -11,16 +11,28 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * If you use this code for scientific publications, you are required to
- * cite it.
- */
+ * cite
+*/
 
 #pragma once
 
-#define _BEHAVIOR_HPP_WAS_INCLUDED_
 
-#include "Laws/StVenantKirchhoffLaw.hpp"
-#include "Laws/NeohookeanLaw.hpp"
-#include "Laws/pLaplaceLaw.hpp"
-#include "Laws/LinearElasticityLaw.hpp"
 
-#undef _BEHAVIOR_HPP_WAS_INCLUDED_
+ struct ElasticityParameters
+   {
+      ElasticityParameters()
+      {
+         double lambda = 1.0;
+         double mu = 1.0;
+         double tau = 1.0;
+         bool adaptative_stab = false;
+      }
+         double lambda;
+         double mu;
+         double tau; // stabilisation parameter
+         bool adaptative_stab;
+   };
+
+
+
+

@@ -14,13 +14,29 @@
  * cite it.
  */
 
-#pragma once
+#include <iostream>
+#include <regex>
 
-#define _BEHAVIOR_HPP_WAS_INCLUDED_
+#include "test_plaplace.hpp"
+#include "test_tm_prod.hpp"
+#include "test_maths_deformations.hpp"
 
-#include "Laws/StVenantKirchhoffLaw.hpp"
-#include "Laws/NeohookeanLaw.hpp"
-#include "Laws/pLaplaceLaw.hpp"
-#include "Laws/LinearElasticityLaw.hpp"
 
-#undef _BEHAVIOR_HPP_WAS_INCLUDED_
+int main(int argc, char **argv)
+{
+    using RealType = double;
+    
+    test_plaplace_2d<RealType>(1E-15);
+    test_plaplace_3d<RealType>(1E-15);
+    
+    test_tm_prod<RealType>(1E-15);
+    
+    test_Ftensor<RealType>(1E-15);
+    
+    test_CauchyGreen<RealType>(1E-15);
+    
+    test_kronecker<RealType>(1E-15);
+    test_prodsup<RealType>(1E-15);
+    test_prodinf<RealType>(1E-15);
+    test_identity<RealType>(1E-15);
+}
