@@ -80,12 +80,18 @@ class NewtonRaphson_step_hyperelasticity
                                              face_basis_type, face_quadrature_type,
                                            grad_basis_type, grad_quadrature_type>                               gradrec_type;
 
-   typedef Hyperelasticity::Hyperelasticity<  mesh_type, cell_basis_type, cell_quadrature_type,
+    typedef disk::gradient_reconstruction_elas<  mesh_type, cell_basis_type, cell_quadrature_type,
+                                                            face_basis_type, face_quadrature_type>              deplrec_type;
+
+    typedef Hyperelasticity::Hyperelasticity<  mesh_type, cell_basis_type, cell_quadrature_type,
                                            face_basis_type, face_quadrature_type,
                                            grad_basis_type, grad_quadrature_type>                               hyperelasticity_type;
-    
+
     typedef disk::elas_like_stabilization_l2<  mesh_type, cell_basis_type, cell_quadrature_type,
                                             face_basis_type, face_quadrature_type>                              stab_type;
+
+   typedef disk::elas_like_stabilization<  mesh_type, cell_basis_type, cell_quadrature_type,
+                                                      face_basis_type, face_quadrature_type>                    stab2_type;
     typedef disk::diffusion_like_static_condensation<   mesh_type, cell_basis_type, cell_quadrature_type,
                                                         face_basis_type, face_quadrature_type>                  statcond_type;
     typedef disk::assembler_nl_vector<   mesh_type, face_basis_type, face_quadrature_type>                   assembler_type;
@@ -115,9 +121,9 @@ class NewtonRaphson_step_hyperelasticity
     bool m_verbose;
 
     scalar_type m_beta = 1.0;
-    
+
     ElasticityParameters m_elas_param;
-    
+
     scalar_type initial_residual;
 
 
@@ -177,8 +183,10 @@ public:
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
     {
         gradrec_type gradrec(m_degree);
-        stab_type stab(m_degree);
+        //stab_type stab(m_degree);
         hyperelasticity_type hyperelasticity(m_degree);
+        deplrec_type deplrec(m_degree);
+        stab2_type stab(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -199,10 +207,12 @@ public:
             ai.time_gradrec += tc.to_double();
 
             tc.tic();
-            stab.compute(m_msh, cl, gradrec.oper);
+            deplrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, deplrec.oper);
+            //stab.compute(m_msh, cl, gradrec.oper);
             tc.toc();
             ai.time_stab += tc.to_double();
-            
+
 
             tc.tic();
             hyperelasticity.compute(m_msh, cl, lf, gradrec.oper, m_solution_data.at(i), m_elas_param);
@@ -210,10 +220,10 @@ public:
             assert( hyperelasticity.K_int.rows() == stab.data.rows());
             assert( hyperelasticity.K_int.cols() == stab.data.cols());
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
-            
+
             assert( hyperelasticity.RTF.rows() == (stab.data * m_solution_data.at(i)).rows());
             assert( hyperelasticity.RTF.cols() == (stab.data * m_solution_data.at(i)).cols());
-            
+
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  - m_beta * stab.data * m_solution_data.at(i) ;
 
             tc.toc();
@@ -237,7 +247,7 @@ public:
     }
 
 
-    
+
     solver_info
     solve(void)
     {
@@ -246,21 +256,21 @@ public:
        #else
        Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
        #endif
-       
+
        solver_info si;
-       
+
 //        size_t systsz = m_system_matrix.rows();
 //        size_t nnz = m_system_matrix.nonZeros();
-       
+
        timecounter tc;
-       
+
        tc.tic();
        solver.analyzePattern(m_system_matrix);
        solver.factorize(m_system_matrix);
        m_system_solution = solver.solve(m_system_rhs);
        tc.toc();
        si.time_solver = tc.to_double();
-       
+
        return si;
     }
 
@@ -271,8 +281,10 @@ public:
     postprocess(const LoadFunction& lf)
     {
         gradrec_type gradrec(m_degree);
-        stab_type stab(m_degree);
+        //stab_type stab(m_degree);
         hyperelasticity_type hyperelasticity(m_degree);
+        deplrec_type deplrec(m_degree);
+        stab2_type stab(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -314,19 +326,20 @@ public:
             }
 
             gradrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, gradrec.oper);
+            deplrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, deplrec.oper);
 
             hyperelasticity.compute(m_msh, cl, lf, gradrec.oper, m_solution_data.at(i), m_elas_param);
-            
-            
+
+
             /////// NON LINEAIRE /////////
             tc.tic();
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
-            
+
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  -  m_beta * stab.data * m_solution_data.at(i) ;
             dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
-            
-            
+
+
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
             m_postprocess_data.push_back(x);
 
@@ -376,17 +389,17 @@ public:
             m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * fbs, 0, fbs, 1);
         }
     }
-    
-    
+
+
 
     bool test_convergence(const scalar_type epsilon, const size_t iter)
     {
       if(iter == 0)
          initial_residual = m_system_rhs.norm();
-       
+
       scalar_type residual = m_system_rhs.norm();
       scalar_type max_error = m_system_rhs.maxCoeff();
-      
+
       scalar_type relative_error = residual / initial_residual;
 
       std::string s_iter = "   " + std::to_string(iter) + "               ";
@@ -423,15 +436,15 @@ public:
       solution_cells.clear();
       solution_cells = m_solution_cells;
       assert(m_solution_cells.size() == solution_cells.size());
-      
+
       solution_faces.clear();
       solution_faces = m_solution_faces;
       assert(m_solution_faces.size() == solution_faces.size());
-        
+
       solution_lagr.clear();
       solution_lagr = m_solution_lagr;
       assert(m_solution_lagr.size() == solution_lagr.size());
-      
+
       solution.clear();
       solution = m_solution_data;
       assert(m_solution_data.size() == solution.size());
