@@ -44,7 +44,7 @@ namespace disk {
       auto gphi = grad_basis.eval_functions(msh, cl, pt);
       
       for(size_t i = 0; i < gphi.size(); i++){
-         ret += gradrec_coeff(i) * gphi.at(i);
+         ret += gradrec_coeff(i) * gphi[i];
       }
       
       return ret;
@@ -172,14 +172,20 @@ namespace disk {
             {
                auto f_phi = face_basis.eval_functions(msh, bfc, qp.point());
                for(size_t i = 0; i < fbs; i++)
-                  for(size_t j = 0; j < fbs; j++)
-                     MFF(i,j) += qp.weight() * mm_prod(f_phi.at(i), f_phi.at(j));
+                  for(size_t j = i; j < fbs; j++)
+                     MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
                   
+
                for(size_t i = 0; i < fbs; i++)
-                  rhs_f(i) += qp.weight() * mm_prod( f_phi.at(i),  bc(qp.point()));
+                  rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
             }
-            
-            
+
+            //lower part
+            for(size_t i = 1; i < fbs; i++)
+               for(size_t j = 0; j < i; j++)
+                  MFF(i,j) = MFF(j,i) ;
+
+
             rhs_f -= MFF * sol_faces.at(face_id);
             
             vector_type rhs_l = MFF * sol_lagr.at(face_i);
@@ -338,14 +344,15 @@ namespace disk {
             auto tensor_behavior = law.compute_whole_PK1(GT_iqn);
             
             for(std::size_t i = 0; i < num_grad_dofs; i++) {
+               auto Agphi_i = tm_prod(tensor_behavior.second, gphi[i]);
                for(std::size_t j = 0; j < num_grad_dofs; j++) {
-                  AT(i,j) += qp.weight() * mm_prod(gphi.at(i), tm_prod(tensor_behavior.second, gphi.at(j)));
+                  AT(i,j) += qp.weight() * mm_prod(Agphi_i, gphi[j]);
                } // for j
-               aT(i) += qp.weight() * mm_prod(tensor_behavior.first, gphi.at(i));
+               aT(i) += qp.weight() * mm_prod(tensor_behavior.first, gphi[i]);
             } // for i
             
             for(std::size_t i = 0; i < num_cell_dofs; i++) {
-               RTF(i) += qp.weight() * mm_prod(load(qp.point()) , c_phi.at(i));
+               RTF(i) += qp.weight() * mm_prod(load(qp.point()) , c_phi[i]);
             } // for i
          }
          

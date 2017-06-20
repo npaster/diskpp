@@ -72,7 +72,6 @@ test_mesh_format(const std::vector<std::string>& paths,
 
         std::ofstream ofs(ss.str());
 
-        size_t mesh_index = 1;
         for (auto& tsp : paths)
         {
             MeshType    msh;
@@ -192,7 +191,6 @@ verify_convergence(const std::vector<std::string>& paths,
             errdiams.push_back( std::make_pair(diam, error) );
         }
 
-        bool pass       = true;
         bool warning    = false;
         bool high, low, ok;
         for (size_t i = 1; i < errdiams.size(); i++)

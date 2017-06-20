@@ -46,6 +46,7 @@ struct run_params
     size_t  degree;
     int     l;
     bool    verbose;
+    size_t n_time_step;
 };
 
 
@@ -54,7 +55,9 @@ template<template<typename, size_t , typename> class Mesh,
 void
 run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, ElasticityParameters elas_param)
 {
+   typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
+
 
 //    auto load = [](const point<T,2>& p) -> result_type {
 //        T fx = -16.0 * p.x() * p.y() * p.y() -4.0 * p.x() * p.x() * p.x();
@@ -107,9 +110,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Elast
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   const size_t n_time_step = 1;
-
-   solve_info solve_info = nl.compute(load, solution, n_time_step);
+   solve_info solve_info = nl.compute(load, solution, rp.n_time_step);
 
    if(nl.verbose()){
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
@@ -131,6 +132,7 @@ template<template<typename, size_t, typename> class Mesh,
 void
 run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const ElasticityParameters elas_param)
 {
+   typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
 
    auto load = [](const point<T,3>& p) -> result_type {
@@ -138,11 +140,27 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
    };
 
    auto solution = [](const point<T,3>& p) -> result_type {
-      const T scale = 1.0;
-      T fx = scale * p.x();
-      T fy = scale * p.y();
-      T fz = scale * p.z();
+      T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+      T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+      T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
       return result_type{fx,fy,fz};
+   };
+
+
+   auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
+      static_matrix<T, 3, 3> g;
+      g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+      g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+      g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
+
+      g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+      g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+      g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
+
+      g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
+      g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
+      g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
+      return g;
    };
 
 
@@ -155,9 +173,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
       std::cout << "Solving the problem ..." << '\n';
    }
 
-   const size_t n_time_step = 1;
-
-   auto solve_info = nl.compute(load, solution, n_time_step);
+   auto solve_info = nl.compute(load, solution, rp.n_time_step);
 
    if(nl.verbose()){
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
@@ -188,11 +204,12 @@ int main(int argc, char **argv)
     rp.degree   = 1;
     rp.l        = 0;
     rp.verbose  = true;
+    rp.n_time_step = 1;
 
     ElasticityParameters param = ElasticityParameters();
     param.lambda = 1.0;
     param.mu = 1.0;
-    param.tau = 1.0;
+    param.tau = 1000.0;
     param.adaptative_stab = false;
 
     int ch;
@@ -221,11 +238,11 @@ int main(int argc, char **argv)
                 break;
 
             case 'n':
-                elems_1d = atoi(optarg);
-                if (elems_1d < 0)
+               rp.n_time_step = atoi(optarg);
+               if (rp.n_time_step == 0)
                 {
-                    std::cout << "Num of elems must be positive. Falling back to 8." << std::endl;
-                    elems_1d = 8;
+                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
+                    rp.n_time_step = 1;
                 }
                 break;
 

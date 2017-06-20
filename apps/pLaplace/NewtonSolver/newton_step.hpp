@@ -118,87 +118,11 @@ class NewtonRaphson_step_pLaplace
 
     bool m_verbose;
 
-    const scalar_type beta = 10.0;
+    scalar_type beta = 10.0;
     
     pLaplaceParameters m_lap_param;
     
     scalar_type initial_residual;
-
-
-
-// solver_info
-//     solve_computelu(const bool reactualisze_next)
-//     {
-//         solver_info si;
-// 
-//         size_t systsz = m_system_matrix.rows();
-//         size_t nnz = m_system_matrix.nonZeros();
-// 
-//         if (verbose())
-//         {
-//             std::cout << "Starting linear solver..." << std::endl;
-//             std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
-//             std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
-//         }
-// 
-//         timecounter tc;
-// 
-//         tc.tic();
-//          solver.analyzePattern(m_system_matrix);
-//          solver.factorize(m_system_matrix);
-//          m_system_solution = solver.solve(m_system_rhs);
-//         tc.toc();
-//         si.time_solver = tc.to_double();
-// 
-// 
-//         //free_memomry (pas très beau)
-//         m_system_matrix = sparse_matrix_type(0,0);
-//         m_system_rhs = vector_type::Zero(0);
-//         if (reactualisze_next) {
-//            sparse_matrix_type id = sparse_matrix_type(1,1);
-//            id.setIdentity();
-//            solver.analyzePattern(id);
-//            solver.factorize(id);
-//         }
-// 
-//         return si;
-//     }
-// 
-// solver_info
-//     solve_reuselu(const bool reactualisze_next)
-//     {
-//         solver_info si;
-// 
-//         size_t systsz = m_system_matrix.rows();
-//         size_t nnz = m_system_matrix.nonZeros();
-// 
-//         if (verbose())
-//         {
-//             std::cout << "Starting linear solver..." << std::endl;
-//             std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
-//             std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
-//         }
-// 
-//         timecounter tc;
-// 
-//         tc.tic();
-//          m_system_solution = solver.solve(m_system_rhs);
-//         tc.toc();
-//         si.time_solver = tc.to_double();
-// 
-// 
-//         //free_memomry
-//         m_system_matrix = sparse_matrix_type(0,0);
-//         m_system_rhs = vector_type::Zero(0);
-//         if (reactualisze_next) {
-//            sparse_matrix_type id = sparse_matrix_type(1,1);
-//            id.setIdentity();
-//            solver.analyzePattern(id);
-//            solver.factorize(id);
-//         }
-// 
-//         return si;
-//     }
 
 public:
    NewtonRaphson_step_pLaplace(const mesh_type& msh, const size_t degree, const pLaplaceParameters lap_param, int l = 0)
@@ -219,6 +143,7 @@ public:
         m_cell_degree = degree + l;
         m_face_degree = degree;
         m_degree = degree;
+        beta = lap_param.tau;
 
     }
 
@@ -321,18 +246,6 @@ public:
     }
 
 
-
-
-//     solver_info
-//     solve(const bool reactualize,  const bool reactualisze_next)
-//     {
-//        std::cout <<  "solve"  <<  '\n';
-//         if (reactualize)
-//             return solve_computelu(reactualisze_next);
-//         else
-//             return solve_reuselu(reactualisze_next);
-//     }
-    
     solver_info
     solve(void)
     {
@@ -344,9 +257,9 @@ public:
        
        solver_info si;
        
-       size_t systsz = m_system_matrix.rows();
-       size_t nnz = m_system_matrix.nonZeros();
-       
+//        size_t systsz = m_system_matrix.rows();
+//        size_t nnz = m_system_matrix.nonZeros();
+//        
        timecounter tc;
        
        tc.tic();

@@ -97,7 +97,6 @@ compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
         for (size_t i = 1; i < cell_basis.size(); i++)
             ret(j) += Gu(i-1) * phi[i];
 
-         std::cout << "recons :" << val << " " << ret(j) << " " << ret(j)-val << '\n';
          j++;
     }
 
@@ -187,12 +186,6 @@ public:
             gradrec.compute(m_msh, cl);
             tc.toc();
             ai.time_gradrec += tc.to_double();
-
-            ///////////////////////////////////
-
-            auto test = compute_reconstruction<mesh_type, cell_basis_type, cell_quadrature_type,
-                                             face_basis_type, face_quadrature_type, BoundaryConditionFunction>
-            (m_msh, cl, bcf, gradrec.oper,  m_cell_degree);
 
             tc.tic();
             stab.compute(m_msh, cl, gradrec.oper);

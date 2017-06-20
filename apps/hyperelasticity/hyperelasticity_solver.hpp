@@ -216,6 +216,7 @@ public:
             std::cout << "****** Gradient reconstruction: " << newton_info.time_gradrec << " sec" << std::endl;
             std::cout << "****** Stabilisation: " << newton_info.time_stab << " sec" << std::endl;
             std::cout << "****** Elementary computation: " << newton_info.time_elem << " sec" << std::endl;
+            std::cout << "       *** Behavior computation: " << newton_info.time_law << " sec" << std::endl;
             std::cout << "****** Static condensation: " << newton_info.time_statcond << " sec" << std::endl;
             std::cout << "**** Solver time: " << newton_info.time_solve << " sec" << std::endl;
             std::cout << "**** Postprocess time: " << newton_info.time_post << " sec" << std::endl;
@@ -291,7 +292,7 @@ public:
              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
              
              std::vector<scalar_type> depl(3, scalar_type{0});
-             std::vector<scalar_type> coor(3, scalar_type{0});
+             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
              
              visu::init_coor(pt, coor);
              visu::Node tmp_node(coor, nb_nodes, 0);
@@ -339,8 +340,8 @@ public:
              
              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
              
-             std::vector<scalar_type> coor(3, scalar_type{0});
-             std::vector<scalar_type> depl(3, scalar_type{0});
+             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
+             std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
              
              visu::init_coor(pt, coor);
              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)

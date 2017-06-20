@@ -192,18 +192,9 @@ namespace disk {
 
             mm  += qp.weight() * phi * phi.transpose();
             rhs += qp.weight() * f(qp.point()) * phi;
-
-            for(size_t i=0; i < phi.size(); i++){
-               std::cout << "rhs_v " <<i<< " " << f(qp.point()) << " " << phi(i) << std::endl;
-            }
          }
 
          cell_mm = mm;
-
-         //   std::cout << "mat_proj" << std::endl;
-         //   std::cout << cell_mm << std::endl;
-         //   std::cout << "rhs_proj" << std::endl;
-         //   std::cout << rhs << std::endl;
 
          return mm.llt().solve(rhs);
       }
@@ -357,7 +348,6 @@ namespace disk {
          auto cell_basis_size = m_bqd.cell_basis.size();
          auto face_basis_size = m_bqd.face_basis.size();
          auto cell_degree = m_bqd.cell_degree();
-         auto face_degree = m_bqd.face_degree();
 
          matrix_type stiff_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
 
@@ -851,7 +841,6 @@ namespace disk {
          auto cell_basis_size = m_bqd.cell_basis.size();
          auto face_basis_size = m_bqd.face_basis.size();
          auto cell_degree = m_bqd.cell_degree();
-         auto face_degree = m_bqd.face_degree();
 
          matrix_type mass_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
 

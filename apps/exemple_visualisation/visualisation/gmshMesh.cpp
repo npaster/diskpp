@@ -206,7 +206,7 @@ void Gmesh::readGmesh_MEDITformat(const std::string name_mesh)
 
   std::string file_line;
   size_t nb_nodes(0), nb_edges(0), nb_triangles(0), nb_tetras(0), nb_quad(0), nb_hexa(0);
-  std::vector<double> vert(3);
+  std::array<double, 3> coor;
   std::vector<size_t> edg(2), tri(3), tet(4), quad(4), hexa(8);
   size_t ref(0), loop_nodes(100), offset_elements(0);
 
@@ -219,8 +219,8 @@ void Gmesh::readGmesh_MEDITformat(const std::string name_mesh)
         std::cout << "Reading vertices (" << nb_nodes << ")" << std::endl;
         for (size_t i = 1 ; i <= nb_nodes ; i++)
         {
-          mesh_file >> vert[0] >> vert[1] >> vert[2] >> ref;
-          Node node(vert, i, ref);
+          mesh_file >> coor[0] >> coor[1] >> coor[2] >> ref;
+          Node node(coor, i, ref);
           _nodes.push_back(node);
         }
         assert((_nodes.size() == nb_nodes) && "Problem 1 in mesh reading.");
@@ -335,7 +335,7 @@ void Gmesh::readGmesh_MSHformat(const std::string name_mesh)
 
    std::string file_line;
    size_t nb_nodes(0), nb_elements(0);
-   std::vector<double> vert(3);
+   std::array<double, 3> coor;
    size_t index(0), type_elem(0), nbinteger_tag(0), loop_nodes(100), loop_elem(100);
 
    while (!mesh_file.eof() && loop_elem)
@@ -347,8 +347,8 @@ void Gmesh::readGmesh_MSHformat(const std::string name_mesh)
          std::cout << "Reading nodes (" << nb_nodes << ")" << std::endl;
          for (size_t i = 0 ; i < nb_nodes ; ++i)
          {
-            mesh_file >> index >> vert[0] >> vert[1] >> vert[2];
-            Node node(vert, index, 1);
+            mesh_file >> index >> coor[0] >> coor[1] >> coor[2];
+            Node node(coor, index, 1);
             _nodes.push_back(node);
          }
          assert((_nodes.size() == nb_nodes) && "Problem 1 in mesh reading.");

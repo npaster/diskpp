@@ -18,6 +18,7 @@
 #define GMSHDISK_H
 
 #include<vector>
+#include<array>
 #include<string>
 #include<utility>
 #include <array>
@@ -33,7 +34,7 @@ namespace visu{
 template<typename T, size_t DIM>
 Node convertPoint( const point<T,DIM>& point, const size_t index)
 {
-   std::vector<double> coor(3,0.0);
+   std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
 
    for(size_t i = 0; i < DIM; i++){
       coor[i] = double(point.at(i));
@@ -127,7 +128,7 @@ Hexahedron convertHexahedron( const DiskHexa& hexahedron, const size_t index)
 }
 
 template<typename T, size_t DIM>
-void init_coor( const point<T,DIM>& point, std::vector<double>& coor)
+void init_coor( const point<T,DIM>& point, std::array<double, 3>& coor)
 {
    for(size_t i = 0; i < DIM; i++){
       coor[i] = double(point.at(i));

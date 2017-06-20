@@ -420,7 +420,7 @@ public:
 
             auto phi = cell_basis.eval_functions(m_msh, cl, pt);
 
-            std::vector<scalar_type> coor(3, scalar_type{0});
+            std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
 
             visu::init_coor(pt, coor);
             visu::Node tmp_node(coor, nb_nodes, 0);
@@ -477,7 +477,7 @@ public:
 
                auto phi = cell_basis.eval_functions(m_msh, cl, pt);
 
-               std::vector<scalar_type> coor(3, scalar_type{0});
+               std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
 
                visu::init_coor(pt, coor);
                visu::Node tmp_node(coor, nb_nodes, 0);

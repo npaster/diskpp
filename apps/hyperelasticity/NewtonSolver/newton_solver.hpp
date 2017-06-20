@@ -40,7 +40,7 @@ struct newton_info
 {
     size_t  linear_system_size;
     double  time_assembly, time_solve, time_post;
-    double  time_gradrec, time_statcond, time_stab, time_elem;
+    double  time_gradrec, time_statcond, time_stab, time_elem, time_law;
 };
 
 
@@ -124,7 +124,7 @@ public:
    newton_info
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf,
             const scalar_type epsilon = 1.E-9,
-            const std::size_t iter_max = 20, const std::size_t reac_iter=1)
+            const std::size_t iter_max = 20)
    {
       newton_info ai;
       bzero(&ai, sizeof(ai));
@@ -150,6 +150,7 @@ public:
           ai.time_stab +=  time_assembly.time_stab;
           ai.time_statcond +=  time_assembly.time_statcond;
           ai.time_elem +=  time_assembly.time_elem;
+          ai.time_law +=  time_assembly.time_law;
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
 
@@ -158,7 +159,7 @@ public:
             tc.tic();
             solver_info solve_info = newton_step.solve();
             tc.toc();
-            ai.time_solve += tc.to_double();
+            ai.time_solve += solve_info.time_solver;
             // update unknowns
             tc.tic();
             newton_step.postprocess(lf);

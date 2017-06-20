@@ -18,6 +18,7 @@
 #define GMSHMESH_H
 
 #include<vector>
+#include<array>
 #include<string>
 #include "gmshElement.hpp"
 

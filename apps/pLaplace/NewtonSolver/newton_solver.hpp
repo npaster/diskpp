@@ -124,7 +124,7 @@ public:
    newton_info
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf,
             const scalar_type epsilon = 1.E-9,
-            const std::size_t iter_max = 50, const std::size_t reac_iter=1)
+            const std::size_t iter_max = 50)
    {
       newton_info ai;
       bzero(&ai, sizeof(ai));
@@ -137,8 +137,6 @@ public:
                              m_solution_lagr, m_solution_data);
 
       m_convergence = false;
-      bool reactualise = true;
-      bool reactualise_next = true;
       // loop
       std::size_t iter = 0;
       while (iter < iter_max && !m_convergence) {
@@ -156,22 +154,12 @@ public:
          m_convergence = newton_step.test_convergence(epsilon, iter);
 
          if(iter < (iter_max-1) && !m_convergence){
-            // test recompute lu decomposition
-//              if((iter%reac_iter) == 0)
-//                  reactualise = true;
-//              else
-//                  reactualise = false;
-// 
-//              if((iter+1)%reac_iter == 0)
-//                  reactualise_next = true;
-//              else
-//                  reactualise_next = false;
             // solve the global system
             tc.tic();
             //solver_info solve_info = newton_step.solve(reactualise, reactualise_next);
             solver_info solve_info = newton_step.solve();
             tc.toc();
-            ai.time_solve += tc.to_double();
+            ai.time_solve += solve_info.time_solver;
             // update unknowns
             tc.tic();
             newton_step.postprocess(lf);

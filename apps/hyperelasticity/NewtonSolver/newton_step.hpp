@@ -43,7 +43,7 @@
 struct assembly_info
 {
     size_t  linear_system_size;
-    double  time_gradrec, time_potrec, time_statcond, time_stab, time_elem;
+    double  time_gradrec, time_potrec, time_statcond, time_stab, time_elem, time_law;
 };
 
 struct solver_info
@@ -218,6 +218,7 @@ public:
 
             tc.toc();
             ai.time_elem += tc.to_double();
+            ai.time_law += hyperelasticity.time_law;
             tc.tic();
             auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
             tc.toc();
@@ -248,8 +249,8 @@ public:
        
        solver_info si;
        
-       size_t systsz = m_system_matrix.rows();
-       size_t nnz = m_system_matrix.nonZeros();
+//        size_t systsz = m_system_matrix.rows();
+//        size_t nnz = m_system_matrix.nonZeros();
        
        timecounter tc;
        

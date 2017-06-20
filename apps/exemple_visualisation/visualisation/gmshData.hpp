@@ -18,6 +18,7 @@
 #define GMSHDATA_H
 
 #include<vector>
+#include<array>
 #include<string>
 #include<utility>
 
@@ -50,7 +51,7 @@ class SubData : public Data
       SubData(const std::vector<double>& data, const Node& node);
       SubData(const Data& data, const Node& node);
       Node getNode() const;
-      void changeCoordinates(const std::vector<double>& coor);
+      void changeCoordinates(const std::array<double, 3>& coor);
       void changeIndex(const size_t index);
 
 };

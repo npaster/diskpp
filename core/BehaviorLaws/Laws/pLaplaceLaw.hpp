@@ -57,8 +57,6 @@ class pLaplaceLaw
       scalar_type norm_G = G.norm();
       scalar_type norm_G2 = std::pow(norm_G, m_p-2.0);
       scalar_type norm_G4 = std::pow(norm_G, m_p-4.0);
-      static_matrix<scalar_type, DIM, DIM> mat = static_matrix<scalar_type, DIM, DIM>::Zero();
-
 
       return norm_G2 * static_matrix<scalar_type, DIM, DIM>::Identity() + (m_p-2.0) * norm_G4 * G * G.transpose();
       

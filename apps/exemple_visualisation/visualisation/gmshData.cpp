@@ -67,7 +67,7 @@ SubData::SubData(const Data& data, const Node& node) :
 
 Node SubData::getNode() const {return m_node;}
 
-void SubData::changeCoordinates(const std::vector<double>& coor)
+void SubData::changeCoordinates(const std::array<double, 3>& coor)
 {
    m_node.changeCoordinates(coor);
 }

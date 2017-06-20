@@ -16,8 +16,9 @@
 
 #pragma once
 
-
+#include<array>
 #include<vector>
+#include<array>
 #include<string>
 #include<utility>
 #include <array>
@@ -38,10 +39,10 @@ namespace visu{
    {
       //Works only for 2D case
       //compute barycenter
-      std::vector<double> bar(2,0.0);
+      std::array<double, 2> bar = {double{0.0}, double{0.0}};
 
       for(size_t i = 0; i < list_nodes.size(); i++) {
-         std::vector<double> coor_node = list_nodes[i].getCoordinate();
+         std::array<double, 3> coor_node = list_nodes[i].getCoordinate();
          bar[0] += coor_node[0];
          bar[1] += coor_node[1];
       }
@@ -52,7 +53,7 @@ namespace visu{
       //compute angle
       std::vector<double> angle(list_nodes.size(), 0.0);
       for(size_t i = 0; i < list_nodes.size(); i++) {
-         std::vector<double> coor_node = list_nodes[i].getCoordinate();
+         std::array<double, 3> coor_node = list_nodes[i].getCoordinate();
          double x = coor_node[0] - bar[0];
          double y = coor_node[1] - bar[1];
          angle[i] = atan2(y,x);
@@ -89,10 +90,10 @@ namespace visu{
       std::vector<size_t> ret(list_nodes.size(), 0);
       if(list_nodes.size() == 4){
          //Works only for tetrahedron
-         std::vector<double> v0 = list_nodes[0].getCoordinate();
-         std::vector<double> v1 = list_nodes[1].getCoordinate();
-         std::vector<double> v2 = list_nodes[2].getCoordinate();
-         std::vector<double> v3 = list_nodes[3].getCoordinate();
+         std::array<double, 3> v0 = list_nodes[0].getCoordinate();
+         std::array<double, 3> v1 = list_nodes[1].getCoordinate();
+         std::array<double, 3> v2 = list_nodes[2].getCoordinate();
+         std::array<double, 3> v3 = list_nodes[3].getCoordinate();
 
          //
          v1[0] -= v0[0]; v1[1] -= v0[1]; v1[2] -= v0[2];
@@ -100,7 +101,7 @@ namespace visu{
          v3[0] -= v0[0]; v3[1] -= v0[1]; v3[2] -= v0[2];
 
          //
-         std::vector<double> v4(3, 0.0);
+         std::array<double, 3> v4 = {double{0.0}, double{0.0}, double{0.0}};
 
          // v4 = v2 cross v3
          v4[0] = v1[1]*v2[2] - v1[2]*v2[1];
@@ -341,7 +342,7 @@ namespace visu{
             //recup the coordinate of nodes
             for (size_t i = 0; i < list_nodes_index.size(); i++) {
                auto pt = storage->points[list_nodes_index[i]];
-               std::vector<double> coor(3, double{0});
+               std::array<double, 3> coor{ {double{0.0}, double{0.0}, double{0.0}} };
 
                for (size_t i = 0; i < 2; i++) {
                   coor[i] = double(pt.at(i));
@@ -439,7 +440,7 @@ namespace visu{
             //recup the coordinate of nodes
             for (size_t i = 0; i < list_nodes_index.size(); i++) {
                auto pt = storage->points[list_nodes_index[i]];
-               std::vector<double> coor(3, double{0});
+               std::array<double, 3> coor{ {double{0.0}, double{0.0}, double{0.0}} };
 
                for (size_t i = 0; i < 3; i++) {
                   coor[i] = double(pt.at(i));

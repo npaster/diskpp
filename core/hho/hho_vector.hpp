@@ -311,7 +311,7 @@ namespace disk {
             assert(dpk1 == dphi.size());
             for(size_t i = 0; i < dphi.size(); i++){
                for(size_t j = i; j < dphi.size(); j++){
-                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi.at(i), dphi.at(j));
+                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi[i], dphi[j]);
                }
             }
          }
@@ -384,7 +384,7 @@ namespace disk {
                assert(BG_row_range.to() == dpk1);
 
                for(size_t i=BG_row_range.from(); i< BG_row_range.to(); i++){
-                  c_dphi_n.push_back(mm_prod(c_dphi.at(i) , n));
+                  c_dphi_n.push_back(mm_prod(c_dphi[i] , n));
                }
 
                assert(c_dphi_n.size() == (dpk1 - dpk0));
@@ -395,7 +395,7 @@ namespace disk {
 
                for(size_t i=0; i< BG.rows(); i++){
                   for(size_t j=0; j<BG_col_range.size(); j++){
-                     T(i,j) = qp.weight() * mm_prod(c_dphi_n.at(i), c_phi.at(j));
+                     T(i,j) = qp.weight() * mm_prod(c_dphi_n[i], c_phi[j]);
                   }
                }
 
@@ -410,7 +410,7 @@ namespace disk {
 
                for(size_t i=0; i< BG.rows(); i++){
                   for(size_t j=0; j<current_face_range.size(); j++){
-                     F(i,j) = qp.weight() * mm_prod(c_dphi_n.at(i), f_phi.at(j));
+                     F(i,j) = qp.weight() * mm_prod(c_dphi_n[i], f_phi[j]);
                   }
                }
 
@@ -490,7 +490,6 @@ namespace disk {
       void compute(const mesh_type& msh, const cell_type& cl)
       {
          const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
          const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
          const size_t tpk = DIM * DIM * binomial(m_degree  + DIM, m_degree );
          const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
@@ -530,16 +529,15 @@ namespace disk {
             assert(dpk == dphi.size());
             for(size_t i = 0; i < tphi.size(); i++){
                for(size_t j = i; j < tphi.size(); j++){
-                  MG(i,j) += qp.weight() * mm_prod(tphi.at(i), tphi.at(j));
+                  MG(i,j) += qp.weight() * mm_prod(tphi[i], tphi[j]);
                }
                
                
                for(size_t j = 0; j < dphi.size(); j++){
-                  BG(i,j) += qp.weight() * mm_prod(tphi.at(i), dphi.at(j));
+                  BG(i,j) += qp.weight() * mm_prod(tphi[i], dphi[j]);
                }
             }
          }
-         
 
          // lower part MG
          for(size_t i = 1; i < tpk; i++)
@@ -574,7 +572,7 @@ namespace disk {
                tphi_n.reserve(tphi.size());
                
                for(size_t i= 0; i < tphi.size(); i++){
-                  tphi_n.push_back(mm_prod(tphi.at(i) , n));
+                  tphi_n.push_back(mm_prod(tphi[i] , n));
                }
                
                assert(tphi_n.size() == tpk);
@@ -585,7 +583,7 @@ namespace disk {
                
                for(size_t i=0; i< BG.rows(); i++){
                   for(size_t j=0; j<BG_col_range.size(); j++){
-                     T(i,j) = qp.weight() * mm_prod(tphi_n.at(i), c_phi.at(j));
+                     T(i,j) = qp.weight() * mm_prod(tphi_n[i], c_phi[j]);
                   }
                }
                
@@ -600,7 +598,7 @@ namespace disk {
                
                for(size_t i=0; i< BG.rows(); i++){
                   for(size_t j=0; j<current_face_range.size(); j++){
-                     F(i,j) = qp.weight() * mm_prod(tphi_n.at(i), f_phi.at(j));
+                     F(i,j) = qp.weight() * mm_prod(tphi_n[i], f_phi[j]);
                   }
                }
                
@@ -678,8 +676,6 @@ namespace disk {
       void compute(const mesh_type& msh, const cell_type& cl)
       {
          const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-         const size_t dpk0 = DIM * binomial( DIM, 0);
          const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
          const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
          const size_t dpkd = binomial(m_degree  + DIM, m_degree );
@@ -845,7 +841,7 @@ namespace disk {
             assert(c_phi.size() == dpk1);
             for(size_t i = 0; i < cell_basis.size(); i++){
                for(size_t j = i; j< cell_basis.size(); j++){
-                  mass_mat(i,j) += qp.weight() * mm_prod(c_phi.at(i), c_phi.at(j));
+                  mass_mat(i,j) += qp.weight() * mm_prod(c_phi[i], c_phi[j]);
                }
             }
          }
@@ -907,7 +903,7 @@ namespace disk {
 
                for(size_t i = 0; i < fbs; i++){
                   for(size_t j = i; j < fbs; j++){
-                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), f_phi.at(j));
+                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
                   }
                }
                
@@ -918,7 +914,7 @@ namespace disk {
 
                for(size_t i=0; i< fbs; i++){
                   for(size_t j=0; j< cell_basis.size(); j++){
-                     face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), c_phi.at(j));
+                     face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], c_phi[j]);
                   }
                }
             }
@@ -1053,7 +1049,7 @@ namespace disk {
                
                for(size_t i = 0; i < fbs; i++){
                   for(size_t j = i; j < fbs; j++){
-                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), f_phi.at(j));
+                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
                   }
                }
                
@@ -1064,7 +1060,7 @@ namespace disk {
                   
                   for(size_t i=0; i< fbs; i++){
                      for(size_t j=0; j< cell_basis.size(); j++){
-                        face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi.at(i), c_phi.at(j));
+                        face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], c_phi[j]);
                      }
                   }
             }
@@ -1085,21 +1081,12 @@ namespace disk {
             assert(MR2.cols() == proj1.rows());
             matrix_type proj3 = piKF.solve(MR2*proj1);
             
-             assert(proj2.rows() == proj3.rows());
-             assert(proj2.cols() == proj3.cols());
+            assert(proj2.rows() == proj3.rows());
+            assert(proj2.cols() == proj3.cols());
             
-             // \pi_F^k( v_T ) - v_F
-             matrix_type BRF = proj2 + proj3;
+            // \pi_F^k( v_T ) - v_F
+            matrix_type BRF = proj2 + proj3;
              
-//              std::cout << "data " << data.rows() << " " << data.cols() << std::endl;
-//              std::cout << "proj1 " << proj1.rows() << " " << proj1.cols() << std::endl;
-//              std::cout << "proj2 " << proj2.rows() << " " << proj2.cols() << std::endl;
-//              std::cout << "proj3 " << proj3.rows() << " " << proj3.cols() << std::endl;
-//              std::cout << "If " << I_F.rows() << " " << I_F.cols() << std::endl;
-//              std::cout << "iT " << I_T.rows() << " " << I_T.cols() << std::endl;
-//              std::cout << "BRF " << BRF.rows() << " " << BRF.cols() << std::endl;
-//              std::cout << "FM " << face_mass_matrix.rows() << " " << face_mass_matrix.cols() << std::endl;
-            
             data += BRF.transpose() * face_mass_matrix * BRF / h;
          }
       }
@@ -1149,11 +1136,7 @@ namespace disk {
       assembler_elas(const mesh_type& msh, size_t degree)
       : m_degree(degree)
       {
-
          const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-         const size_t dpk0 = DIM * binomial( DIM, 0);
-         const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
          const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
 
          face_basis          = face_basis_type(m_degree);
@@ -1172,11 +1155,7 @@ namespace disk {
       {
 
          const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-         const size_t dpk0 = DIM * binomial( DIM, 0);
-         const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
          const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
-
 
          auto fcs = faces(msh, cl);
          std::vector<size_t> l2g(fcs.size() * face_basis.size());
@@ -1230,13 +1209,6 @@ namespace disk {
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc)
       {
-         const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-         const size_t dpk0 = DIM * binomial( DIM, 0);
-         const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
-         const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
-
-
          size_t fbs = face_basis.size();
          size_t face_i = 0;
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
@@ -1265,7 +1237,7 @@ namespace disk {
 
                for(size_t i = 0; i < fbs; i++)
                   for(size_t j = i; j < fbs; j++)
-                     MFF(i,j) += qp.weight() * mm_prod(f_phi.at(i), f_phi.at(j));
+                     MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
                   
                //lower part
                for (size_t i = 1; i < fbs; i++)
@@ -1273,7 +1245,7 @@ namespace disk {
                      MFF(i,j) = MFF(j,i);
 
                   for(size_t i=0; i< fbs; i++)
-                     rhs_f(i) += qp.weight() * mm_prod( f_phi.at(i),  bc(qp.point()));
+                     rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
             }
 
             #ifdef FILL_COLMAJOR
@@ -1373,10 +1345,7 @@ namespace disk {
       compute_cell(const mesh_type& msh, const cell_type& cl, const Function& f)
       {
          const size_t DIM= msh.dimension;
-         const size_t dpk1 = DIM * binomial(m_degree +1 + DIM, m_degree +1);
-         const size_t dpk0 = DIM * binomial( DIM, 0);
          const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
-         const size_t dpkf = DIM * binomial(m_degree  + DIM -1, m_degree );
 
          assert(cell_basis.size() == dpk);
 
@@ -1392,7 +1361,7 @@ namespace disk {
 
             for(size_t i = 0; i < phi.size(); i++)
                for(size_t j = i; j < phi.size(); j++)
-                  mm(i,j)  += qp.weight() *mm_prod(phi.at(i), phi.at(j));
+                  mm(i,j)  += qp.weight() *mm_prod(phi[i], phi[j]);
                
             //lower part
             for (size_t i = 1; i < phi.size(); i++)
@@ -1400,21 +1369,12 @@ namespace disk {
                   mm(i,j) = mm(j,i);
 
                for(size_t i=0; i < phi.size(); i++){
-                  rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi.at(i));
-                  //std::cout << "rhs_v" <<i<< " " << f(qp.point()) << " " << phi.at(i) << std::endl;
+                  rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
                }
-
 
          }
 
          cell_mm = mm;
-
-         //         std::cout << "mat_proj" << std::endl;
-         //         std::cout << cell_mm << std::endl;
-         //         std::cout << "rhs_proj" << std::endl;
-         //         std::cout << rhs << std::endl;
-
-
          return mm.llt().solve(rhs);
       }
 
@@ -1444,10 +1404,10 @@ namespace disk {
 
                for(size_t i=0; i < phi.size(); i++)
                   for(size_t j=0; j < phi.size(); j++)
-                     mm(i,j)  += qp.weight() *mm_prod(phi.at(i), phi.at(j));
+                     mm(i,j)  += qp.weight() *mm_prod(phi[i], phi[j]);
 
                   for(size_t i=0; i < phi.size(); i++)
-                     rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi.at(i));
+                     rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
 
             }
 

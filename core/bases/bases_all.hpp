@@ -160,7 +160,6 @@ map_point(const Mesh<T,3,Storage>& msh,
           const point<T,3>& pt)
 {
     auto pts = points(msh, fc);
-    auto diam = diameter(msh, fc);
     auto bar = barycenter(msh, fc);
 
     static_vector<T,3> v0;
@@ -1296,7 +1295,7 @@ public:
       auto ep = (pt - bar)/h;
 
       std::vector<function_value_type> ret;
-      ret.reserve( 9*this->size());
+      ret.reserve( 3*this->size());
 
 
       for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
@@ -1352,7 +1351,7 @@ public:
       auto ep = map_point(msh, fc, pt);
 
       std::vector<function_value_type> ret;
-      ret.reserve(9* this->size());
+      ret.reserve(3* this->size());
 
 
       for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
@@ -1413,7 +1412,8 @@ public:
       auto ep = (pt - bar)/h;
 
       std::vector<function_value_type> ret;
-      ret.reserve( 4*this->size());
+      ret.reserve( 2*this->size());
+
 
       for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
       {
@@ -1473,7 +1473,7 @@ public:
       auto ep = point<T, 1>({dot/(h*h)});
 
       std::vector<function_value_type> ret;
-      ret.reserve(4 * this->size());
+      ret.reserve(2 * this->size());
 
 
       for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
