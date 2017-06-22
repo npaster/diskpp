@@ -77,90 +77,90 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
 //    auto load = [elas_param](const point<T,2>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T mu = elas_param.mu;
-// 
+//
 //       T num = -lambda * log(9.0 * std::pow(p.x(), 2.0) * std::pow(p.y(), 2.0) + 3.0 * (std::pow(p.x(), 2.0) + std::pow(p.y(), 2.0)) +1.0)
 //             + lambda + mu;
-// 
-// 
+//
+//
 //       T dem1 = 9.0 * std::pow(p.x(), 4.0) + 6.0 * std::pow(p.x(), 2.0) + 1.0;
 //       T dem2 = 9.0 * std::pow(p.y(), 4.0) + 6.0 * std::pow(p.y(), 2.0) + 1.0;
-// 
+//
 //       T fx = - 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
 //       T fy = - 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
 //       return result_type{fx,fy};
 //    };
-// 
+//
 //    auto solution = [elas_param](const point<T,2>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T fx = std::pow(p.x(), 3.0);
 //       T fy = std::pow(p.y(), 3.0);
-// 
+//
 //       return result_type{fx,fy};
 //    };
-//    
+//
 //    auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
 //       T lambda = elas_param.lambda;
 //       result_grad_type grad = result_grad_type::Zero();
-//       
+//
 //       grad(0,0) = 3.0 * std::pow(p.x(), 2.0) ;
 //       grad(1,1) = 3.0 * std::pow(p.y(), 2.0) ;
-// 
+//
 //       return grad;
 //    };
-   
 
-   
-   
-   
-   
+
+
+
+
+
    auto load = [elas_param](const point<T,2>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T mu = elas_param.mu;
-//       
+//
 //       T num = -lambda * log(1.0 + M_PI * cos(M_PI * p.x()) * M_PI * cos(M_PI * p.y()) + M_PI * cos(M_PI * p.x()) + M_PI * cos(M_PI * p.y()));
-//       
+//
 //       T dem1 = std::pow(M_PI * cos(M_PI * p.x()) +1.0, 2.0);
 //       T dem2 = std::pow(M_PI * cos(M_PI * p.y()) +1.0, 2.0);
-      T gamma = 200.0;
+      T gamma = 2.0;
       T fx = 0.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.x()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.x()))/dem1;
       T fy = gamma  * 1.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.y()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.y()))/dem2;
       return result_type{fx,fy};
    };
-   
+
    auto solution = [elas_param](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T fx = 0.0;//0.1*sin(M_PI * p.x());
       T fy = 0.0;//0.1*sin(M_PI * p.y());
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0,0) = 0.0;//M_PI * cos(M_PI * p.x());
       grad(1,1) = 0.0;//M_PI * cos(M_PI * p.y());
-      
+
       return grad;
    };
-   
-   
+
+
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
-      
+
       return result_type{fx,fy};
    };
 
    std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
-   // 4 for Aurrichio test1 
+   // 4 for Aurrichio test1
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
    nl.verbose(rp.verbose);
 
 
-   nl.compute_initial_state();
+   nl.compute_initial_state(boundary_neumann);
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
@@ -219,23 +219,23 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
       g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
       return g;
    };
-   
-   
+
+
    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
       T fz = 0.0;
-      
+
       return result_type{fx,fy,fz};
    };
-   
+
    std::vector<size_t> boundary_neumann(0);
 
 
    hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp.degree, elas_param);
    nl.verbose(rp.verbose);
 
-   nl.compute_initial_state();
+   nl.compute_initial_state(boundary_neumann);
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..." << '\n';
@@ -275,9 +275,9 @@ int main(int argc, char **argv)
     rp.n_time_step = 1;
 
     ElasticityParameters param = ElasticityParameters();
-    
+
     param.mu = 40.0;
-    param.lambda = param.mu * 10E5;
+    param.lambda = param.mu * 10E3;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
@@ -370,8 +370,8 @@ int main(int argc, char **argv)
         run_hyperelasticity_solver(msh, rp, param);
         return 0;
     }
-    
-    
+
+
     /* DiSk++ cartesian 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.quad2$") ))
     {
@@ -398,7 +398,7 @@ int main(int argc, char **argv)
         run_hyperelasticity_solver(msh, rp, param);
         return 0;
     }
-    
+
     /* FVCA6 3D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.msh$") ))
     {

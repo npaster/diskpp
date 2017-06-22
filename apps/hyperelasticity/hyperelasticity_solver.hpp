@@ -74,9 +74,9 @@ class hyperelasticity_solver
    std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
 
    bool m_verbose, m_convergence;
-   
+
    ElasticityParameters m_elas_param;
-   
+
    size_t total_dof_depl_static;
 
 public:
@@ -104,21 +104,23 @@ public:
    bool    verbose(void) const     { return m_verbose; }
    void    verbose(bool v)         { m_verbose = v; }
 
-  
+
 
    //template<typename DeplFunction, typename StressFunction>
    void
-   compute_initial_state()//const DeplFunction& df, const StressFunction& bcf)
+   compute_initial_state(const std::vector<size_t>& boundary_neumann)//const DeplFunction& df, const StressFunction& bcf)
    {
       m_solution_data.clear();
       m_solution_cells.clear();
       m_solution_faces.clear();
       m_solution_lagr.clear();
 
+      const size_t nb_faces_dirichlet = m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann);
+
       m_solution_data.reserve(m_msh.cells_size());
       m_solution_cells.reserve(m_msh.cells_size());
       m_solution_faces.reserve(m_msh.faces_size());
-      m_solution_lagr.reserve(m_msh.boundary_faces_size());
+      m_solution_lagr.reserve(nb_faces_dirichlet);
 
       cell_basis_type cell_basis = cell_basis_type(m_degree);
       face_basis_type face_basis = face_basis_type(m_degree);
@@ -126,7 +128,7 @@ public:
       const size_t num_cell_dofs = cell_basis.size();
       const size_t num_face_dofs = face_basis.size();
       const size_t total_dof = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
-      const size_t total_lagr = m_msh.boundary_faces_size() * num_face_dofs;
+      const size_t total_lagr = nb_faces_dirichlet * num_face_dofs;
 
       for(auto& cl : m_msh)
       {
@@ -141,14 +143,14 @@ public:
          m_solution_faces.push_back(vector_dynamic::Zero(num_face_dofs));
       }
 
-      for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
+      for(size_t i = 0; i < nb_faces_dirichlet; i++){
          m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));
       }
 
 
       if(m_verbose){
          std::cout << "** Numbers of cells: " << m_msh.cells_size()  << std::endl;
-         std::cout << "** Numbers of faces: " << m_msh.faces_size() << " ( boundary faces: " 
+         std::cout << "** Numbers of faces: " << m_msh.faces_size() << " ( boundary faces: "
          <<  m_msh.boundary_faces_size() << " )"  << std::endl;
          std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
@@ -156,7 +158,7 @@ public:
          std::cout << "** Numbers of dofs: " << m_msh.faces_size() * num_face_dofs + total_lagr  << std::endl;
          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
       }
-      
+
       total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
       //provisoire
 
@@ -165,12 +167,12 @@ public:
 //          m_solution_data[i].setConstant(1.0);
 //          m_solution_cells[i].setConstant(1.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.faces_size(); i++)
 //       {
 //          m_solution_faces[i].setConstant(1.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
 //          m_solution_lagr[i].setConstant(1.0);
 //      }
@@ -178,7 +180,7 @@ public:
 
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
    solve_info
-   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g, 
+   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
            const std::vector<size_t>& boundary_neumann,
            size_t n_time_step = 1)
    {
@@ -192,7 +194,7 @@ public:
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
-      
+
       newton_solver.verbose(m_verbose);
 
       const scalar_type delta_t = 1.0/n_time_step;
@@ -216,8 +218,8 @@ public:
          auto rbcf = [&bcf, &time](const Point& p) -> auto {
              return disk::mm_prod(time,bcf(p));
          };
-         
-         
+
+
          auto rg = [&g, &time](const Point& p) -> auto {
             return disk::mm_prod(time,g(p));
          };
@@ -280,24 +282,24 @@ public:
 
         return sqrt(err_dof);
     }
-    
+
     size_t getDofs() {return total_dof_depl_static;}
-    
-    
+
+
     template<typename AnalyticalSolution>
     scalar_type
     compute_l2_gradient_error(const AnalyticalSolution& grad)
     {
        scalar_type err_dof = scalar_type{0.0};
-       
+
        disk::projector_elas<mesh_type, grad_basis_type, grad_quadrature_type,
        face_basis_type, face_quadrature_type> projk(m_degree);
-       
+
        disk::gradient_reconstruction_elas_full<  mesh_type, cell_basis_type, cell_quadrature_type,
        face_basis_type, face_quadrature_type, grad_basis_type, grad_quadrature_type>     gradrec(m_degree);
-       
+
        size_t i = 0;
-       
+
        for (auto& cl : m_msh)
        {
           auto x = m_solution_data.at(i++);
@@ -308,22 +310,22 @@ public:
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
           err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
        }
-       
+
        return sqrt(err_dof);
     }
-    
+
     void
     compute_discontinuous_solution(const std::string& filename)
     {
        visu::Gmesh gmsh(DIM);
        auto storage = m_msh.backend_storage();
-       
+
        cell_basis_type cell_basis          = cell_basis_type(m_degree);
        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-       
+
        size_t cell_i(0);
        size_t nb_nodes(0);
        for (auto& cl : m_msh)
@@ -336,43 +338,43 @@ public:
              nb_nodes++;
              auto point_ids = cell_nodes[i];
              auto pt = storage->points[point_ids];
-             
+
              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
-             
+
              std::vector<scalar_type> depl(3, scalar_type{0});
              std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-             
+
              visu::init_coor(pt, coor);
              visu::Node tmp_node(coor, nb_nodes, 0);
              new_nodes.push_back(tmp_node);
              gmsh.addNode(tmp_node);
-             
+
              // plot magnitude at node
              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
                 for(size_t j=0; j < DIM; j++)
                    depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
-                   
+
                visu::Data datatmp(nb_nodes, depl);
                data.push_back(datatmp);
           }
           // add new element
           visu::add_element(gmsh, new_nodes);
        }
-       
+
        visu::NodeData nodedata(3, 0.0, "depl_node", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
-    
+
     void
     compute_deformed(const std::string& filename)
     {
        visu::Gmesh gmsh(DIM);
        auto storage = m_msh.backend_storage();
-       
+
        cell_basis_type cell_basis          = cell_basis_type(m_degree);
        cell_quadrature_type cell_quadrature     = cell_quadrature_type(m_degree);
-       
+
        size_t cell_i(0);
        size_t nb_nodes(0);
        for (auto& cl : m_msh)
@@ -385,30 +387,30 @@ public:
              nb_nodes++;
              auto point_ids = cell_nodes[i];
              auto pt = storage->points[point_ids];
-             
+
              auto phi = cell_basis.eval_functions(m_msh, cl, pt);
-             
+
              std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
              std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
-             
+
              visu::init_coor(pt, coor);
              for (size_t i = 0; i < cell_basis.range(0, m_cell_degree).size(); i += DIM)
                 for(size_t j=0; j < DIM; j++)
                    depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
-                   
+
             for(size_t j=0; j < DIM; j++)
                coor[j] += depl[j];
-                   
+
             visu::Node tmp_node(coor, nb_nodes, 0);
             new_nodes.push_back(tmp_node);
             gmsh.addNode(tmp_node);
-             
+
           }
           // add new element
           visu::add_element(gmsh, new_nodes);
        }
        gmsh.writeGmesh(filename, 2);
-       
+
     }
 
 };

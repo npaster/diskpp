@@ -171,7 +171,8 @@ public:
 
       m_solution_lagr.clear();
       m_solution_lagr = initial_solution_lagr;
-      assert(m_msh.boundary_faces_size() == m_solution_lagr.size());
+      assert((m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann))
+            == m_solution_lagr.size());
 
       m_solution_data.clear();
       m_solution_data = initial_solution;
@@ -191,7 +192,7 @@ public:
 
         statcond_type statcond(m_degree);
 
-        assembler_type assembler(m_msh, m_degree);
+        assembler_type assembler(m_msh, m_degree, boundary_neumann);
 
         assembly_info ai;
         bzero(&ai, sizeof(ai));
@@ -268,11 +269,11 @@ public:
        tc.tic();
        solver.analyzePattern(m_system_matrix);
        solver.factorize(m_system_matrix);
-       
+
        if(solver.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not factorize the matrix" << std::endl;
        }
-       
+
        m_system_solution = solver.solve(m_system_rhs);
        if(solver.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not solve the linear system" << std::endl;
@@ -410,7 +411,7 @@ public:
       scalar_type max_error = m_system_rhs.maxCoeff();
 
       scalar_type relative_error = residual / initial_residual;
-      
+
       if(initial_residual == scalar_type{0.0})
       {
          relative_error = 0.0;

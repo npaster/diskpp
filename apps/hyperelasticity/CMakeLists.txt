@@ -9,12 +9,12 @@ install(TARGETS hyperelasticity_test_aurrichio RUNTIME DESTINATION bin)
 # add_executable(hyperelasticity_test_convergence_2d hyperelasticity_test_convergence_2d.cpp)
 # target_link_libraries(hyperelasticity_test_convergence_2d ${LINK_LIBS})
 # install(TARGETS hyperelasticity_test_convergence_2d RUNTIME DESTINATION bin)
-# 
+#
 # add_executable(hyperelasticity_test_convergence_3d hyperelasticity_test_convergence_3d.cpp)
 # target_link_libraries(hyperelasticity_test_convergence_3d ${LINK_LIBS})
 # install(TARGETS hyperelasticity_test_convergence_3d RUNTIME DESTINATION bin)
-# 
-# 
+#
+#
 # add_executable(hyperelasticity_test_locking_2d hyperelasticity_test_locking_2d.cpp)
 # target_link_libraries(hyperelasticity_test_locking_2d ${LINK_LIBS})
 # install(TARGETS hyperelasticity_test_locking_2d RUNTIME DESTINATION bin)

@@ -65,7 +65,7 @@ class NewtonRaphson_solver_hyperelasticity
 
    bool m_verbose;
    bool m_convergence;
-   
+
    ElasticityParameters m_elas_param;
 
 
@@ -112,7 +112,8 @@ public:
 
       m_solution_lagr.clear();
       m_solution_lagr = initial_solution_lagr;
-      assert(m_msh.boundary_faces_size() == m_solution_lagr.size());
+      assert((m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann))
+            == m_solution_lagr.size());
 
       m_solution_data.clear();
       m_solution_data = initial_solution;
@@ -171,7 +172,7 @@ public:
          }
          iter++;
       }
-      
+
       if(!m_convergence)
          m_convergence = newton_step.test_convergence(1.E-6, iter_max);
 
@@ -192,16 +193,16 @@ public:
       solution_cells.clear();
       solution_cells = m_solution_cells;
       assert(m_solution_cells.size() == solution_cells.size());
-      
+
       solution_faces.clear();
       solution_faces = m_solution_faces;
       assert(m_solution_faces.size() == solution_faces.size());
 
       solution_lagr.clear();
       solution_lagr = m_solution_lagr;
-      assert(m_solution_lagr.size() == solution_lagr.size()); 
+      assert(m_solution_lagr.size() == solution_lagr.size());
 
-      solution.clear();  
+      solution.clear();
       solution = m_solution_data;
       assert(m_solution_data.size() == solution.size());
     }

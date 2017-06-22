@@ -58,7 +58,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
-   
+
    std::cout << "Degree k= " << rp.degree << std::endl;
    std::cout << "mu= " << elas_param.mu << std::endl;
    std::cout << "lambda= " << elas_param.lambda << std::endl;
@@ -66,35 +66,35 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
    std::cout << "gamma= " << rp.gamma << std::endl;
    std::cout << "gamma_normalise= " << rp.gamma/elas_param.mu << std::endl;
    std::cout << "law= " << elas_param.type_law << std::endl;
-   
+
    auto load = [rp](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = rp.gamma;
       return result_type{fx,fy};
    };
-   
+
    auto solution = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
-      
+
       return result_type{fx,fy};
    };
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
-      
+
       return result_type{fx,fy};
    };
 
    std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
-   // 4 for Aurrichio test1 
+   // 4 for Aurrichio test1
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
    nl.verbose(rp.verbose);
 
 
-   nl.compute_initial_state();
+   nl.compute_initial_state(boundary_neumann);
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     rp.gamma = 200.0;
 
     ElasticityParameters param = ElasticityParameters();
-    
+
     param.mu = 40.0;
     param.lambda = param.mu * 10E5;
     param.tau = 10.0;
@@ -178,11 +178,11 @@ int main(int argc, char **argv)
             case 't':
                param.tau = atof(optarg);
                break;
-               
+
             case 'g':
                rp.gamma = atof(optarg);
                break;
-               
+
             case 'j':
                param.type_law = atoi(optarg);
                break;
@@ -219,7 +219,7 @@ int main(int argc, char **argv)
         run_hyperelasticity_solver(msh, rp, param);
         return 0;
     }
-    
+
     /* DiSk++ cartesian 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.quad2$") ))
     {
