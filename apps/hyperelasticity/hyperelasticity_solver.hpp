@@ -57,9 +57,11 @@ class hyperelasticity_solver
 
    typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
    typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
+   typedef disk::quadrature<mesh_type, cell_type>      grad_quadrature_type;
 
    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
+   typedef disk::scaled_monomial_matrix_basis<mesh_type, cell_type>    grad_basis_type;
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
@@ -74,6 +76,8 @@ class hyperelasticity_solver
    bool m_verbose, m_convergence;
    
    ElasticityParameters m_elas_param;
+   
+   size_t total_dof_depl_static;
 
 public:
    hyperelasticity_solver(const mesh_type& msh,const size_t degree, const ElasticityParameters elas_param, int l = 0)
@@ -143,12 +147,17 @@ public:
 
 
       if(m_verbose){
+         std::cout << "** Numbers of cells: " << m_msh.cells_size()  << std::endl;
+         std::cout << "** Numbers of faces: " << m_msh.faces_size() << " ( boundary faces: " 
+         <<  m_msh.boundary_faces_size() << " )"  << std::endl;
          std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
          std::cout << "** After static condensation: "  << std::endl;
          std::cout << "** Numbers of dofs: " << m_msh.faces_size() * num_face_dofs + total_lagr  << std::endl;
          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
       }
+      
+      total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
       //provisoire
 
 //       for(size_t i = 0; i < m_msh.cells_size(); i++)
@@ -167,10 +176,11 @@ public:
 //      }
    }
 
-   template<typename LoadFunction, typename BoundaryConditionFunction>
+   template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
    solve_info
-   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf,
-      size_t n_time_step = 1)
+   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g, 
+           const std::vector<size_t>& boundary_neumann,
+           size_t n_time_step = 1)
    {
 
       solve_info ai;
@@ -182,6 +192,8 @@ public:
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
+      
+      newton_solver.verbose(m_verbose);
 
       const scalar_type delta_t = 1.0/n_time_step;
 
@@ -204,8 +216,13 @@ public:
          auto rbcf = [&bcf, &time](const Point& p) -> auto {
              return disk::mm_prod(time,bcf(p));
          };
+         
+         
+         auto rg = [&g, &time](const Point& p) -> auto {
+            return disk::mm_prod(time,g(p));
+         };
 
-         auto newton_info = newton_solver.compute(rlf, rbcf);
+         auto newton_info = newton_solver.compute(rlf, rbcf, rg, boundary_neumann);
 
          tc.toc();
          ai.time_solver += tc.to_double();
@@ -262,6 +279,37 @@ public:
         }
 
         return sqrt(err_dof);
+    }
+    
+    size_t getDofs() {return total_dof_depl_static;}
+    
+    
+    template<typename AnalyticalSolution>
+    scalar_type
+    compute_l2_gradient_error(const AnalyticalSolution& grad)
+    {
+       scalar_type err_dof = scalar_type{0.0};
+       
+       disk::projector_elas<mesh_type, grad_basis_type, grad_quadrature_type,
+       face_basis_type, face_quadrature_type> projk(m_degree);
+       
+       disk::gradient_reconstruction_elas_full<  mesh_type, cell_basis_type, cell_quadrature_type,
+       face_basis_type, face_quadrature_type, grad_basis_type, grad_quadrature_type>     gradrec(m_degree);
+       
+       size_t i = 0;
+       
+       for (auto& cl : m_msh)
+       {
+          auto x = m_solution_data.at(i++);
+          gradrec.compute(m_msh, cl);
+          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
+          dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
+          dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
+          dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+          err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
+       }
+       
+       return sqrt(err_dof);
     }
     
     void

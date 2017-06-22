@@ -18,9 +18,11 @@
 
 #include "common/eigen.hpp"
 #include "bases/bases_utils.hpp"
+#include "mesh/mesh.hpp"
 #include "bases/bases_ranges.hpp"
 #include "hho/hho_nl_vector.hpp"
 #include "BehaviorLaws/behaviorlaws.hpp"
+#include "BehaviorLaws/maths_tensor.hpp"
 #include "timecounter.h"
 
 //#define USE_BLAS
@@ -59,6 +61,44 @@ namespace Hyperelasticity {
       
       size_t                                      m_degree;
       
+      template<typename NeumannFunction>
+      void
+      add_NeumannConditions(const mesh_type& msh, const cell_type& cl, const NeumannFunction& g, 
+                            const std::vector<size_t>& boundary_neumann)
+      {
+         auto fcs = faces(msh, cl);
+         const size_t num_faces = fcs.size();
+         
+         const size_t num_cell_dofs = cell_basis.range(0, m_degree).size();
+         const size_t num_face_dofs = face_basis.size();
+         const size_t num_total_dofs = num_cell_dofs + num_faces * num_face_dofs;
+         
+         
+         size_t face_i = 0;
+         for (auto& fc : fcs)
+         {
+            //Find if this face is a boundary face
+            if(msh.is_boundary(fc)){
+               //Find if this face is a boundary face with Neumann Condition
+               if ( std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(fc)) 
+                   != boundary_neumann.end() ){
+                  auto face_quadpoints = face_quadrature.integrate(msh, fc);
+                  const size_t face_offset = num_cell_dofs + face_i * num_face_dofs;
+                  for (auto& qp : face_quadpoints)
+                  {
+                     auto fphi = face_basis.eval_functions(msh, fc, qp.point());
+                     
+                     for(size_t i=0; i < fphi.size(); i++)
+                        RTF(i) += qp.weight() * disk::mm_prod(g(qp.point()) , fphi[i]);  
+                  }
+               }
+            }
+            face_i++;
+         }
+         
+      }
+      
+      
    public:
       matrix_type     K_int;
       vector_type     RTF;    
@@ -88,9 +128,10 @@ namespace Hyperelasticity {
       
       matrix_type cell_mm;
       
-      template<typename Function>
+      template<typename Function, typename NeumannFunction>
       void
-      compute(const mesh_type& msh, const cell_type& cl, const Function& load, const matrix_type& GT,
+      compute(const mesh_type& msh, const cell_type& cl, const Function& load, const NeumannFunction& neumann,
+              const std::vector<size_t>& boundary_neumann, const matrix_type& GT,
               const vector_type& uTF, const ElasticityParameters elas_param)
       {
          time_law = 0.0;
@@ -121,7 +162,7 @@ namespace Hyperelasticity {
          
          vector_type GT_uTF = GT * uTF;
          
-         NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, 2);
+         NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
          
          auto grad_quadpoints = grad_quadrature.integrate(msh, cl);
          
@@ -148,6 +189,7 @@ namespace Hyperelasticity {
             {
                tc.tic();
                Eigen::SelfAdjointEigenSolver<decltype(tensor_behavior.second)> es;
+               //decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
                es.compute(tensor_behavior.second);
                scalar_type ev_min = es.eigenvalues().minCoeff();
                std::cout << ev_min << std::endl;
@@ -179,6 +221,9 @@ namespace Hyperelasticity {
          
          K_int = GT.transpose() * AT * GT;
          RTF -= GT.transpose() * aT;
+         
+         //Add Neumann condition
+         add_NeumannConditions(msh, cl, neumann, boundary_neumann);
          
          assert(K_int.rows() == num_total_dofs);
          assert(K_int.cols() == num_total_dofs);

@@ -1344,11 +1344,6 @@ namespace disk {
       vector_type
       compute_cell(const mesh_type& msh, const cell_type& cl, const Function& f)
       {
-         const size_t DIM= msh.dimension;
-         const size_t dpk = DIM * binomial(m_degree  + DIM, m_degree );
-
-         assert(cell_basis.size() == dpk);
-
          matrix_type mm = matrix_type::Zero(cell_basis.size(), cell_basis.size());
          vector_type rhs = vector_type::Zero(cell_basis.size());
 
@@ -1356,8 +1351,6 @@ namespace disk {
          for (auto& qp : cell_quadpoints)
          {
             auto phi = cell_basis.eval_functions(msh, cl, qp.point());
-
-            assert(phi.size() == dpk);
 
             for(size_t i = 0; i < phi.size(); i++)
                for(size_t j = i; j < phi.size(); j++)
@@ -1418,6 +1411,38 @@ namespace disk {
 
 
          return ret;
+      }
+      
+      template<typename Function>
+      vector_type
+      compute_cell_grad(const mesh_type& msh, const cell_type& cl, const Function& f)
+      {
+         const size_t DIM = msh.dimension;
+         matrix_type mm = matrix_type::Zero(DIM*cell_basis.size(), DIM*cell_basis.size());
+         vector_type rhs = vector_type::Zero(DIM*cell_basis.size());
+         
+         auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
+         for (auto& qp : cell_quadpoints)
+         {
+            auto phi = cell_basis.eval_functions(msh, cl, qp.point());
+            
+            for(size_t i = 0; i < phi.size(); i++)
+               for(size_t j = i; j < phi.size(); j++)
+                  mm(i,j)  += qp.weight() *mm_prod(phi[i], phi[j]);
+               
+               //lower part
+               for (size_t i = 1; i < phi.size(); i++)
+                  for (size_t j = 0; j < i; j++)
+                     mm(i,j) = mm(j,i);
+                  
+                  for(size_t i=0; i < phi.size(); i++){
+                     rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
+                  }
+                  
+         }
+         
+         cell_mm = mm;
+         return mm.llt().solve(rhs);
       }
 
    };

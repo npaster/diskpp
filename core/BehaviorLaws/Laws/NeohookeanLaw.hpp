@@ -59,7 +59,7 @@ class NeoHookeanLaw
    scalar_type m_lambda;
    size_t m_type;
 
-   const size_t maxtype = 3;
+   const size_t maxtype = 4;
 
    scalar_type
    computeU(scalar_type J)
@@ -68,9 +68,11 @@ class NeoHookeanLaw
          throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
 
       if(m_type == 1)
-         return J - scalar_type{1};
-      else if(m_type == 2)
          return log(J);
+      else if(m_type == 2)
+         return J - scalar_type{1};
+      else if(m_type == 3)
+         return log10(J);
       else
          return scalar_type{1} - scalar_type{1}/J;
    }
@@ -82,9 +84,11 @@ class NeoHookeanLaw
          throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
 
       if(m_type == 1)
-         return scalar_type{1};
-      else if(m_type == 2)
          return scalar_type{1}/J;
+      else if(m_type == 2)
+         return scalar_type{1};
+      else if(m_type == 3)
+         return scalar_type{1}/(log(scalar_type{10.0})*J);
       else
          return scalar_type{1}/(J*J);
    }
@@ -96,9 +100,11 @@ class NeoHookeanLaw
          throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
 
       if(m_type == 1)
-         return scalar_type{0};
-      else if(m_type == 2)
          return -scalar_type{1}/(J*J);
+      else if(m_type == 2)
+         return scalar_type{0};
+      else if(m_type == 3)
+         return -scalar_type{1}/(log(scalar_type{10.0})*J*J);
       else
          return -scalar_type{0.5}/(J*J*J);
    }
@@ -111,7 +117,7 @@ public:
       {
          std::cout << "Unknown option for NeoNookean material" << '\n';
          std::cout << "We use U(J) = ln(J)" << '\n';
-         m_type = 2;
+         m_type = 1;
       }
    }
 
@@ -122,6 +128,7 @@ public:
       {
          std::cout << "Unknown option for NeoNookean material" << '\n';
          std::cout << "We use U(J) = ln(J)" << '\n';
+         m_type = 1;
       }
    }
 
@@ -145,6 +152,7 @@ public:
       {
          std::cout << "Unknown option for NeoNookean material" << '\n';
          std::cout << "We use U(J) = ln(J)" << '\n';
+         m_type = 1;
       }
    }
 
@@ -163,6 +171,9 @@ public:
       scalar_type J = F.determinant();
       scalar_type UJ = computeU(J);
       scalar_type UJp = computeUprime(J);
+      
+      if(J <=0.0)
+         throw std::invalid_argument("J <= 0");
 
       return  m_mu * F + ( m_lambda * UJ * UJp * J  - m_mu) * invF.transpose();
    }
@@ -175,6 +186,9 @@ public:
       static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
       scalar_type J = F.determinant();
+      
+      if(J <=0.0)
+         throw std::invalid_argument("J <= 0");
 
       static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
 
@@ -198,7 +212,7 @@ public:
       scalar_type c3 = UJ * J * (J * UJs + UJp) + c1 * c1;
 
       if(J <=0.0)
-         std::cout << "J <= 0 : " << J << std::endl;
+         throw std::invalid_argument("J <= 0");
 
       static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
       static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);

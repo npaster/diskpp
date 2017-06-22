@@ -120,10 +120,11 @@ public:
 
     }
 
-   template<typename LoadIncrement, typename BoundaryConditionFunction>
+    template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
    newton_info
-   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf,
-            const scalar_type epsilon = 1.E-9,
+   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
+            const std::vector<size_t>& boundary_neumann,
+            const scalar_type epsilon = 1.E-7,
             const std::size_t iter_max = 20)
    {
       newton_info ai;
@@ -135,6 +136,7 @@ public:
 
       newton_step.initialize(m_solution_cells, m_solution_faces,
                              m_solution_lagr, m_solution_data);
+      newton_step.verbose(m_verbose);
 
       m_convergence = false;
       // loop
@@ -142,7 +144,7 @@ public:
       while (iter < iter_max && !m_convergence) {
           tc.tic();
           //assemble lhs and rhs
-          auto time_assembly = newton_step.assemble(lf, bf);
+          auto time_assembly = newton_step.assemble(lf, bf, g, boundary_neumann);
           tc.toc();
           ai.time_assembly += tc.to_double();
 
@@ -162,13 +164,16 @@ public:
             ai.time_solve += solve_info.time_solver;
             // update unknowns
             tc.tic();
-            newton_step.postprocess(lf);
+            newton_step.postprocess(lf, g, boundary_neumann);
             newton_step.update_solution();
             tc.toc();
             ai.time_post += tc.to_double();
          }
          iter++;
       }
+      
+      if(!m_convergence)
+         m_convergence = newton_step.test_convergence(1.E-6, iter_max);
 
         newton_step.save_solutions(m_solution_cells, m_solution_faces,
                              m_solution_lagr, m_solution_data);

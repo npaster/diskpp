@@ -178,9 +178,10 @@ public:
       assert(m_msh.cells_size() == m_solution_data.size());
     }
 
-    template<typename LoadFunction, typename BoundaryConditionFunction>
+    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
     assembly_info
-    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
+    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
+            const std::vector<size_t>& boundary_neumann)
     {
         gradrec_type gradrec(m_degree);
         //stab_type stab(m_degree);
@@ -215,7 +216,7 @@ public:
 
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
             /////// NON LINEAIRE /////////
             assert( hyperelasticity.K_int.rows() == stab.data.rows());
             assert( hyperelasticity.K_int.cols() == stab.data.cols());
@@ -239,7 +240,7 @@ public:
             i++;
         }
 
-         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
+         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann);
          assembler.finalize(m_system_matrix, m_system_rhs);
 
          ai.linear_system_size = m_system_matrix.rows();
@@ -267,7 +268,15 @@ public:
        tc.tic();
        solver.analyzePattern(m_system_matrix);
        solver.factorize(m_system_matrix);
+       
+       if(solver.info() != Eigen::Success) {
+          std::cerr << "ERROR: Could not factorize the matrix" << std::endl;
+       }
+       
        m_system_solution = solver.solve(m_system_rhs);
+       if(solver.info() != Eigen::Success) {
+          std::cerr << "ERROR: Could not solve the linear system" << std::endl;
+       }
        tc.toc();
        si.time_solver = tc.to_double();
 
@@ -276,9 +285,9 @@ public:
 
 
 
-    template<typename LoadFunction>
+    template<typename LoadFunction, typename NeumannFunction>
     postprocess_info
-    postprocess(const LoadFunction& lf)
+    postprocess(const LoadFunction& lf, const NeumannFunction& g, const std::vector<size_t>& boundary_neumann)
     {
         gradrec_type gradrec(m_degree);
         //stab_type stab(m_degree);
@@ -329,7 +338,7 @@ public:
             deplrec.compute(m_msh, cl);
             stab.compute(m_msh, cl, deplrec.oper);
 
-            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
 
 
             /////// NON LINEAIRE /////////
@@ -401,22 +410,30 @@ public:
       scalar_type max_error = m_system_rhs.maxCoeff();
 
       scalar_type relative_error = residual / initial_residual;
-
-      std::string s_iter = "   " + std::to_string(iter) + "               ";
-      s_iter.resize(9);
-
-      if(iter == 0){
-         std::cout << "--------------------------------------------------------------" << std::endl;
-         std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error |" << std::endl;
-         std::cout << "--------------------------------------------------------------" << std::endl;
-
+      
+      if(initial_residual == scalar_type{0.0})
+      {
+         relative_error = 0.0;
+         max_error = 0.0;
       }
-      std::ios::fmtflags f( std::cout.flags() );
-      std::cout.precision(5);
-      std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-      std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |" << std::endl;
-      std::cout << "--------------------------------------------------------------" << std::endl;
-      std::cout.flags( f );
+
+      if(m_verbose){
+         std::string s_iter = "   " + std::to_string(iter) + "               ";
+         s_iter.resize(9);
+
+         if(iter == 0){
+            std::cout << "--------------------------------------------------------------" << std::endl;
+            std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error |" << std::endl;
+            std::cout << "--------------------------------------------------------------" << std::endl;
+
+         }
+         std::ios::fmtflags f( std::cout.flags() );
+         std::cout.precision(5);
+         std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
+         std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |" << std::endl;
+         std::cout << "--------------------------------------------------------------" << std::endl;
+         std::cout.flags( f );
+      }
 
       if(relative_error <= epsilon){
          return true;
