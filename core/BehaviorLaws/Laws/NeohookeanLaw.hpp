@@ -171,7 +171,7 @@ public:
       scalar_type J = F.determinant();
       scalar_type UJ = computeU(J);
       scalar_type UJp = computeUprime(J);
-      
+
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
@@ -186,7 +186,7 @@ public:
       static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
       scalar_type J = F.determinant();
-      
+
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 

@@ -533,9 +533,9 @@ namespace disk {
          data  = BG.transpose() * oper;  // A
       }
    };
-   
-   
-   
+
+
+
    template<typename Mesh, typename CellBasisType, typename CellQuadType,
    typename FaceBasisType, typename FaceQuadType,
    typename GradBasisType, typename GradQuadType>
@@ -545,35 +545,35 @@ namespace disk {
       typedef typename mesh_type::scalar_type     scalar_type;
       typedef typename mesh_type::cell            cell_type;
       typedef typename mesh_type::face            face_type;
-      
+
       typedef CellBasisType                       cell_basis_type;
       typedef CellQuadType                        cell_quadrature_type;
       typedef FaceBasisType                       face_basis_type;
       typedef FaceQuadType                        face_quadrature_type;
       typedef GradBasisType                       grad_basis_type;
       typedef GradQuadType                        grad_quadrature_type;
-      
+
       typedef dynamic_matrix<scalar_type>         matrix_type;
       typedef dynamic_vector<scalar_type>         vector_type;
-      
+
       typedef material_tensor<scalar_type, mesh_type::dimension, mesh_type::dimension>
       material_tensor_type;
-      
+
       cell_basis_type                             cell_basis;
       cell_quadrature_type                        cell_quadrature;
-      
+
       face_basis_type                             face_basis;
       face_quadrature_type                        face_quadrature;
-      
+
       grad_basis_type                             grad_basis;
       grad_quadrature_type                        grad_quadrature;
-      
+
       size_t                                      m_degree;
-      
+
    public:
       matrix_type     oper;
       matrix_type     data;
-      
+
       gradient_reconstruction_full()
       : m_degree(1)
       {
@@ -584,7 +584,7 @@ namespace disk {
          grad_basis          = grad_basis_type(m_degree);
          grad_quadrature     = grad_quadrature_type(2*m_degree);
       }
-      
+
       gradient_reconstruction_full(size_t degree)
       : m_degree(degree)
       {
@@ -595,38 +595,38 @@ namespace disk {
          grad_basis          = grad_basis_type(m_degree);
          grad_quadrature     = grad_quadrature_type(2*m_degree);
       }
-      
+
       void compute(const mesh_type& msh, const cell_type& cl)
       {
          auto BG_col_range = cell_basis.range(0, m_degree);
-         
+
          const size_t  DIM = msh.dimension;
          const size_t gpk = DIM * BG_col_range.size();
-         
+
          auto fcs = faces(msh, cl);
          const size_t num_faces = fcs.size();
-         
+
          const size_t num_grad_dofs = grad_basis.range(0, m_degree).size();
          const size_t num_cell_dofs = cell_basis.range(0, m_degree).size();
          const size_t num_face_dofs = face_basis.size();
-         
+
          assert(num_grad_dofs == gpk);
-         
+
          dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
-         
+
          assert(dsr.total_size() == (num_cell_dofs + num_faces * num_face_dofs));
-         
+
          matrix_type BG = matrix_type::Zero(num_grad_dofs, dsr.total_size());
-         
+
          matrix_type MG = matrix_type::Zero(num_grad_dofs, num_grad_dofs);
-         
+
 
          auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
          for (auto& qp : cell_quadpoints)
          {
             auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
             assert(num_grad_dofs == gphi.size());
-            
+
             auto dphi = cell_basis.eval_gradients(msh, cl, qp.point(), 0, m_degree);
             assert(cell_basis.size() == dphi.rows());
 
@@ -634,7 +634,7 @@ namespace disk {
                for(size_t j = i; j < gphi.size(); j++){
                   MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
                }
-               
+
                for(size_t j = BG_col_range.from(); j < BG_col_range.to(); j++){
                   auto dphi_j = gphi[i] ;
                   for(size_t d = 0; d < dphi.cols(); d++) { dphi_j(d) = dphi(j,d);}
@@ -642,49 +642,49 @@ namespace disk {
                }
             }
          }
-         
-         
+
+
          // lower part MG
          for(size_t i = 1; i < gpk; i++)
             for(size_t j = 0; j < i; j++)
                MG(i,j) = MG(j,i);
-         
+
          for (size_t face_i = 0; face_i < num_faces; face_i++)
          {
             auto current_face_range = dsr.face_range(face_i);
             auto fc = fcs[face_i];
             auto n = normal(msh, cl, fc);
             auto face_quadpoints = face_quadrature.integrate(msh, fc);
-            
+
             for (auto& qp : face_quadpoints)
             {
                matrix_type c_phi = cell_basis.eval_functions(msh, cl, qp.point(), 0, m_degree);
                auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
-               
+
                // tau.n
                matrix_type gphi_n = matrix_type::Zero(gphi.size(), 1);
                for(size_t i = 0; i < gphi.size(); i++)
                   gphi_n(i,0) = mm_prod(gphi[i], n);
 
-               
+
                matrix_type T = qp.weight() * gphi_n * c_phi.transpose();
-               
+
                assert(T.rows() == BG.rows());
                assert(T.cols() == BG_col_range.size());
-               
+
                BG.block(0, 0, BG.rows(), BG_col_range.size()) -= T;
-               
+
                matrix_type f_phi = face_basis.eval_functions(msh, fc, qp.point());
                matrix_type F = qp.weight() * gphi_n * f_phi.transpose();
-               
+
                assert(F.rows() == BG.rows());
                assert(F.cols() == current_face_range.size());
-               
+
                BG.block(0, current_face_range.min(),
                         BG.rows(), current_face_range.size()) += F;
             }
          }
-         
+
          oper  = MG.llt().solve(BG);    // GT
          data  = BG.transpose() * oper;  // A
       }
@@ -1761,8 +1761,8 @@ namespace disk {
       }
    };
 
-   
-   
+
+
    template<typename Mesh, typename CellBasisType, typename CellQuadType,
    typename FaceBasisType, typename FaceQuadType>
    class diffusion_like_stabilization_l2
@@ -1771,26 +1771,26 @@ namespace disk {
       typedef typename mesh_type::scalar_type scalar_type;
       typedef typename mesh_type::cell        cell_type;
       typedef typename mesh_type::face        face_type;
-      
+
       typedef CellBasisType                   cell_basis_type;
       typedef CellQuadType                    cell_quadrature_type;
       typedef FaceBasisType                   face_basis_type;
       typedef FaceQuadType                    face_quadrature_type;
-      
+
       typedef dynamic_matrix<scalar_type>     matrix_type;
       typedef dynamic_vector<scalar_type>     vector_type;
-      
+
       cell_basis_type                         cell_basis;
       cell_quadrature_type                    cell_quadrature;
-      
+
       face_basis_type                         face_basis;
       face_quadrature_type                    face_quadrature;
-      
+
       size_t                                  m_degree;
-      
+
    public:
       matrix_type     data;
-      
+
       diffusion_like_stabilization_l2()
       : m_degree(1)
       {
@@ -1799,7 +1799,7 @@ namespace disk {
          face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*m_degree);
       }
-      
+
       diffusion_like_stabilization_l2(size_t degree)
       : m_degree(degree)
       {
@@ -1808,29 +1808,29 @@ namespace disk {
          face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*m_degree);
       }
-      
+
       void compute(const mesh_type& msh, const cell_type& cl, const matrix_type& gradrec_oper)
       {
          auto zero_range         = cell_basis.range(0, m_degree);
          auto one_range          = cell_basis.range(1, m_degree+1);
-         
-         
+
+
          auto fcs = faces(msh, cl);
          auto num_faces = fcs.size();
-         
+
          auto num_cell_dofs = cell_basis.range(0, m_degree).size();
          auto num_face_dofs = face_basis.size();
-         
+
          dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
-         
+
          data = matrix_type::Zero(dsr.total_size(), dsr.total_size());
-         
-         
-         //Step 2: v_T 
+
+
+         //Step 2: v_T
          matrix_type I_T = matrix_type::Identity(zero_range.size(), zero_range.size());
-         matrix_type proj1  = matrix_type::Zero(zero_range.size(), dsr.total_size());         
+         matrix_type proj1  = matrix_type::Zero(zero_range.size(), dsr.total_size());
          proj1.block(0, 0, zero_range.size(), zero_range.size()) += I_T;
-         
+
          // Step 3: project on faces (eqn. 21)
          for (size_t face_i = 0; face_i < num_faces; face_i++)
          {
@@ -1838,10 +1838,10 @@ namespace disk {
             auto fbs = current_face_range.size();
             auto h = diameter(msh, /*fcs[face_i]*/cl);
             auto fc = fcs[face_i];
-            
+
             matrix_type face_mass_matrix    = matrix_type::Zero(fbs, fbs);
             matrix_type face_trace_matrix   = matrix_type::Zero(fbs, cell_basis.size());
-            
+
             auto face_quadpoints = face_quadrature.integrate(msh, fc);
             for (auto& qp : face_quadpoints)
             {
@@ -1851,33 +1851,33 @@ namespace disk {
                face_mass_matrix += q_f_phi * f_phi.transpose();
                face_trace_matrix += q_f_phi * c_phi.transpose();
             }
-            
+
             Eigen::LLT<matrix_type> piKF;
             piKF.compute(face_mass_matrix);
-            
+
             // Step 3a: v_F
             auto face_range = current_face_range.remove_offset();
-            
+
             matrix_type I_F = matrix_type::Identity(fbs, fbs);
             auto block_offset = current_face_range.min();
             matrix_type proj2  = matrix_type::Zero(fbs, dsr.total_size());
             proj2.block(0, block_offset, fbs, fbs) -= I_F;
-            
+
             // Step 3b: \pi_F^k( v_T )
             matrix_type MR2 = take(face_trace_matrix, face_range, zero_range);
             assert(MR2.cols() == proj1.rows());
             matrix_type proj3 = piKF.solve(MR2*proj1);
-            
+
             assert(proj2.rows() == proj3.rows());
             assert(proj2.cols() == proj3.cols());
-            
+
             // \pi_F^k( v_T ) - v_F
             matrix_type BRF = proj2 + proj3;
-            
+
             data += BRF.transpose() * face_mass_matrix * BRF / h;
          }
       }
-      
+
    };
-   
+
 } // namespace disk

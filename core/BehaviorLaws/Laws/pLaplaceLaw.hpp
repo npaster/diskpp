@@ -47,9 +47,9 @@ template<typename scalar_type>
 class pLaplaceLaw
 {
    size_t m_p;
-   
-   
-   
+
+
+
    template< int DIM>
    static_matrix<scalar_type, DIM, DIM>
    compute_A(const static_vector<scalar_type, DIM>& G)
@@ -59,14 +59,14 @@ class pLaplaceLaw
       scalar_type norm_G4 = std::pow(norm_G, m_p-4.0);
 
       return norm_G2 * static_matrix<scalar_type, DIM, DIM>::Identity() + (m_p-2.0) * norm_G4 * G * G.transpose();
-      
+
    }
-   
+
 public:
-   
+
    pLaplaceLaw()
    : m_p(2) {}
-   
+
    pLaplaceLaw(const size_t p)
    : m_p(p)
    {
@@ -75,18 +75,18 @@ public:
          throw std::invalid_argument("pLaplaceLaw: p have to be >= 2");
       }
    }
-   
-   
+
+
    template< int DIM>
    static_vector<scalar_type, DIM>
    compute_P(const static_vector<scalar_type, DIM>& G)
    {
-      if(m_p == 2) 
+      if(m_p == 2)
          return G;
       else
          return  std::pow(G.norm(), m_p-2.0) * G;
    }
-   
+
    template<int DIM>
    static_matrix<scalar_type, DIM, DIM>
    compute_tangent_moduli(const static_vector<scalar_type, DIM>& G)
@@ -96,15 +96,15 @@ public:
       else
          return compute_A(G);
    }
-   
-   
+
+
    template<int DIM>
    std::pair<static_vector<scalar_type, DIM>, static_matrix<scalar_type, DIM, DIM> >
    compute_whole(const static_vector<scalar_type, DIM>& G)
    {
       auto P = compute_P(G);
       auto A = compute_tangent_moduli(G);
-      
+
       return std::make_pair(P, A);
    }
 

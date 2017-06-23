@@ -59,7 +59,7 @@ public:
    LinearElasticityLaw(const scalar_type lambda)
    :m_lambda(lambda)
    {}
-   
+
    void
    setLambda(const scalar_type lambda)
    {
@@ -77,21 +77,21 @@ public:
 
       return m_lambda * (F- Id);
    }
-   
+
    template<int DIM>
    static_tensor<scalar_type, DIM>
    compute_tangent_moduli(const static_matrix<scalar_type,DIM,DIM>& F)
    {
       return m_lambda * compute_IdentityTensor<scalar_type, DIM>();
    }
-   
+
    template<int DIM>
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
    compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
       static_matrix<scalar_type, DIM, DIM> PK1 = compute_PK1(F);
       static_tensor<scalar_type, DIM> A = compute_tangent_moduli(F);
-      
+
       return std::make_pair(PK1, A);
    }
 

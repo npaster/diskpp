@@ -54,7 +54,7 @@ namespace disk {
    size_t
    number_of_neumann_faces(const Mesh& msh, const std::vector<size_t>& boundary_neumann)
    {
-      if(boundary_neumann.is_empty())
+      if(boundary_neumann.empty())
          return 0;
 
       size_t nb_face = 0;
@@ -178,6 +178,81 @@ namespace disk {
             rhs(l2g.at(i)) += lc.second(i);
          }
          #endif
+      }
+
+      template<typename Function>
+      void
+      impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
+                                 const std::vector<vector_type>& sol_lagr)
+      {
+         size_t fbs = face_basis.size();
+         size_t face_i = 0;
+         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+         {
+            auto bfc = *itor;
+
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            auto face_id = eid.second;
+
+            auto face_offset = face_id * fbs;
+            auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
+
+            auto fqd = face_quadrature.integrate(msh, bfc);
+
+            matrix_type MFF     = matrix_type::Zero(fbs, fbs);
+            vector_type rhs_f   = vector_type::Zero(fbs);
+
+            for (auto& qp : fqd)
+            {
+               auto f_phi = face_basis.eval_functions(msh, bfc, qp.point());
+               for(size_t i = 0; i < fbs; i++)
+                  for(size_t j = i; j < fbs; j++)
+                     MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
+
+
+               for(size_t i = 0; i < fbs; i++)
+                  rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
+            }
+
+            //lower part
+            for(size_t i = 1; i < fbs; i++)
+               for(size_t j = 0; j < i; j++)
+                  MFF(i,j) = MFF(j,i) ;
+
+
+            rhs_f -= MFF * sol_faces.at(face_id);
+
+            vector_type rhs_l = MFF * sol_lagr.at(face_i);
+
+            #ifdef FILL_COLMAJOR
+            for (size_t j = 0; j < MFF.cols(); j++)
+            {
+               for (size_t i = 0; i < MFF.rows(); i++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+j) = rhs_f(j);
+               rhs(face_offset+j) -= rhs_l(j);
+            }
+            #else
+            for (size_t i = 0; i < MFF.rows(); i++)
+            {
+               for (size_t j = 0; j < MFF.cols(); j++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+i) = rhs_f(i);
+               rhs(face_offset+j) -= rhs_l(j);
+            }
+            #endif
+
+            face_i++;
+         }
       }
 
       template<typename Function>
