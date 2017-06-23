@@ -70,33 +70,69 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp,
 {
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
+   typedef static_matrix<T, 3, 3> result_grad_type;
 
-   auto load = [](const point<T,3>& p) -> result_type {
-      return result_type{0.0,0.0,0.0};
+   // auto load = [](const point<T,3>& p) -> result_type {
+   //  !! A calculer
+   //    return result_type{0.0,0.0,0.0};
+   // };
+   //
+   // auto solution = [](const point<T,3>& p) -> result_type {
+   //    T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+   //    T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+   //    T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
+   //    return result_type{fx,fy,fz};
+   // };
+   //
+   //
+   // auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
+   //    static_matrix<T, 3, 3> g;
+   //    g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+   //    g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+   //    g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
+   //
+   //    g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+   //    g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+   //    g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
+   //
+   //    g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
+   //    g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
+   //    g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
+   //    return g;
+   // };
+
+   T alpha = 0.2;
+   T beta = 0.2;
+
+   auto load = [elas_param](const point<T,3>& p) -> result_type {
+      return result_type{0.0,0.0, 0.0};
    };
 
-   auto solution = [](const point<T,3>& p) -> result_type {
-      T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-      T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-      T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
+   auto solution = [elas_param, alpha, beta](const point<T,3>& p) -> result_type {
+      T lambda = elas_param.lambda;
+      T gamma = alpha + beta + alpha * beta;
+      T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ 0.0;
+      T fy = (1.0 - gamma/(1.0 + gamma)) * p.y();
+      T fz = (1.0/lambda + beta) * p.x() + /* g(X)= */ 0.0 + /* h(Y)= */ 0.0;
+
       return result_type{fx,fy,fz};
    };
 
+   auto gradient = [elas_param, alpha, beta](const point<T,3>& p) -> result_grad_type {
+      T lambda = elas_param.lambda;
+      T gamma = alpha + beta + alpha * beta;
+      result_grad_type grad = result_grad_type::Zero();
 
-   auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
-      static_matrix<T, 3, 3> g;
-      g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-      g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-      g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
+      grad(0,0) = (1.0/lambda + alpha);
+      grad(0,1) = /* f'(Y)= */ 0.0;
 
-      g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-      g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-      g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
+      grad(1,1) = (1.0 - gamma/(1.0 + gamma));
 
-      g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
-      g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
-      g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
-      return g;
+      grad(2,0) = /* g'(X)= */ 0.0;
+      grad(2,1) = /* h'(Y)= */ 0.0;
+      grad(2,2) = (1.0/lambda + beta);
+
+      return grad;
    };
 
 
@@ -173,7 +209,110 @@ printResults(const std::vector<error_type>& error)
       std::cout << "The file error is empty" << std::endl;
 }
 
+template< typename T>
+void test_hexahedra_diskpp(const run_params& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 4;
 
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-2-2-2.hex");
+   paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-4-4-4.hex");
+   paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-8-8-8.hex");
+   paths.push_back(".../diskpp/meshes/3D_hexa/diskpp/testmesh-16-16-16.hex");
+   //paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-32-32-32.hex");
+
+   std::vector<error_type> error_sumup;
+
+   for(int i = 0; i <= runs; i++){
+      auto msh = disk::load_cartesian_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   printResults(error_sumup);
+}
+
+
+template< typename T>
+void test_hexahedra_fvca6(const run_params& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 4;
+
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_2x2x2.msh");
+   paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_4x4x4.msh");
+   paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_8x8x8.msh");
+   paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_16x16x16.msh");
+   //paths.push_back("../../../diskpp/meshes/3D_hexa/fvca6/hexa_32x32x32.hex");
+
+   std::vector<error_type> error_sumup;
+
+   for(int i = 0; i <= runs; i++){
+      auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   printResults(error_sumup);
+}
+
+template< typename T>
+void test_tetrahedra_netgen(const run_params& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 4;
+
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet1.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet2.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet3.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet4.mesh");
+
+   std::vector<error_type> error_sumup;
+
+   for(int i = 0; i <= runs; i++){
+      auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   printResults(error_sumup);
+}
+
+
+template< typename T>
+void test_polyhedra_fvca6(const run_params& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 3;
+
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_10.msh");
+   paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_20.msh");
+   paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_30.msh");
+   //paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_40.msh");
+
+   std::vector<error_type> error_sumup;
+
+   for(int i = 0; i <= runs; i++){
+      auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   printResults(error_sumup);
+}
+
+
+template< typename T>
+void test_tetrahedra_fvca6(const run_params& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 4;
+
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_tetras/fvca6/tet.1.msh");
+   paths.push_back("../diskpp/meshes/3D_tetras/fvca6/tet.2.msh");
+   paths.push_back("../diskpp/meshes/3D_tetras/fvca6/tet.3.msh");
+   paths.push_back("../diskpp/meshes/3D_tetras/fvca6/tet.4.msh");
+
+   std::vector<error_type> error_sumup;
+
+   for(int i = 0; i <= runs; i++){
+      auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   printResults(error_sumup);
+}
 
 
 int main(int argc, char **argv)
@@ -197,6 +336,7 @@ int main(int argc, char **argv)
    param.mu = 1.0;
    param.tau = 1000.0;
    param.adaptative_stab = false;
+   param.type_law = 1;
 
    int ch;
 
@@ -252,6 +392,49 @@ int main(int argc, char **argv)
    argc -= optind;
    argv += optind;
 
+   timecounter tc;
 
+   std::cout << " Test convergence rates in 3D for: "<< std::endl;
+   std::cout << " ** Degree k = " << rp.degree << std::endl;
+   std::cout << " ** Stab tau = " << param.tau << std::endl;
+   std::cout << " ** mu = " << param.mu << std::endl;
+   std::cout << " ** lambda = " << param.lambda << std::endl;
+   std::cout << " "<< std::endl;
+
+   tc.tic();
+   std::cout << "-Tetrahedras fvca6:" << std::endl;
+   test_tetrahedra_fvca6<RealType>(rp, param);
+   tc.toc();
+   std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+   std::cout << " "<< std::endl;
+
+   tc.tic();
+   std::cout <<  "-Tetrahedras netgen:" << std::endl;
+   test_tetrahedra_netgen<RealType>(rp, param);
+   tc.toc();
+   std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+   std::cout << " "<< std::endl;
+
+   tc.tic();
+   std::cout << "-Hexahedras fvca6:"  << std::endl;
+   //test_hexahedra_fvca6<RealType>(rp, param);
+   tc.toc();
+   std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+   std::cout << " "<< std::endl;
+
+   tc.tic();
+   std::cout << "-Hexahedras diskpp:"  << std::endl;
+   test_hexahedra_diskpp<RealType>(rp, param);
+   tc.toc();
+   std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+   std::cout << " "<< std::endl;
+
+
+   tc.tic();
+   std::cout << "-Polyhedra:"  << std::endl;
+   test_polyhedra_fvca6<RealType>(rp, param);
+   tc.toc();
+   std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+   std::cout << " "<< std::endl;
 
 }

@@ -71,51 +71,38 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
+   T alpha = 0.2;
 
-   //    auto load = [](const point<T,2>& p) -> result_type {
-   //        T fx = -16.0 * p.x() * p.y() * p.y() -4.0 * p.x() * p.x() * p.x();
-   //        T fy = -16.0 * p.x() * p.x() * p.y() -4.0 * p.y() * p.y() * p.y();
-   //       return result_type{fx,fy};
-   //    };
-   //
-   //    auto solution = [](const point<T,2>& p) -> result_type {
-   //       T fx = 1.2 * p.x() * p.x() * p.y();
-   //       T fy = (p.x() * p.y() * p.y()) * sin(p.x()) ;
-   //
-   //       return result_type{fx,fy};
-   //    };
-
-
-   auto load = [elas_param](const point<T,2>& p) -> result_type {
+   auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
 
       T num = -lambda * log(9.0 * std::pow(p.x(), 2.0) * std::pow(p.y(), 2.0) + 3.0 * (std::pow(p.x(), 2.0) + std::pow(p.y(), 2.0)) +1.0)
       + lambda + mu;
 
-
       T dem1 = 9.0 * std::pow(p.x(), 4.0) + 6.0 * std::pow(p.x(), 2.0) + 1.0;
       T dem2 = 9.0 * std::pow(p.y(), 4.0) + 6.0 * std::pow(p.y(), 2.0) + 1.0;
 
-      T fx = - 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
-      T fy = - 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
+      T fx = 0.0;//- 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
+      T fy = 0.0;//- 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
       return result_type{fx,fy};
    };
 
-   auto solution = [elas_param](const point<T,2>& p) -> result_type {
+   auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
-      T fx = std::pow(p.x(), 3.0);
-      T fy = std::pow(p.y(), 3.0);
+      T fx = (1.0/lambda + alpha) * p.x();
+      T fy = (1.0 - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ alpha * std::pow(p.x(), 1.0);
 
       return result_type{fx,fy};
    };
 
-   auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
+   auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
 
-      grad(0,0) = 3.0 * std::pow(p.x(), 2.0) ;
-      grad(1,1) = 3.0 * std::pow(p.y(), 2.0) ;
+      grad(0,0) = (1.0/lambda + alpha);
+      grad(1,1) = (1.0 - alpha/(1.0 + alpha));
+      grad(1,0) = /* f'(x)= */ alpha;
 
       return grad;
    };
@@ -344,10 +331,11 @@ int main(int argc, char **argv)
    rp.n_time_step = 1;
 
    ElasticityParameters param = ElasticityParameters();
-   param.lambda = 1.0;
+   param.lambda = 100.0;
    param.mu = 1.0;
-   param.tau = 1.0;
+   param.tau = 1000.0;
    param.adaptative_stab = false;
+   param.type_law = 1;
 
    int ch;
 

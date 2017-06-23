@@ -121,25 +121,27 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
 //       return grad;
 //    };
 
+   T alpha = 0.2;
 
    auto load = [elas_param](const point<T,2>& p) -> result_type {
       return result_type{0.0,0.0};
    };
 
-   auto solution = [elas_param](const point<T,2>& p) -> result_type {
+   auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
-      T fx = 0.1 * p.x() ;
-      T fy = 0.1 * p.y();
+      T fx = (1.0/lambda + alpha) * p.x();
+      T fy = (1.0 - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ alpha * std::pow(p.x(), 1.0);
 
       return result_type{fx,fy};
    };
 
-   auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
+   auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
 
-      grad(0,0) = 0.1;
-      grad(1,1) = 0.1;
+      grad(0,0) = (1.0/lambda + alpha);
+      grad(1,1) = (1.0 - alpha/(1.0 + alpha));
+      grad(1,0) = /* f'(x)= */ alpha;
 
       return grad;
    };
@@ -214,7 +216,7 @@ printResults(const std::vector<error_type>& error)
 template< typename T>
 void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 4;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
@@ -227,7 +229,7 @@ void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param
 
    for(int i = 0; i <= runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[0].c_str());
-      elas_param.lambda = std::pow(10.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -237,7 +239,7 @@ void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param
 template< typename T>
 void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 1;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
@@ -250,7 +252,7 @@ void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_para
 
    for(size_t i = 0; i <= runs; i++){
       auto msh = disk::load_netgen_2d_mesh<T>(paths[0].c_str());
-      //elas_param.lambda = std::pow(1.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -261,7 +263,7 @@ void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_para
 template< typename T>
 void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 1;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
@@ -274,7 +276,7 @@ void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 
    for(size_t i = 0; i <= runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[0].c_str());
-      //elas_param.lambda = std::pow(1.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -284,12 +286,12 @@ void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 1;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
-//    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
-   paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
+    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
+//   paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
 //    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_4.typ1");
 //    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_5.typ1");
 
@@ -297,7 +299,7 @@ void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 
    for(size_t i = 0; i <= runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[0].c_str());
-      //elas_param.lambda = std::pow(1.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -307,7 +309,7 @@ void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 1;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
@@ -320,7 +322,7 @@ void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 
    for(size_t i = 0; i <= runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[0].c_str());
-      //elas_param.lambda = std::pow(1.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -330,7 +332,7 @@ void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_quads_diskpp(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 1;
+   size_t runs = 6;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-2-2.quad");
@@ -344,7 +346,7 @@ void test_quads_diskpp(const run_params& rp, ElasticityParameters& elas_param)
 
    for(size_t i = 0; i <= runs; i++){
       auto msh = disk::load_cartesian_2d_mesh<T>(paths[0].c_str());
-      //elas_param.lambda = std::pow(1.0, T{i});
+      elas_param.lambda = std::pow(10.0, static_cast<double>(i));
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
    printResults(error_sumup);
@@ -365,7 +367,7 @@ int main(int argc, char **argv)
    run_params rp;
    rp.degree   = 1;
    rp.l        = 0;
-   rp.verbose  = false;
+   rp.verbose  = true;
    rp.n_time_step = 1;
 
    ElasticityParameters param = ElasticityParameters();
@@ -373,6 +375,7 @@ int main(int argc, char **argv)
    param.mu = 1.0;
    param.tau = 1000.0;
    param.adaptative_stab = false;
+   param.type_law = 1;
 
    int ch;
 
