@@ -123,14 +123,15 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
 //       T dem2 = std::pow(M_PI * cos(M_PI * p.y()) +1.0, 2.0);
       T gamma = 2.0;
       T fx = 0.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.x()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.x()))/dem1;
-      T fy = gamma  * 1.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.y()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.y()))/dem2;
+      T fy = 0.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.y()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.y()))/dem2;
       return result_type{fx,fy};
    };
 
    auto solution = [elas_param](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
-      T fx = 0.0;//0.1*sin(M_PI * p.x());
-      T fy = 0.0;//0.1*sin(M_PI * p.y());
+      T alpha = 0.5;
+      T fx = alpha * p.x();//0.1*sin(M_PI * p.x());
+      T fy = -alpha/(1.0 + alpha) * p.y() + alpha * std::pow(p.x(), 1.0);//0.1*sin(M_PI * p.y());
 
       return result_type{fx,fy};
    };
@@ -153,7 +154,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
+   std::vector<size_t> boundary_neumann(0); //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
@@ -169,7 +170,20 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
    solve_info solve_info = nl.compute(load, solution, neumann, boundary_neumann, rp.n_time_step);
 
    if(nl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+      std::cout << " " << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << "Summaring: " << std::endl;
+      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << std::endl;
+      std::cout << "**** Assembly time: " << solve_info.time_assembly << " sec" << std::endl;
+      std::cout << "****** Gradient reconstruction: " << solve_info.time_gradrec << " sec" << std::endl;
+      std::cout << "****** Stabilisation: " << solve_info.time_stab << " sec" << std::endl;
+      std::cout << "****** Elementary computation: " << solve_info.time_elem << " sec" << std::endl;
+      std::cout << "       *** Behavior computation: " << solve_info.time_law << " sec" << std::endl;
+      std::cout << "****** Static condensation: " << solve_info.time_statcond << " sec" << std::endl;
+      std::cout << "**** Solver time: " << solve_info.time_solve << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.time_post << " sec" << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << " " << std::endl;
    }
 
 
@@ -244,7 +258,20 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
    auto solve_info = nl.compute(load, solution, neumann, boundary_neumann, rp.n_time_step);
 
    if(nl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+      std::cout << " " << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << "Summaring: " << std::endl;
+      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << std::endl;
+      std::cout << "**** Assembly time: " << solve_info.time_assembly << " sec" << std::endl;
+      std::cout << "****** Gradient reconstruction: " << solve_info.time_gradrec << " sec" << std::endl;
+      std::cout << "****** Stabilisation: " << solve_info.time_stab << " sec" << std::endl;
+      std::cout << "****** Elementary computation: " << solve_info.time_elem << " sec" << std::endl;
+      std::cout << "       *** Behavior computation: " << solve_info.time_law << " sec" << std::endl;
+      std::cout << "****** Static condensation: " << solve_info.time_statcond << " sec" << std::endl;
+      std::cout << "**** Solver time: " << solve_info.time_solve << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.time_post << " sec" << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << " " << std::endl;
    }
 
    if(nl.test_convergence()){
@@ -276,15 +303,15 @@ int main(int argc, char **argv)
 
     ElasticityParameters param = ElasticityParameters();
 
-    param.mu = 40.0;
-    param.lambda = param.mu * 10E3;
+    param.mu = 1.0;
+    param.lambda = param.mu * 10E1;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "k:l:n:p:v:t")) != -1 )
+    while ( (ch = getopt(argc, argv, "k:l:n:p:v")) != -1 )
     {
         switch(ch)
         {
@@ -317,7 +344,7 @@ int main(int argc, char **argv)
                 break;
 
 
-            case 't':
+            case 'p':
                param.tau = atof(optarg);
                break;
 

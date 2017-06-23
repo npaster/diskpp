@@ -43,6 +43,9 @@
 struct solve_info
 {
     double  time_solver;
+    size_t  linear_system_size;
+    double  time_assembly, time_solve, time_post;
+    double  time_gradrec, time_statcond, time_stab, time_elem, time_law;
 };
 
 
@@ -228,6 +231,16 @@ public:
 
          tc.toc();
          ai.time_solver += tc.to_double();
+
+         ai.linear_system_size = newton_info.linear_system_size;
+         ai.time_assembly += newton_info.time_assembly;
+         ai.time_gradrec += newton_info.time_gradrec;
+         ai.time_stab += newton_info.time_stab;
+         ai.time_elem += newton_info.time_elem;
+         ai.time_law += newton_info.time_law;
+         ai.time_statcond += newton_info.time_statcond;
+         ai.time_solve += newton_info.time_solve;
+         ai.time_post += newton_info.time_post;
 
          if(m_verbose){
             std::cout << "** Time in this step " << tc.to_double() << " sec" << std::endl;
