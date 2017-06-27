@@ -104,16 +104,19 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp,
    T alpha = 0.2;
    T beta = 0.2;
 
-   auto load = [elas_param](const point<T,3>& p) -> result_type {
-      return result_type{0.0,0.0, 0.0};
+   auto load = [elas_param, alpha,beta](const point<T,3>& p) -> result_type {
+      T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
+      T fy =0.0;
+      T fz = M_PI*M_PI*elas_param.mu*beta * sin(M_PI*p.x());
+      return result_type{fx, fy, fz};
    };
 
    auto solution = [elas_param, alpha, beta](const point<T,3>& p) -> result_type {
       T lambda = elas_param.lambda;
       T gamma = alpha + beta + alpha * beta;
-      T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ 0.0;
-      T fy = (1.0 - gamma/(1.0 + gamma)) * p.y();
-      T fz = (1.0/lambda + beta) * p.x() + /* g(X)= */ 0.0 + /* h(Y)= */ 0.0;
+      T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ alpha * sin(M_PI*p.y());
+      T fy = (1.0/lambda - gamma/(1.0 + gamma)) * p.y();
+      T fz = (1.0/lambda + beta) * p.z() + /* g(X)= */ beta * sin(M_PI*p.x()) + /* h(Y)= */ 0.0;
 
       return result_type{fx,fy,fz};
    };
@@ -124,11 +127,11 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp,
       result_grad_type grad = result_grad_type::Zero();
 
       grad(0,0) = (1.0/lambda + alpha);
-      grad(0,1) = /* f'(Y)= */ 0.0;
+      grad(0,1) = /* f'(Y)= */ M_PI*alpha * cos(M_PI*p.y());
 
-      grad(1,1) = (1.0 - gamma/(1.0 + gamma));
+      grad(1,1) = (1.0/lambda - gamma/(1.0 + gamma));
 
-      grad(2,0) = /* g'(X)= */ 0.0;
+      grad(2,0) = /* g'(X)= */ M_PI*beta* cos(M_PI*p.x());
       grad(2,1) = /* h'(Y)= */ 0.0;
       grad(2,2) = (1.0/lambda + beta);
 
@@ -218,12 +221,12 @@ void test_hexahedra_diskpp(const run_params& rp, const ElasticityParameters& ela
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-2-2-2.hex");
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-4-4-4.hex");
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-8-8-8.hex");
-   paths.push_back(".../diskpp/meshes/3D_hexa/diskpp/testmesh-16-16-16.hex");
+   paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-16-16-16.hex");
    //paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-32-32-32.hex");
 
    std::vector<error_type> error_sumup;
 
-   for(int i = 0; i <= runs; i++){
+   for(int i = 0; i < runs; i++){
       auto msh = disk::load_cartesian_3d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
@@ -245,7 +248,7 @@ void test_hexahedra_fvca6(const run_params& rp, const ElasticityParameters& elas
 
    std::vector<error_type> error_sumup;
 
-   for(int i = 0; i <= runs; i++){
+   for(int i = 0; i < runs; i++){
       auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
@@ -265,7 +268,7 @@ void test_tetrahedra_netgen(const run_params& rp, const ElasticityParameters& el
 
    std::vector<error_type> error_sumup;
 
-   for(int i = 0; i <= runs; i++){
+   for(int i = 0; i < runs; i++){
       auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
@@ -286,7 +289,7 @@ void test_polyhedra_fvca6(const run_params& rp, const ElasticityParameters& elas
 
    std::vector<error_type> error_sumup;
 
-   for(int i = 0; i <= runs; i++){
+   for(int i = 0; i < runs; i++){
       auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
@@ -307,7 +310,7 @@ void test_tetrahedra_fvca6(const run_params& rp, const ElasticityParameters& ela
 
    std::vector<error_type> error_sumup;
 
-   for(int i = 0; i <= runs; i++){
+   for(int i = 0; i < runs; i++){
       auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
    }
@@ -373,7 +376,7 @@ int main(int argc, char **argv)
             break;
 
 
-         case 't':
+         case 'p':
             param.tau = atof(optarg);
             break;
 
@@ -410,7 +413,7 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout <<  "-Tetrahedras netgen:" << std::endl;
-   test_tetrahedra_netgen<RealType>(rp, param);
+   //test_tetrahedra_netgen<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
@@ -432,7 +435,7 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout << "-Polyhedra:"  << std::endl;
-   test_polyhedra_fvca6<RealType>(rp, param);
+   //test_polyhedra_fvca6<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;

@@ -121,16 +121,21 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
 //       return grad;
 //    };
 
-   T alpha = 0.2;
+   T alpha = 0.3;
 
-   auto load = [elas_param](const point<T,2>& p) -> result_type {
-      return result_type{0.0,0.0};
+   auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
+      T lambda = elas_param.lambda;
+      T mu = elas_param.mu;
+
+      T fx = 0.0;//- 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
+      T fy = 3*mu * alpha * cos(p.x());//- 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
+      return result_type{fx,fy};
    };
 
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T fx = (1.0/lambda + alpha) * p.x();
-      T fy = (1.0 - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ alpha * std::pow(p.x(), 1.0);
+      T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 3*alpha * (cos(p.x()) -1.0);
 
       return result_type{fx,fy};
    };
@@ -140,8 +145,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
       result_grad_type grad = result_grad_type::Zero();
 
       grad(0,0) = (1.0/lambda + alpha);
-      grad(1,1) = (1.0 - alpha/(1.0 + alpha));
-      grad(1,0) = /* f'(x)= */ alpha;
+      grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
+      grad(1,0) = /* f'(x)= */ -3*alpha * sin(p.x());
 
       return grad;
    };
@@ -337,10 +342,10 @@ void test_quads_diskpp(const run_params& rp, ElasticityParameters& elas_param)
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-2-2.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
-   paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
+//   paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
-//    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-256-256.quad");
+    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-64-64.quad");
 
    std::vector<error_type> error_sumup;
 
@@ -373,7 +378,7 @@ int main(int argc, char **argv)
    ElasticityParameters param = ElasticityParameters();
    param.lambda = 1.0;
    param.mu = 1.0;
-   param.tau = 1000.0;
+   param.tau = 10.0;
    param.adaptative_stab = false;
    param.type_law = 1;
 
@@ -412,7 +417,7 @@ int main(int argc, char **argv)
             break;
 
 
-         case 't':
+         case 'p':
             param.tau = atof(optarg);
             break;
 
@@ -443,21 +448,21 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout << "-Triangles fvca5:" << std::endl;
-   test_triangles_fvca5<RealType>(rp, param);
+   //test_triangles_fvca5<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
 
    tc.tic();
    std::cout <<  "-Triangles netgen:" << std::endl;
-   test_triangles_netgen<RealType>(rp, param);
+   //test_triangles_netgen<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
 
    tc.tic();
    std::cout << "-Quadrangles fvca5:"  << std::endl;
-   test_quads_fvca5<RealType>(rp, param);
+   //test_quads_fvca5<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
@@ -472,7 +477,7 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout << "-Hexagons:"  << std::endl;
-   test_hexagons<RealType>(rp, param);
+   //test_hexagons<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
@@ -480,7 +485,7 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout << "-Kershaws:"  << std::endl;
-   test_kershaws<RealType>(rp, param);
+   //test_kershaws<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;
