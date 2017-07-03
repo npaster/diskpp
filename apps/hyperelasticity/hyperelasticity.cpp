@@ -335,7 +335,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 1.0;
-    param.lambda = 10E5 ;
+    param.lambda = 10 ;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;

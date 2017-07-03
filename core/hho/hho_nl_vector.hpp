@@ -50,6 +50,22 @@ namespace disk {
       return ret;
    }
 
+
+   template<typename T, int DIM>
+   static_matrix<T,DIM, DIM>
+   compute_gradient_matrix_pt(const dynamic_vector<T>& gradrec_coeff,
+                              const std::vector<static_matrix<T,DIM, DIM> >& base)
+   {
+      static_matrix<T,DIM, DIM> ret = static_matrix<T,DIM, DIM>::Zero();
+      assert(gradrec_coeff.size() == base.size());
+
+      for(size_t i = 0; i < base.size(); i++){
+         ret += gradrec_coeff(i) * base[i];
+      }
+
+      return ret;
+   }
+
    template<typename Mesh>
    size_t
    number_of_neumann_faces(const Mesh& msh, const std::vector<size_t>& boundary_neumann)

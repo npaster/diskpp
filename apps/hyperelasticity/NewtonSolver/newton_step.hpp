@@ -204,7 +204,7 @@ public:
         for (auto& cl : m_msh)
         {
             tc.tic();
-            gradrec.compute(m_msh, cl);
+            //gradrec.compute(m_msh, cl);
             tc.toc();
             ai.time_gradrec += tc.to_double();
 
@@ -217,7 +217,8 @@ public:
 
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            //hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
             /////// NON LINEAIRE /////////
             assert( hyperelasticity.K_int.rows() == stab.data.rows());
             assert( hyperelasticity.K_int.cols() == stab.data.cols());
@@ -363,13 +364,13 @@ public:
                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
             }
 
-            gradrec.compute(m_msh, cl);
+            //gradrec.compute(m_msh, cl);
             //stab.compute(m_msh, cl, gradrec.oper);
             deplrec.compute(m_msh, cl);
             stab.compute(m_msh, cl, deplrec.oper);
 
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
-
+            //hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
 
             /////// NON LINEAIRE /////////
             tc.tic();
