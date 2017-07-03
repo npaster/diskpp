@@ -77,8 +77,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
 
-      T fx = 0.0;//- 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
-      T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());//- 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
+      T fx = 0.0;
+      T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
       return result_type{fx,fy};
    };
 

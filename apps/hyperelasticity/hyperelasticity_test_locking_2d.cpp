@@ -73,62 +73,15 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
    typedef static_matrix<T, 2, 2> result_grad_type;
 
 
-   //    auto load = [](const point<T,2>& p) -> result_type {
-   //        T fx = -16.0 * p.x() * p.y() * p.y() -4.0 * p.x() * p.x() * p.x();
-   //        T fy = -16.0 * p.x() * p.x() * p.y() -4.0 * p.y() * p.y() * p.y();
-   //       return result_type{fx,fy};
-   //    };
-   //
-   //    auto solution = [](const point<T,2>& p) -> result_type {
-   //       T fx = 1.2 * p.x() * p.x() * p.y();
-   //       T fy = (p.x() * p.y() * p.y()) * sin(p.x()) ;
-   //
-   //       return result_type{fx,fy};
-   //    };
-
-
-//    auto load = [elas_param](const point<T,2>& p) -> result_type {
-//       T lambda = elas_param.lambda;
-//       T mu = elas_param.mu;
-//
-//       T num = -lambda * log(9.0 * std::pow(p.x(), 2.0) * std::pow(p.y(), 2.0) + 3.0 * (std::pow(p.x(), 2.0) + std::pow(p.y(), 2.0)) +1.0)
-//       + lambda + mu;
-//
-//
-//       T dem1 = 9.0 * std::pow(p.x(), 4.0) + 6.0 * std::pow(p.x(), 2.0) + 1.0;
-//       T dem2 = 9.0 * std::pow(p.y(), 4.0) + 6.0 * std::pow(p.y(), 2.0) + 1.0;
-//
-//       T fx = - 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
-//       T fy = - 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
-//       return result_type{fx,fy};
-//    };
-//
-//    auto solution = [elas_param](const point<T,2>& p) -> result_type {
-//       T lambda = elas_param.lambda;
-//       T fx = std::pow(p.x(), 3.0);
-//       T fy = std::pow(p.y(), 3.0);
-//
-//       return result_type{fx,fy};
-//    };
-//
-//    auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
-//       T lambda = elas_param.lambda;
-//       result_grad_type grad = result_grad_type::Zero();
-//
-//       grad(0,0) = 3.0 * std::pow(p.x(), 2.0) ;
-//       grad(1,1) = 3.0 * std::pow(p.y(), 2.0) ;
-//
-//       return grad;
-//    };
-
    T alpha = 0.3;
 
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
 
-      T fx = 0.0;//- 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
-      T fy = 3*mu * alpha * cos(p.x());//- 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
+      T fx = 0.0;
+      T fy = 3*mu * alpha * cos(p.x());
+      //T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
       return result_type{fx,fy};
    };
 
@@ -136,7 +89,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
       T lambda = elas_param.lambda;
       T fx = (1.0/lambda + alpha) * p.x();
       T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 3*alpha * (cos(p.x()) -1.0);
-
+      //T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
       return result_type{fx,fy};
    };
 
@@ -147,7 +100,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
       grad(0,0) = (1.0/lambda + alpha);
       grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
       grad(1,0) = /* f'(x)= */ -3*alpha * sin(p.x());
-
+      //grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
       return grad;
    };
 
@@ -221,7 +174,7 @@ printResults(const std::vector<error_type>& error)
 template< typename T>
 void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
 //    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
@@ -244,7 +197,7 @@ void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param
 template< typename T>
 void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
@@ -268,7 +221,7 @@ void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_para
 template< typename T>
 void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
@@ -291,7 +244,7 @@ void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 5;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
@@ -314,7 +267,7 @@ void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
@@ -337,15 +290,15 @@ void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 template< typename T>
 void test_quads_diskpp(const run_params& rp, ElasticityParameters& elas_param)
 {
-   size_t runs = 6;
+   size_t runs = 5;
 
    std::vector<std::string> paths;
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-2-2.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
-//   paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
+   paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
 //    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
-    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-64-64.quad");
+//    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-64-64.quad");
 
    std::vector<error_type> error_sumup;
 
@@ -485,7 +438,7 @@ int main(int argc, char **argv)
 
    tc.tic();
    std::cout << "-Kershaws:"  << std::endl;
-   //test_kershaws<RealType>(rp, param);
+   test_kershaws<RealType>(rp, param);
    tc.toc();
    std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
    std::cout << " "<< std::endl;

@@ -109,42 +109,36 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
 //    };
 
 
+T alpha = 0.3;
 
+auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
+   T lambda = elas_param.lambda;
+   T mu = elas_param.mu;
 
+   T fx = 0.0;//- 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
+   T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());//- 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
+   return result_type{fx,fy};
+};
 
+auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
+   T lambda = elas_param.lambda;
+   T fx = (1.0/lambda + alpha) * p.x();
+   T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
 
-   auto load = [elas_param](const point<T,2>& p) -> result_type {
-//       T lambda = elas_param.lambda;
-//       T mu = elas_param.mu;
-//
-//       T num = -lambda * log(1.0 + M_PI * cos(M_PI * p.x()) * M_PI * cos(M_PI * p.y()) + M_PI * cos(M_PI * p.x()) + M_PI * cos(M_PI * p.y()));
-//
-//       T dem1 = std::pow(M_PI * cos(M_PI * p.x()) +1.0, 2.0);
-//       T dem2 = std::pow(M_PI * cos(M_PI * p.y()) +1.0, 2.0);
-      T gamma = 2.0;
-      T fx = 0.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.x()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.x()))/dem1;
-      T fy = 0.0;//- M_PI *M_PI * ( num + lambda + 2.0 * mu + mu * std::pow(M_PI * cos(M_PI * p.y()),2.0)  + 2.0*mu*M_PI * cos(M_PI * p.y()))/dem2;
-      return result_type{fx,fy};
-   };
+   return result_type{fx,fy};
+};
 
-   auto solution = [elas_param](const point<T,2>& p) -> result_type {
-      T lambda = elas_param.lambda;
-      T alpha = 0.5;
-      T fx = alpha * p.x();//0.1*sin(M_PI * p.x());
-      T fy = -alpha/(1.0 + alpha) * p.y() + alpha * std::pow(p.x(), 1.0);//0.1*sin(M_PI * p.y());
+auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
+   T lambda = elas_param.lambda;
+   result_grad_type grad = result_grad_type::Zero();
 
-      return result_type{fx,fy};
-   };
+   grad(0,0) = (1.0/lambda + alpha);
+   grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
+   grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
 
-   auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
-      T lambda = elas_param.lambda;
-      result_grad_type grad = result_grad_type::Zero();
+   return grad;
+};
 
-      grad(0,0) = 0.0;//M_PI * cos(M_PI * p.x());
-      grad(1,1) = 0.0;//M_PI * cos(M_PI * p.y());
-
-      return grad;
-   };
 
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
@@ -154,7 +148,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, const
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann(0); //by default 0 is for a dirichlet face
+   std::vector<size_t> boundary_neumann = {}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
@@ -205,35 +199,72 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
 {
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
+   typedef static_matrix<T, 3, 3> result_grad_type;
 
-   auto load = [](const point<T,3>& p) -> result_type {
-      return result_type{0.0,0.0,0.0};
+   // auto load = [](const point<T,3>& p) -> result_type {
+   //    return result_type{0.0,0.0,0.0};
+   // };
+   //
+   // auto solution = [](const point<T,3>& p) -> result_type {
+   //    T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+   //    T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+   //    T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
+   //    return result_type{fx,fy,fz};
+   // };
+   //
+   //
+   // auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
+   //    static_matrix<T, 3, 3> g;
+   //    g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+   //    g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
+   //    g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
+   //
+   //    g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
+   //    g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
+   //    g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
+   //
+   //    g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
+   //    g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
+   //    g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
+   //    return g;
+   // };
+
+   T alpha = 0.2;
+   T beta = 0.2;
+
+   auto load = [elas_param, alpha,beta](const point<T,3>& p) -> result_type {
+      T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
+      T fy =0.0;
+      T fz = M_PI*M_PI*elas_param.mu*beta * sin(M_PI*p.x());
+      return result_type{fx, fy, fz};
    };
 
-   auto solution = [](const point<T,3>& p) -> result_type {
-      T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-      T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-      T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
+   auto solution = [elas_param, alpha, beta](const point<T,3>& p) -> result_type {
+      T lambda = elas_param.lambda;
+      T gamma = alpha + beta + alpha * beta;
+      T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ alpha * sin(M_PI*p.y());
+      T fy = (1.0/lambda - gamma/(1.0 + gamma)) * p.y();
+      T fz = (1.0/lambda + beta) * p.z() + /* g(X)= */ beta * sin(M_PI*p.x()) + /* h(Y)= */ 0.0;
+
       return result_type{fx,fy,fz};
    };
 
+   auto gradient = [elas_param, alpha, beta](const point<T,3>& p) -> result_grad_type {
+      T lambda = elas_param.lambda;
+      T gamma = alpha + beta + alpha * beta;
+      result_grad_type grad = result_grad_type::Zero();
 
-   auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
-      static_matrix<T, 3, 3> g;
-      g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-      g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-      g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
+      grad(0,0) = (1.0/lambda + alpha);
+      grad(0,1) = /* f'(Y)= */ M_PI*alpha * cos(M_PI*p.y());
 
-      g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-      g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-      g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
+      grad(1,1) = (1.0/lambda - gamma/(1.0 + gamma));
 
-      g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
-      g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
-      g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
-      return g;
+      grad(2,0) = /* g'(X)= */ M_PI*beta* cos(M_PI*p.x());
+      grad(2,1) = /* h'(Y)= */ 0.0;
+      grad(2,2) = (1.0/lambda + beta);
+
+      return grad;
    };
-
 
    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
       T fx = 0.0;
@@ -304,7 +335,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 1.0;
-    param.lambda = param.mu * 10E1;
+    param.lambda = 10E5 ;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
