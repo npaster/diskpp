@@ -106,7 +106,7 @@ class NeoHookeanLaw
       else if(m_type == 3)
          return -scalar_type{1}/(log(scalar_type{10.0})*J*J);
       else
-         return -scalar_type{0.5}/(J*J*J);
+         return -scalar_type{2.0}/(J*J*J);
    }
 
 public:
