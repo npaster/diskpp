@@ -183,7 +183,7 @@ int main(int argc, char **argv)
                rp.gamma = atof(optarg);
                break;
 
-            case 'j':
+            case 'p':
                param.type_law = atoi(optarg);
                break;
 

@@ -125,8 +125,8 @@ public:
    newton_info
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
             const std::vector<size_t>& boundary_neumann,
-            const scalar_type epsilon = 1.E-7,
-            const std::size_t iter_max = 20)
+            const scalar_type epsilon = 5.E-10,
+            const std::size_t iter_max = 10)
    {
       newton_info ai;
       bzero(&ai, sizeof(ai));
@@ -156,7 +156,7 @@ public:
           ai.time_law +=  time_assembly.time_law;
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
-
+         //newton_step.test_aurrichio();
          if(iter < (iter_max-1) && !m_convergence){
             // solve the global system
             tc.tic();

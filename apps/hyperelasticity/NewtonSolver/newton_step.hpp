@@ -248,7 +248,35 @@ public:
         return ai;
     }
 
+    void
+    test_aurrichio(void)
+    {
+      face_basis_type face_basis(m_degree);
+      const size_t fbs = face_basis.size();
+      const size_t nb_faces_dof = fbs * m_msh.faces_size();
 
+      sparse_matrix_type mat_aurri = m_system_matrix.block(0, 0, nb_faces_dof, nb_faces_dof);
+
+      Eigen::SelfAdjointEigenSolver<sparse_matrix_type> es;
+      es.compute(mat_aurri);
+
+      if(es.info() != Eigen::Success) {
+          std::cerr << "ERROR: Could not compute eigenvalues of the matrix" << std::endl;
+      }
+
+      const scalar_type min_ev = es.eigenvalues().minCoeff();
+      const scalar_type max_ev = es.eigenvalues().maxCoeff();
+
+      std::cout << "******* Eigenvalues test ********" << std::endl;
+      std::cout << "Number of eigenvalues: " << es.eigenvalues().size()  << std::endl;
+      std::cout << "Maximum eigenvalue: " << max_ev << std::endl;
+      std::cout << "Minimum eigenvalue: " << min_ev << std::endl;
+      std::cout << "Conditionning number: " << std::abs(max_ev/min_ev) << std::endl;
+
+      if(min_ev <= -1.0) {
+         std::cerr << "The matrix is no mre definite positive" << min_ev << std::endl;
+      }
+    }
 
     solver_info
     solve(void)
@@ -293,15 +321,15 @@ public:
         gradrec_type gradrec(m_degree);
         //stab_type stab(m_degree);
         hyperelasticity_type hyperelasticity(m_degree);
-        deplrec_type deplrec(m_degree);
-        stab2_type stab(m_degree);
+         deplrec_type deplrec(m_degree);
+         stab2_type stab(m_degree);
 
         statcond_type statcond(m_degree);
 
         face_basis_type face_basis(m_degree);
-        size_t fbs = face_basis.size();
+        const size_t fbs = face_basis.size();
         cell_basis_type cell_basis(m_degree);
-        size_t cbs = cell_basis.size();
+        const size_t cbs = cell_basis.size();
 
         postprocess_info pi;
 
@@ -336,6 +364,7 @@ public:
             }
 
             gradrec.compute(m_msh, cl);
+            //stab.compute(m_msh, cl, gradrec.oper);
             deplrec.compute(m_msh, cl);
             stab.compute(m_msh, cl, deplrec.oper);
 
@@ -436,7 +465,7 @@ public:
          std::cout.flags( f );
       }
 
-      if(relative_error <= epsilon){
+      if(relative_error <= epsilon || residual <= epsilon ){
          return true;
       }
       else {
