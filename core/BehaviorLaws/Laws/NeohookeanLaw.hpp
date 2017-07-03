@@ -211,8 +211,10 @@ public:
       scalar_type c2 = UJ * c1;
       scalar_type c3 = UJ * J * (J * UJs + UJp) + c1 * c1;
 
-      if(J <=0.0)
+      if(J <=0.0){
+         std::cout << "J = " << J << std::endl;
          throw std::invalid_argument("J <= 0");
+      }
 
       static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
       static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);

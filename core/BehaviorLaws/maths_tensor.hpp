@@ -115,6 +115,34 @@ converttomatrix(const static_vector<T, 9>& vec)
 }
 
 
+// Put it in Line
+template<typename T, int DIM>
+static_tensor<T, DIM>
+changeFormatRowTensor(const static_tensor<T, DIM>& tens)
+{
+   static_tensor<T, DIM> ret = static_tensor<T, DIM>::Zero();
+
+   for(size_t i = 0; i < DIM; i++){
+      for(size_t j = 0; j < DIM; j++){
+         const size_t row = i * DIM + j;
+         for(size_t k = 0; k < DIM; k++){
+            for(size_t l = 0; l < DIM; l++){
+               ret(row, k * DIM + l) = tens(i*DIM + k, j*DIM + l);
+            }
+         }
+      }
+   }
+
+   return ret;
+}
+
+template<typename T, size_t DIM>
+static_tensor<T, DIM>
+changeFormatColTensor(const static_tensor<T, DIM>& tens)
+{
+   return changeFormatRowTensor(tens).transpose();
+}
+
 
 // Product Tensor - Matrix
 
@@ -155,11 +183,11 @@ static_tensor<T, DIM>
 computeKroneckerProduct(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
 {
    static_tensor<T, DIM> ret;
-   
+
    for (size_t i = 0; i < DIM; i++)
       for (size_t j = 0; j < DIM; j++)
          ret.block(i*DIM, j*DIM, DIM, DIM) = A(i,j) * B;
-      
+
       return ret;
 }
 
@@ -170,13 +198,13 @@ static_tensor<T, DIM>
 computeProductSup(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
 {
    static_tensor<T, DIM> ret;
-   
+
    for (size_t i = 0; i < DIM; i++)
       for (size_t j = 0; j < DIM; j++)
          for (size_t k = 0; k < DIM; k++)
             for (size_t l = 0; l < DIM; l++)
                ret(i*DIM + k, j*DIM + l) = A(i,k) * B(j,l);
-            
+
             return ret;
 }
 
@@ -187,13 +215,13 @@ static_tensor<T, DIM>
 computeProductInf(const static_matrix<T, DIM, DIM>& A, const static_matrix<T, DIM, DIM>& B )
 {
    static_tensor<T, DIM> ret;
-   
+
    for (size_t i = 0; i < DIM; i++)
       for (size_t j = 0; j < DIM; j++)
          for (size_t k = 0; k < DIM; k++)
             for (size_t l = 0; l < DIM; l++)
                ret(i*DIM + k, j*DIM + l) = A(i,l) * B(j,k);
-            
+
             return ret;
 }
 
