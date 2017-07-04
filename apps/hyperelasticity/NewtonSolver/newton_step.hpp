@@ -22,6 +22,7 @@
 
 #include <sstream>
 #include <string>
+#include <fstream>
 
 
 #ifdef HAVE_SOLVER_WRAPPERS
@@ -43,7 +44,7 @@
 struct assembly_info
 {
     size_t  linear_system_size;
-    double  time_gradrec, time_potrec, time_statcond, time_stab, time_elem, time_law;
+    double  time_gradrec, time_potrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
 };
 
 struct solver_info
@@ -117,6 +118,7 @@ class NewtonRaphson_step_hyperelasticity
 
     std::vector<vector_dynamic>        m_postprocess_data, m_solution_data;
     std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
+    std::vector<scalar_type>           m_adpat_stab;
 
     bool m_verbose;
 
@@ -159,7 +161,8 @@ public:
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                 const std::vector<vector_dynamic>& initial_solution_faces,
                 const std::vector<vector_dynamic>& initial_solution_lagr,
-                const std::vector<vector_dynamic>& initial_solution)
+                const std::vector<vector_dynamic>& initial_solution,
+                const std::vector<size_t>& boundary_neumann)
     {
       m_solution_cells.clear();
       m_solution_cells = initial_solution_cells;
@@ -177,6 +180,9 @@ public:
       m_solution_data.clear();
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
+      
+      if(m_elas_param.adaptative_stab)
+         m_adpat_stab.resize(m_msh.cells_size());
     }
 
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
@@ -185,10 +191,10 @@ public:
             const std::vector<size_t>& boundary_neumann)
     {
         gradrec_type gradrec(m_degree);
-        //stab_type stab(m_degree);
+        stab_type stab(m_degree);
         hyperelasticity_type hyperelasticity(m_degree);
         deplrec_type deplrec(m_degree);
-        stab2_type stab(m_degree);
+        //stab2_type stab(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -204,21 +210,29 @@ public:
         for (auto& cl : m_msh)
         {
             tc.tic();
-            //gradrec.compute(m_msh, cl);
+            gradrec.compute(m_msh, cl);
             tc.toc();
             ai.time_gradrec += tc.to_double();
 
             tc.tic();
-            deplrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, deplrec.oper);
-            //stab.compute(m_msh, cl, gradrec.oper);
+            //deplrec.compute(m_msh, cl);
+            //stab.compute(m_msh, cl, deplrec.oper);
+            stab.compute(m_msh, cl, gradrec.oper);
             tc.toc();
             ai.time_stab += tc.to_double();
 
 
             tc.tic();
-            //hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
-            hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
+            //hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
+            
+            if(m_elas_param.adaptative_stab){
+               m_beta = hyperelasticity.beta_adap;
+               m_adpat_stab[i] = m_beta;
+            }
+            else
+               m_beta = m_elas_param.tau;
+
             /////// NON LINEAIRE /////////
             assert( hyperelasticity.K_int.rows() == stab.data.rows());
             assert( hyperelasticity.K_int.cols() == stab.data.cols());
@@ -232,6 +246,7 @@ public:
             tc.toc();
             ai.time_elem += tc.to_double();
             ai.time_law += hyperelasticity.time_law;
+            ai.time_adapt_stab += hyperelasticity.time_adapt_stab;
             tc.tic();
             auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
             tc.toc();
@@ -247,6 +262,20 @@ public:
 
          ai.linear_system_size = m_system_matrix.rows();
         return ai;
+    }
+
+    void
+    saveMatrix(const std::string& filename)
+    {
+       std::ofstream fichier(filename, std::ios::out | std::ios::trunc);
+
+       for (int k=0; k<m_system_matrix.outerSize(); ++k)
+          for (typename Eigen::SparseMatrix<scalar_type>::InnerIterator it(m_system_matrix,k); it; ++it)
+         {
+            fichier << it.row() << " ; " << it.col() << " ; " << it.value() << std::endl;
+         }
+
+       fichier.close();
     }
 
     void
@@ -320,10 +349,10 @@ public:
     postprocess(const LoadFunction& lf, const NeumannFunction& g, const std::vector<size_t>& boundary_neumann)
     {
         gradrec_type gradrec(m_degree);
-        //stab_type stab(m_degree);
+        stab_type stab(m_degree);
         hyperelasticity_type hyperelasticity(m_degree);
          deplrec_type deplrec(m_degree);
-         stab2_type stab(m_degree);
+         //stab2_type stab(m_degree);
 
         statcond_type statcond(m_degree);
 
@@ -364,14 +393,20 @@ public:
                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
             }
 
-            //gradrec.compute(m_msh, cl);
-            //stab.compute(m_msh, cl, gradrec.oper);
-            deplrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, deplrec.oper);
+            gradrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, gradrec.oper);
+            //deplrec.compute(m_msh, cl);
+            //stab.compute(m_msh, cl, deplrec.oper);
 
-            //hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
-            hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
+            //hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
 
+            if(m_elas_param.adaptative_stab){
+               m_beta = m_adpat_stab[i];
+            }
+            else
+               m_beta = m_elas_param.tau;
+               
             /////// NON LINEAIRE /////////
             tc.tic();
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;

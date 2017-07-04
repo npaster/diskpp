@@ -40,7 +40,7 @@ struct newton_info
 {
     size_t  linear_system_size;
     double  time_assembly, time_solve, time_post;
-    double  time_gradrec, time_statcond, time_stab, time_elem, time_law;
+    double  time_gradrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
 };
 
 
@@ -100,7 +100,8 @@ public:
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                 const std::vector<vector_dynamic>& initial_solution_faces,
                 const std::vector<vector_dynamic>& initial_solution_lagr,
-                const std::vector<vector_dynamic>& initial_solution)
+                const std::vector<vector_dynamic>& initial_solution,
+                const std::vector<size_t>& boundary_neumann)
     {
       m_solution_cells.clear();
       m_solution_cells = initial_solution_cells;
@@ -136,7 +137,7 @@ public:
       NewtonRaphson_step_hyperelasticity<Mesh> newton_step(m_msh, m_degree, m_elas_param, 0);
 
       newton_step.initialize(m_solution_cells, m_solution_faces,
-                             m_solution_lagr, m_solution_data);
+                             m_solution_lagr, m_solution_data, boundary_neumann);
       newton_step.verbose(m_verbose);
 
       m_convergence = false;
@@ -154,6 +155,7 @@ public:
           ai.time_statcond +=  time_assembly.time_statcond;
           ai.time_elem +=  time_assembly.time_elem;
           ai.time_law +=  time_assembly.time_law;
+          ai.time_adapt_stab += time_assembly.time_adapt_stab;
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
          //newton_step.test_aurrichio();

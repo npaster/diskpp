@@ -173,6 +173,7 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       std::cout << "****** Stabilisation: " << solve_info.time_stab << " sec" << std::endl;
       std::cout << "****** Elementary computation: " << solve_info.time_elem << " sec" << std::endl;
       std::cout << "       *** Behavior computation: " << solve_info.time_law << " sec" << std::endl;
+      std::cout << "       *** Adaptative stabilization: " << solve_info.time_adapt_stab << " sec" << std::endl;
       std::cout << "****** Static condensation: " << solve_info.time_statcond << " sec" << std::endl;
       std::cout << "**** Solver time: " << solve_info.time_solve << " sec" << std::endl;
       std::cout << "**** Postprocess time: " << solve_info.time_post << " sec" << std::endl;
@@ -298,6 +299,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, const
       std::cout << "****** Stabilisation: " << solve_info.time_stab << " sec" << std::endl;
       std::cout << "****** Elementary computation: " << solve_info.time_elem << " sec" << std::endl;
       std::cout << "       *** Behavior computation: " << solve_info.time_law << " sec" << std::endl;
+      std::cout << "       *** Adaptative stabilization: " << solve_info.time_adapt_stab << " sec" << std::endl;
       std::cout << "****** Static condensation: " << solve_info.time_statcond << " sec" << std::endl;
       std::cout << "**** Solver time: " << solve_info.time_solve << " sec" << std::endl;
       std::cout << "**** Postprocess time: " << solve_info.time_post << " sec" << std::endl;

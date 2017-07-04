@@ -70,11 +70,11 @@ class NeoHookeanLaw
       if(m_type == 1)
          return log(J);
       else if(m_type == 2)
-         return J - scalar_type{1};
+         return J - scalar_type{1.0};
       else if(m_type == 3)
          return log10(J);
       else
-         return scalar_type{1} - scalar_type{1}/J;
+         return scalar_type{1.0} - scalar_type{1.0}/J;
    }
 
    scalar_type
@@ -84,13 +84,13 @@ class NeoHookeanLaw
          throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
 
       if(m_type == 1)
-         return scalar_type{1}/J;
+         return scalar_type{1.0}/J;
       else if(m_type == 2)
-         return scalar_type{1};
+         return scalar_type{1.0};
       else if(m_type == 3)
-         return scalar_type{1}/(log(scalar_type{10.0})*J);
+         return scalar_type{1.0}/(log(scalar_type{10.0})*J);
       else
-         return scalar_type{1}/(J*J);
+         return scalar_type{1.0}/(J*J);
    }
 
    scalar_type
@@ -100,11 +100,11 @@ class NeoHookeanLaw
          throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
 
       if(m_type == 1)
-         return -scalar_type{1}/(J*J);
+         return -scalar_type{1.0}/(J*J);
       else if(m_type == 2)
-         return scalar_type{0};
+         return scalar_type{0.0};
       else if(m_type == 3)
-         return -scalar_type{1}/(log(scalar_type{10.0})*J*J);
+         return -scalar_type{1.0}/(log(scalar_type{10.0})*J*J);
       else
          return -scalar_type{2.0}/(J*J*J);
    }

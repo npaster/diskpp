@@ -45,7 +45,7 @@ struct solve_info
     double  time_solver;
     size_t  linear_system_size;
     double  time_assembly, time_solve, time_post;
-    double  time_gradrec, time_statcond, time_stab, time_elem, time_law;
+    double  time_gradrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
 };
 
 
@@ -196,7 +196,8 @@ public:
       NewtonRaphson_solver_hyperelasticity<Mesh<T,DIM,Storage>> newton_solver(m_msh, m_degree, m_elas_param, 0);
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
-                                 m_solution_lagr, m_solution_data);
+                                 m_solution_lagr, m_solution_data,
+                                 boundary_neumann);
 
       newton_solver.verbose(m_verbose);
 
@@ -238,6 +239,7 @@ public:
          ai.time_stab += newton_info.time_stab;
          ai.time_elem += newton_info.time_elem;
          ai.time_law += newton_info.time_law;
+         ai.time_adapt_stab += newton_info.time_adapt_stab;
          ai.time_statcond += newton_info.time_statcond;
          ai.time_solve += newton_info.time_solve;
          ai.time_post += newton_info.time_post;
@@ -249,6 +251,7 @@ public:
             std::cout << "****** Stabilisation: " << newton_info.time_stab << " sec" << std::endl;
             std::cout << "****** Elementary computation: " << newton_info.time_elem << " sec" << std::endl;
             std::cout << "       *** Behavior computation: " << newton_info.time_law << " sec" << std::endl;
+            std::cout << "       *** Adaptative stabilization: " << newton_info.time_adapt_stab << " sec" << std::endl;
             std::cout << "****** Static condensation: " << newton_info.time_statcond << " sec" << std::endl;
             std::cout << "**** Solver time: " << newton_info.time_solve << " sec" << std::endl;
             std::cout << "**** Postprocess time: " << newton_info.time_post << " sec" << std::endl;

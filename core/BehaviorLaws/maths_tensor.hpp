@@ -42,28 +42,16 @@ template<typename T>
 static_vector<T, 4>
 converttovector(const static_matrix<T, 2, 2>& mat)
 {
-   return static_vector<T,4>{mat(0,0), mat(0,1), mat(1,0), mat(1,1)};
+   return static_vector<T,4>{mat(0,0), mat(1,0), mat(0,1), mat(1,1)};
 }
 
 template<typename T>
 static_vector<T, 9>
 converttovector(const static_matrix<T, 3, 3>& mat)
 {
-   static_vector<T,9> ret;
-
-   ret(0) = mat(0,0);
-   ret(1) = mat(0,1);
-   ret(2) = mat(0,2);
-
-   ret(3) = mat(1,0);
-   ret(4) = mat(1,1);
-   ret(4) = mat(1,2);
-
-   ret(6) = mat(2,0);
-   ret(7) = mat(2,1);
-   ret(8) = mat(2,2);
-
-   return ret;
+   return static_vector<T,9>{ mat(0,0), mat(1,0), mat(2,0),
+                              mat(0,1), mat(1,1), mat(2,1),
+                              mat(0,2), mat(1,2), mat(2,2)};
 }
 
 
@@ -85,10 +73,10 @@ converttomatrix(const static_vector<T, 4>& vec)
    static_matrix<T, 2, 2> mat;
 
    mat(0,0) = vec(0);
-   mat(0,1) = vec(1);
+   mat(1,0) = vec(1);
 
-   mat(1,0) = vec(2);
-   mat(1,1) = vec(1);
+   mat(0,1) = vec(2);
+   mat(1,1) = vec(3);
 
    return mat;
 }
@@ -99,28 +87,38 @@ converttomatrix(const static_vector<T, 9>& vec)
 {
    static_matrix<T, 2, 2> mat;
 
-   mat(0,0) = vec(0);
-   mat(0,1) = vec(1);
-   mat(0,2) = vec(2);
+   mat(1,0) = vec(0);
+   mat(2,0) = vec(1);
+   mat(3,0) = vec(2);
 
-   mat(1,0) = vec(3);
-   mat(1,1) = vec(4);
-   mat(1,2) = vec(5);
+   mat(1,1) = vec(3);
+   mat(2,1) = vec(4);
+   mat(3,1) = vec(5);
 
-   mat(2,0) = vec(6);
-   mat(2,1) = vec(7);
-   mat(2,2) = vec(8);
+   mat(1,2) = vec(6);
+   mat(2,2) = vec(7);
+   mat(3,2) = vec(8);
 
    return mat;
 }
 
 
 // Put it in Line
-template<typename T, int DIM>
-static_tensor<T, DIM>
-changeFormatRowTensor(const static_tensor<T, DIM>& tens)
+template<typename T, int DIM2> //DIM2 = DIM*DIM
+static_matrix<T, DIM2, DIM2>
+changeFormatRowTensor(const static_matrix<T, DIM2, DIM2>& tens)
 {
-   static_tensor<T, DIM> ret = static_tensor<T, DIM>::Zero();
+   int DIM = 0;
+   if(DIM2 == 1)
+      DIM = 1;
+   else if(DIM2 == 4)
+      DIM = 2;
+   else if(DIM2 == 9)
+      DIM = 3;
+   else
+      assert(false);
+   
+   static_matrix<T, DIM2, DIM2> ret = static_matrix<T, DIM2, DIM2>::Zero();
 
    for(size_t i = 0; i < DIM; i++){
       for(size_t j = 0; j < DIM; j++){
@@ -132,13 +130,17 @@ changeFormatRowTensor(const static_tensor<T, DIM>& tens)
          }
       }
    }
+   
+//    for (size_t i = 0; i < DIM; i++)
+//       for (size_t j = 0; j < DIM; j++)
+//          ret.block(i*DIM + j, 0, 1, DIM2) = converttovector( tens.block(i*DIM, j*DIM, DIM, DIM);
 
    return ret;
 }
 
-template<typename T, size_t DIM>
-static_tensor<T, DIM>
-changeFormatColTensor(const static_tensor<T, DIM>& tens)
+template<typename T, size_t DIM2>
+static_matrix<T, DIM2, DIM2>
+changeFormatColTensor(const static_matrix<T, DIM2, DIM2>& tens)
 {
    return changeFormatRowTensor(tens).transpose();
 }

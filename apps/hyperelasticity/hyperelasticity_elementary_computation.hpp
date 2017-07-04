@@ -67,12 +67,6 @@ namespace Hyperelasticity {
                             const std::vector<size_t>& boundary_neumann)
       {
          auto fcs = faces(msh, cl);
-         const size_t num_faces = fcs.size();
-
-         const size_t num_cell_dofs = cell_basis.range(0, m_degree).size();
-         const size_t num_face_dofs = face_basis.size();
-         const size_t num_total_dofs = num_cell_dofs + num_faces * num_face_dofs;
-
 
          size_t face_i = 0;
          for (auto& fc : fcs)
@@ -83,7 +77,6 @@ namespace Hyperelasticity {
                if ( std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(fc))
                    != boundary_neumann.end() ){
                   auto face_quadpoints = face_quadrature.integrate(msh, fc);
-                  const size_t face_offset = num_cell_dofs + face_i * num_face_dofs;
                   for (auto& qp : face_quadpoints)
                   {
                      auto fphi = face_basis.eval_functions(msh, fc, qp.point());
@@ -102,7 +95,8 @@ namespace Hyperelasticity {
    public:
       matrix_type     K_int;
       vector_type     RTF;
-      double time_law, time_adap_stab;
+      double time_law, time_adapt_stab;
+      scalar_type beta_adap;
 
       Hyperelasticity()
       : m_degree(1)
@@ -118,8 +112,8 @@ namespace Hyperelasticity {
       Hyperelasticity(size_t degree)
       : m_degree(degree)
       {
-         cell_basis          = cell_basis_type(m_degree+1);
-         cell_quadrature     = cell_quadrature_type(2*(m_degree+1));
+         cell_basis          = cell_basis_type(m_degree);
+         cell_quadrature     = cell_quadrature_type(2*(m_degree));
          face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*m_degree);
          grad_basis          = grad_basis_type(m_degree);
@@ -132,10 +126,11 @@ namespace Hyperelasticity {
       void
       compute(const mesh_type& msh, const cell_type& cl, const Function& load, const NeumannFunction& neumann,
               const std::vector<size_t>& boundary_neumann, const matrix_type& GT,
-              const vector_type& uTF, const ElasticityParameters elas_param)
+              const vector_type& uTF, const ElasticityParameters elas_param,
+              const bool adapt_stab = false)
       {
          time_law = 0.0;
-         time_adap_stab = 0.0;
+         time_adapt_stab = 0.0;
          timecounter tc;
          const size_t DIM= msh.dimension;
          const size_t cpk = DIM * binomial(m_degree + DIM, m_degree);
@@ -166,7 +161,7 @@ namespace Hyperelasticity {
 
          auto grad_quadpoints = grad_quadrature.integrate(msh, cl);
 
-         scalar_type beta_adap = elas_param.tau;
+         beta_adap = elas_param.tau;
 
          for (auto& qp : grad_quadpoints)
          {
@@ -176,7 +171,7 @@ namespace Hyperelasticity {
             assert(num_cell_dofs == c_phi.size());
 
             // Compute local gradient and norm
-            auto GT_iqn = disk::compute_gradient_matrix_pt<grad_basis_type>(msh, cl, GT_uTF, qp.point(), m_degree);
+            auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             auto FT_iqn = compute_FTensor(GT_iqn);
 
             //Compute bahavior
@@ -185,16 +180,16 @@ namespace Hyperelasticity {
             tc.toc();
             time_law += tc.to_double();
 
-            if(elas_param.adaptative_stab)
+            if(adapt_stab)
             {
                tc.tic();
                Eigen::SelfAdjointEigenSolver<decltype(tensor_behavior.second)> es;
-               //decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
-               es.compute(tensor_behavior.second);
+               decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
+               es.compute(Arow);
                scalar_type ev_min = es.eigenvalues().minCoeff();
-               std::cout << ev_min << std::endl;
-               beta_adap = std::max(elas_param.tau, std::min( beta_adap, std::abs(ev_min)));
-               time_adap_stab += tc.to_double();
+               //std::cout << ev_min << std::endl;
+               beta_adap = std::max(elas_param.tau, std::max( beta_adap, std::abs(ev_min)));
+               time_adapt_stab += tc.to_double();
             }
 
 
@@ -237,7 +232,7 @@ namespace Hyperelasticity {
            const vector_type& uTF, const ElasticityParameters elas_param)
    {
       time_law = 0.0;
-      time_adap_stab = 0.0;
+      time_adapt_stab = 0.0;
       timecounter tc;
       const size_t DIM= msh.dimension;
       const size_t cpk = DIM * binomial(m_degree + DIM, m_degree);
@@ -277,7 +272,7 @@ namespace Hyperelasticity {
          auto g_phi = cell_basis.eval_gradients(msh, cl, qp.point());
          // delete DIM firs element which are zero
          g_phi.erase(g_phi.begin(), g_phi.begin() + grad_range.from());
-         assert(num_grad_dofs == gphi.size());
+         assert(num_grad_dofs == g_phi.size());
          assert(num_cell_dofs == c_phi.size());
 
          // Compute local gradient and norm
@@ -294,12 +289,12 @@ namespace Hyperelasticity {
          {
             tc.tic();
             Eigen::SelfAdjointEigenSolver<decltype(tensor_behavior.second)> es;
-            //decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
-            es.compute(tensor_behavior.second);
+            decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
+            es.compute(Arow);
             scalar_type ev_min = es.eigenvalues().minCoeff();
             std::cout << ev_min << std::endl;
-            beta_adap = std::max(elas_param.tau, std::min( beta_adap, std::abs(ev_min)));
-            time_adap_stab += tc.to_double();
+            beta_adap = std::max(elas_param.tau, std::max( beta_adap, std::abs(ev_min)));
+            time_adapt_stab += tc.to_double();
          }
 
 
