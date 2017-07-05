@@ -146,7 +146,18 @@ public:
       while (iter < iter_max && !m_convergence) {
           tc.tic();
           //assemble lhs and rhs
-          auto time_assembly = newton_step.assemble(lf, bf, g, boundary_neumann);
+          assembly_info time_assembly;
+          bzero(&time_assembly, sizeof(time_assembly));
+          try {
+             time_assembly = newton_step.assemble(lf, bf, g, boundary_neumann);
+          }
+          catch(const std::invalid_argument& ia){
+             std::cerr << "Invalid argument: " << ia.what() << std::endl;
+             m_convergence = false;
+             tc.toc();
+             ai.time_assembly += tc.to_double();
+             return ai;
+          }
           tc.toc();
           ai.time_assembly += tc.to_double();
 
