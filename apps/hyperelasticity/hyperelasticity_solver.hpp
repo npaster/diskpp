@@ -48,6 +48,12 @@ struct solve_info
     double  time_gradrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
 };
 
+struct time_step
+{
+   double time;
+   size_t level;
+};
+
 
 template<template<typename, size_t , typename> class Mesh,
 typename T, size_t DIM, typename Storage, typename Point>
@@ -201,17 +207,30 @@ public:
 
       newton_solver.verbose(m_verbose);
 
-      const scalar_type delta_t = 1.0/n_time_step;
+      scalar_type delta_t = 1.0/n_time_step;
 
-      scalar_type time = 0.0;
+      std::list<time_step> list_step;
 
       for (size_t n = 0; n < n_time_step; n++)
       {
-         time += delta_t;
+         time_step step;
+         step.time = (n+1) * delta_t;
+         step.level = 1;
+         list_step.push_back(step);
+      }
+
+      size_t current_step = 0;
+      size_t total_step = n_time_step;
+      while(!list_step.empty())
+      {
+         current_step += 1;
+         time_step step = list_step.front();
+         const scalar_type time = step.time;
          tc.tic();
          if(m_verbose){
             std::cout << "--------------------------------------------------------------" << std::endl;
-            std::cout << "************************* Time step " << n+1 << "/" << n_time_step << " *********************|" << std::endl;
+            std::cout << "*************** Time : " << time << " sec (step: " << current_step
+             << "/" << total_step << ") *****************|" << std::endl;
          }
 
          auto rlf = [&lf, &time](const Point& p) -> auto {
@@ -260,11 +279,28 @@ public:
          m_convergence = newton_solver.test_convergence();
 
          if(!m_convergence){
+            if(step.level > 3){
              std::cout << "***********************************************************" << std::endl;
              std::cout << "***** PROBLEM OF CONVERGENCE: We stop the calcul here *****" << std::endl;
              std::cout << "***********************************************************" << std::endl;
              break;
+          }
+            else
+            {
+               std::cout << "***********************************************************" << std::endl;
+               std::cout << "*****     NO CONVERGENCE: We split the time step     ******" << std::endl;
+               std::cout << "***********************************************************" << std::endl;
+               delta_t /= 2.0;
+               total_step += 1;
+               current_step -= 1;
+               time_step new_step;
+               new_step.time = step.time - delta_t;
+               new_step.level = step.level + 1;
+               list_step.push_front(new_step);
+            }
          }
+         else
+            list_step.pop_front();
       }
 
       if(m_convergence)

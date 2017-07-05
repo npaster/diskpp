@@ -47,6 +47,7 @@ struct run_params
     int     l;
     bool    verbose;
     size_t n_time_step;
+    size_t sub_level;
 };
 
 
@@ -333,6 +334,7 @@ int main(int argc, char **argv)
     rp.l        = 0;
     rp.verbose  = true;
     rp.n_time_step = 1;
+    rp.sub_level = 1;
 
     ElasticityParameters param = ElasticityParameters();
 
