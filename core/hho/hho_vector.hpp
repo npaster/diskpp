@@ -479,7 +479,7 @@ namespace disk {
       : m_degree(degree)
       {
          cell_basis          = cell_basis_type(m_degree);
-         cell_quadrature     = cell_quadrature_type(2*m_degree+1);
+         cell_quadrature     = cell_quadrature_type(2*m_degree);
          face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*m_degree);
          test_basis          = test_basis_type(m_degree);
@@ -1324,7 +1324,7 @@ namespace disk {
       {
          cell_basis          = cell_basis_type(m_degree);
          cell_quadrature     = cell_quadrature_type(2*(m_degree));
-         face_basis          = face_basis_type(m_degree+1);
+         face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*(m_degree));
       }
 

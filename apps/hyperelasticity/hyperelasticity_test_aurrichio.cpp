@@ -33,6 +33,9 @@
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
 #include "ElasticityParameters.hpp"
+#include "BoundaryConditions.hpp"
+#include "Parameters.hpp"
+#include "Informations.hpp"
 
 #include "timecounter.h"
 
@@ -41,46 +44,58 @@
 
 #include "hyperelasticity_solver.hpp"
 
-struct run_params
+
+void
+usage(const char *progname)
 {
-    size_t  degree;
-    int     l;
-    bool    verbose;
-    size_t n_time_step;
-    double gamma;
-};
+   printf("Usage: %s <options> <filename>\n\n", progname);
+   printf("    -k: face degree (>0)\n");
+   printf("    -l: difference beetween cell and face degree (-1 <= l <= 1) \n");
+   printf("    -n: number of time step (>0)\n");
+   printf("    -m: number of sublevel time step (>0)\n");
+   printf("    -o: type of neohookean law (1 <= l <= 4) \n");
+   printf("    -v: verbose\n");
+   printf("    -t: stabilization parameter (>0)\n");
+   printf("    -s: adaptative stabilisation\n");
+}
 
 
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
 void
-run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp, const ElasticityParameters& elas_param)
+run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param, T gamma)
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
+   typedef static_matrix<T, 2, 2> result_grad_type;
 
-   std::cout << "Degree k= " << rp.degree << std::endl;
+   std::cout << "Degree k= " << rp.m_degree << std::endl;
    std::cout << "mu= " << elas_param.mu << std::endl;
    std::cout << "lambda= " << elas_param.lambda << std::endl;
    std::cout << "tau= " << elas_param.tau << std::endl;
-   std::cout << "gamma= " << rp.gamma << std::endl;
-   std::cout << "gamma_normalise= " << rp.gamma/elas_param.mu << std::endl;
+   std::cout << "gamma= " << gamma << std::endl;
+   std::cout << "gamma_normalise= " << gamma/elas_param.mu << std::endl;
    std::cout << "law= " << elas_param.type_law << std::endl;
 
-   auto load = [rp](const point<T,2>& p) -> result_type {
+   auto load = [gamma](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = rp.gamma;
+      T fy = gamma;
       return result_type{fx,fy};
    };
 
-   auto solution = [elas_param](const point<T,2>& p) -> result_type {
+   auto solution = [](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
 
       return result_type{fx,fy};
    };
+   
+   auto gradient = [](const point<T,2>& p) -> result_grad_type {
+      result_grad_type grad = result_grad_type::Zero();
+      return grad;
+   };
 
-   auto neumann = [elas_param](const point<T,2>& p) -> result_type {
+   auto neumann = [](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
 
@@ -89,28 +104,31 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
 
    std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
+   std::vector<BoundaryConditions> boundary_dirichlet = {};
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
-   nl.verbose(rp.verbose);
+   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
 
 
-   nl.compute_initial_state(boundary_neumann);
+   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   solve_info solve_info = nl.compute(load, solution, neumann, boundary_neumann, rp.n_time_step);
+   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
 
    if(nl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
+      std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << '\n';
    }
 
 
    if(nl.test_convergence()){
-        std::cout << "Post-processing: " << std::endl;
-        nl.compute_discontinuous_solution("sol_disc2D.msh");
-        nl.compute_deformed("def2D.msh");
+      std::cout << "l2 error displacement: " << nl.compute_l2_error(solution) << std::endl;
+      std::cout << "l2 error gradient: " << nl.compute_l2_gradient_error(gradient) << std::endl;
+      std::cout << "Post-processing: " << std::endl;
+      nl.compute_discontinuous_solution("sol_disc2D.msh");
+      nl.plot_J_at_gausspoint("J_gp2D.msh");
    }
 }
 
@@ -123,80 +141,84 @@ int main(int argc, char **argv)
     char    *plot_filename  = nullptr;
     int     degree          = 1;
     int     l               = 0;
-    int     elems_1d        = 8;
+    int     n_time_step     = 1;
+    int     sublevel        = 1;
 
-    run_params rp;
-    rp.degree   = 1;
-    rp.l        = 0;
-    rp.verbose  = true;
-    rp.n_time_step = 1;
-    rp.gamma = 200.0;
+    ParamRun<RealType> rp;
+    rp.m_sublevel = 4;
+    rp.m_verbose = false;
 
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 40.0;
-    param.lambda = param.mu * 10E5;
+    param.lambda = param.mu * 1E5;
     param.tau = 10.0;
     param.adaptative_stab = false;
-    param.type_law = 1;
+    param.type_law = 3;
+    
+    RealType gamma = 1.0;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "k:l:n:p:v:t:g:j")) != -1 )
+    while ( (ch = getopt(argc, argv, "g:k:l:m:n:o:s:t:v")) != -1 )
     {
-        switch(ch)
-        {
-            case 'k':
-                degree = atoi(optarg);
-                if (degree < 0)
-                {
-                    std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-                    degree = 1;
-                }
-                rp.degree = degree;
-                break;
-
-            case 'l':
-                rp.l = atoi(optarg);
-                if (l < -1 or l > 1)
-                {
-                    std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-                    rp.l = 0;
-                }
-                break;
-
-            case 'n':
-               rp.n_time_step = atoi(optarg);
-               if (rp.n_time_step == 0)
-                {
-                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-                    rp.n_time_step = 1;
-                }
-                break;
-
-
-            case 't':
-               param.tau = atof(optarg);
-               break;
-
-            case 'g':
-               rp.gamma = atof(optarg);
-               break;
-
-            case 'p':
-               param.type_law = atoi(optarg);
-               break;
-
-            case 'v':
-                rp.verbose = true;
-                break;
-
-            case 'h':
-            case '?':
-            default:
-                std::cout << "wrong arguments" << std::endl;
-                exit(1);
-        }
+       switch(ch)
+       {
+          case 'g': gamma = atof(optarg); break;
+          case 'k':
+             degree = atoi(optarg);
+             if (degree < 1)
+             {
+                std::cout << "Degree must be positive. Falling back to 1." << std::endl;
+                degree = 1;
+             }
+             rp.m_degree = degree;
+             break;
+             
+          case 'l':
+             l = atoi(optarg);
+             if (l < -1 or l > 1)
+             {
+                std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
+                l = 0;
+             }
+             rp.m_l = l;
+             break;
+             
+          case 'm':
+             sublevel = atoi(optarg);
+             if (sublevel <= 0)
+             {
+                std::cout << "Number of sublevel time step must be positive. Falling back to 1." << std::endl;
+                sublevel = 1;
+             }
+             rp.m_sublevel = sublevel;
+             break;
+             
+          case 'n':
+             n_time_step = atoi(optarg);
+             if (n_time_step <= 0)
+             {
+                std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
+                n_time_step = 1;
+             }
+             rp.m_n_time_step = n_time_step;
+             break;
+             
+          case 'o': param.type_law = atoi(optarg); break;
+          case 's': param.adaptative_stab = true; break;
+          
+          case 't': param.tau = atof(optarg); break;
+          
+          case 'v': rp.m_verbose = true; break;
+             
+          case 'h':
+          case '?':
+          default:
+             std::cout << "wrong arguments" << std::endl;
+             usage(argv[0]);
+             exit(1);
+       }
     }
 
     argc -= optind;
@@ -216,7 +238,7 @@ int main(int argc, char **argv)
     {
         std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
         auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
-        run_hyperelasticity_solver(msh, rp, param);
+        run_hyperelasticity_solver(msh, rp, param, gamma);
         return 0;
     }
 
@@ -225,7 +247,7 @@ int main(int argc, char **argv)
     {
        std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
        auto msh = disk::load_cartesian_2d_mesh2<RealType>(mesh_filename);
-       run_hyperelasticity_solver(msh, rp, param);
+       run_hyperelasticity_solver(msh, rp, param, gamma);
        return 0;
     }
 }

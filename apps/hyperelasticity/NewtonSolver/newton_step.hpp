@@ -31,9 +31,12 @@
 
 #include "hho/hho.hpp"
 #include "hho/hho_vector.hpp"
+#include "hho/hho_vector_bq.hpp"
 #include "hho/hho_nl.hpp"
 #include "hho/hho_nl_vector.hpp"
 #include "../ElasticityParameters.hpp"
+#include "../BoundaryConditions.hpp"
+#include "../Informations.hpp"
 #include "../hyperelasticity_elementary_computation.hpp"
 
 #include "timecounter.h"
@@ -41,67 +44,33 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-struct assembly_info
-{
-    size_t  linear_system_size;
-    double  time_gradrec, time_potrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
-};
 
-struct solver_info
-{
-    double  time_solver;
-};
 
-struct postprocess_info
-{
-    double  time_postprocess;
-};
-
-template<typename Mesh>
+template<typename BQData>
 class NewtonRaphson_step_hyperelasticity
 {
-    typedef Mesh                                       mesh_type;
-    typedef typename mesh_type::scalar_type            scalar_type;
-    typedef typename mesh_type::cell                   cell_type;
-    typedef typename mesh_type::face                   face_type;
+   typedef typename BQData::mesh_type          mesh_type;
+   typedef typename mesh_type::scalar_type     scalar_type;
 
-    typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
-    typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
-    typedef disk::quadrature<mesh_type, cell_type>      grad_quadrature_type;
-
-    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
-    typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
-    typedef disk::scaled_monomial_matrix_basis<mesh_type, cell_type>    grad_basis_type;
-
-    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
-    typedef dynamic_vector<scalar_type>         vector_dynamic;
+   typedef dynamic_matrix<scalar_type>         matrix_dynamic;
+   typedef dynamic_vector<scalar_type>         vector_dynamic;
 
 
-    typedef disk::gradient_reconstruction_elas_full<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                             face_basis_type, face_quadrature_type,
-                                           grad_basis_type, grad_quadrature_type>                               gradrec_type;
+   typedef disk::gradient_reconstruction_elas_full_bq<BQData>               gradrec_type;
 
-    typedef disk::gradient_reconstruction_elas<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                                            face_basis_type, face_quadrature_type>              deplrec_type;
+   typedef disk::gradient_reconstruction_elas_bq<BQData>                    deplrec_type;
 
-    typedef Hyperelasticity::Hyperelasticity<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                           face_basis_type, face_quadrature_type,
-                                           grad_basis_type, grad_quadrature_type>                               hyperelasticity_type;
+   typedef Hyperelasticity::Hyperelasticity<BQData>                         hyperelasticity_type;
 
-    typedef disk::elas_like_stabilization_l2<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                            face_basis_type, face_quadrature_type>                              stab_type;
+   typedef disk::elas_like_stabilization_l2_bq<BQData>                      stab_type;
 
-   typedef disk::elas_like_stabilization<  mesh_type, cell_basis_type, cell_quadrature_type,
-                                                      face_basis_type, face_quadrature_type>                    stab2_type;
-    typedef disk::diffusion_like_static_condensation<   mesh_type, cell_basis_type, cell_quadrature_type,
-                                                        face_basis_type, face_quadrature_type>                  statcond_type;
-    typedef disk::assembler_nl_vector<   mesh_type, face_basis_type, face_quadrature_type>                   assembler_type;
+   typedef disk::elas_like_stabilization_bq<BQData>                         stab2_type;
+   typedef disk::diffusion_like_static_condensation_bq<BQData>              statcond_type;
+   typedef disk::assembler_nl_vector_bq<BQData>                             assembler_type;
 
 
-    size_t m_cell_degree, m_face_degree, m_degree;
-
-    typedef typename assembler_type::sparse_matrix_type       sparse_matrix_type;
-    typedef typename assembler_type::vector_type            vector_type;
+   typedef typename assembler_type::sparse_matrix_type       sparse_matrix_type;
+   typedef typename assembler_type::vector_type              vector_type;
 
     #ifdef HAVE_INTEL_MKL
         typedef Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver_type;
@@ -113,6 +82,8 @@ class NewtonRaphson_step_hyperelasticity
     vector_type            m_system_rhs, m_system_solution;
 
     solver_type             solver;
+    
+    const BQData&                               m_bqd;
 
     const mesh_type& m_msh;
 
@@ -130,26 +101,10 @@ class NewtonRaphson_step_hyperelasticity
 
 
 public:
-   NewtonRaphson_step_hyperelasticity(const mesh_type& msh, const size_t degree, const ElasticityParameters elas_param, int l = 0)
-   : m_msh(msh), m_verbose(false), m_elas_param(elas_param)
+   NewtonRaphson_step_hyperelasticity(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param)
+   : m_msh(msh), m_verbose(false), m_elas_param(elas_param), m_bqd(bqd)
     {
-        if ( l < -1 or l > 1)
-        {
-            std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
-
-        if (degree == 0 && l == -1)
-        {
-            std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
-            l = 0;
-        }
-
-        m_cell_degree = degree + l;
-        m_face_degree = degree;
-        m_degree = degree;
         m_beta = elas_param.tau;
-
     }
 
     bool    verbose(void) const     { return m_verbose; }
@@ -161,8 +116,7 @@ public:
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                 const std::vector<vector_dynamic>& initial_solution_faces,
                 const std::vector<vector_dynamic>& initial_solution_lagr,
-                const std::vector<vector_dynamic>& initial_solution,
-                const std::vector<size_t>& boundary_neumann)
+                const std::vector<vector_dynamic>& initial_solution)
     {
       m_solution_cells.clear();
       m_solution_cells = initial_solution_cells;
@@ -174,8 +128,6 @@ public:
 
       m_solution_lagr.clear();
       m_solution_lagr = initial_solution_lagr;
-      assert((m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann))
-            == m_solution_lagr.size());
 
       m_solution_data.clear();
       m_solution_data = initial_solution;
@@ -186,25 +138,25 @@ public:
     }
 
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
-    assembly_info
+    AssemblyInfo
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-            const std::vector<size_t>& boundary_neumann)
+             const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
-        gradrec_type gradrec(m_degree);
-        stab_type stab(m_degree);
-        hyperelasticity_type hyperelasticity(m_degree);
-        deplrec_type deplrec(m_degree);
-        //stab2_type stab(m_degree);
+        gradrec_type gradrec(m_bqd);
+        //stab_type stab(m_bqd);
+        hyperelasticity_type hyperelasticity(m_bqd);
+        deplrec_type deplrec(m_bqd);
+        stab2_type stab(m_bqd);
 
-        statcond_type statcond(m_degree);
+        statcond_type statcond(m_bqd);
 
-        assembler_type assembler(m_msh, m_degree, boundary_neumann);
+        assembler_type assembler(m_msh, m_bqd, boundary_neumann, boundary_dirichlet);
 
-        assembly_info ai;
-        bzero(&ai, sizeof(ai));
+        AssemblyInfo ai;
 
-        timecounter tc;
+        timecounter tc, ttot;
 
+        ttot.tic();
         size_t i = 0;
 
         for (auto& cl : m_msh)
@@ -212,14 +164,14 @@ public:
             tc.tic();
             gradrec.compute(m_msh, cl);
             tc.toc();
-            ai.time_gradrec += tc.to_double();
+            ai.m_time_gradrec += tc.to_double();
 
             tc.tic();
-            //deplrec.compute(m_msh, cl);
-            //stab.compute(m_msh, cl, deplrec.oper);
-            stab.compute(m_msh, cl, gradrec.oper);
+            deplrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, deplrec.oper);
+            //stab.compute(m_msh, cl, gradrec.oper);
             tc.toc();
-            ai.time_stab += tc.to_double();
+            ai.m_time_stab += tc.to_double();
 
 
             tc.tic();
@@ -244,23 +196,25 @@ public:
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  - m_beta * stab.data * m_solution_data.at(i) ;
 
             tc.toc();
-            ai.time_elem += tc.to_double();
-            ai.time_law += hyperelasticity.time_law;
-            ai.time_adapt_stab += hyperelasticity.time_adapt_stab;
+            ai.m_time_elem += tc.to_double();
+            ai.m_time_law += hyperelasticity.time_law;
+            ai.m_time_adapt_stab += hyperelasticity.time_adapt_stab;
             tc.tic();
             auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
             tc.toc();
-            ai.time_statcond += tc.to_double();
+            ai.m_time_statcond += tc.to_double();
 
             assembler.assemble(m_msh, cl, scnp);
 
             i++;
         }
 
-         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann);
+         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann, boundary_dirichlet);
          assembler.finalize(m_system_matrix, m_system_rhs);
-
-         ai.linear_system_size = m_system_matrix.rows();
+         
+         ttot.toc();
+         ai.m_time_assembly = ttot.to_double();
+         ai.m_linear_system_size = m_system_matrix.rows();
         return ai;
     }
 
@@ -278,37 +232,44 @@ public:
        fichier.close();
     }
 
-    void
+    size_t
     test_aurrichio(void)
     {
-      face_basis_type face_basis(m_degree);
-      const size_t fbs = face_basis.size();
-      const size_t nb_faces_dof = fbs * m_msh.faces_size();
-
-      sparse_matrix_type mat_aurri = m_system_matrix.block(0, 0, nb_faces_dof, nb_faces_dof);
 
       Eigen::SelfAdjointEigenSolver<sparse_matrix_type> es;
-      es.compute(mat_aurri);
+      es.compute(m_system_matrix);
 
       if(es.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not compute eigenvalues of the matrix" << std::endl;
       }
-
-      const scalar_type min_ev = es.eigenvalues().minCoeff();
-      const scalar_type max_ev = es.eigenvalues().maxCoeff();
-
-      std::cout << "******* Eigenvalues test ********" << std::endl;
-      std::cout << "Number of eigenvalues: " << es.eigenvalues().size()  << std::endl;
-      std::cout << "Maximum eigenvalue: " << max_ev << std::endl;
-      std::cout << "Minimum eigenvalue: " << min_ev << std::endl;
-      std::cout << "Conditionning number: " << std::abs(max_ev/min_ev) << std::endl;
-
-      if(min_ev <= -1.0) {
-         std::cerr << "The matrix is no mre definite positive" << min_ev << std::endl;
+      
+      auto ev = es.eigenvalues();
+      
+      size_t nb_negative_eigenvalue(0);
+      
+      size_t i_ev = 0;
+      while(ev(i_ev) <= scalar_type(0.0))
+      {
+         nb_negative_eigenvalue++;
+         i_ev++;
       }
+
+      const scalar_type min_ev = ev.minCoeff();
+      const scalar_type max_ev = ev.maxCoeff();
+
+      if(m_verbose){
+         std::cout << "******* Eigenvalues test ********" << std::endl;
+         std::cout << "Number of eigenvalues: " << ev.size()  << std::endl;
+         std::cout << "Number of negative eigenvalues: " << nb_negative_eigenvalue  << std::endl;
+         std::cout << "Maximum eigenvalue: " << max_ev << std::endl;
+         std::cout << "Minimum eigenvalue: " << min_ev << std::endl;
+         std::cout << "Conditionning number: " << std::abs(max_ev/min_ev) << std::endl;
+      }
+
+      return nb_negative_eigenvalue;
     }
 
-    solver_info
+    SolveInfo
     solve(void)
     {
        #ifdef HAVE_INTEL_MKL
@@ -316,11 +277,6 @@ public:
        #else
        Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
        #endif
-
-       solver_info si;
-
-//        size_t systsz = m_system_matrix.rows();
-//        size_t nnz = m_system_matrix.nonZeros();
 
        timecounter tc;
 
@@ -337,38 +293,36 @@ public:
           std::cerr << "ERROR: Could not solve the linear system" << std::endl;
        }
        tc.toc();
-       si.time_solver = tc.to_double();
 
-       return si;
+       return SolveInfo(m_system_matrix.rows(), m_system_matrix.nonZeros(), tc.to_double());
     }
 
 
 
     template<typename LoadFunction, typename NeumannFunction>
-    postprocess_info
-    postprocess(const LoadFunction& lf, const NeumannFunction& g, const std::vector<size_t>& boundary_neumann)
+    PostprocessInfo
+    postprocess(const LoadFunction& lf, const NeumannFunction& g, 
+                const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
-        gradrec_type gradrec(m_degree);
-        stab_type stab(m_degree);
-        hyperelasticity_type hyperelasticity(m_degree);
-         deplrec_type deplrec(m_degree);
-         //stab2_type stab(m_degree);
+        gradrec_type gradrec(m_bqd);
+        //stab_type stab(m_bqd);
+        hyperelasticity_type hyperelasticity(m_bqd);
+        deplrec_type deplrec(m_bqd);
+        stab2_type stab(m_bqd);
 
-        statcond_type statcond(m_degree);
+        statcond_type statcond(m_bqd);
 
-        face_basis_type face_basis(m_degree);
-        const size_t fbs = face_basis.size();
-        cell_basis_type cell_basis(m_degree);
-        const size_t cbs = cell_basis.size();
+        const size_t fbs = m_bqd.face_basis.size();
+        const size_t cbs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
 
-        postprocess_info pi;
+        PostprocessInfo pi;
 
         m_postprocess_data.clear();
 
         m_postprocess_data.reserve(m_msh.cells_size());
 
-        timecounter tc;
-        tc.tic();
+        timecounter tc, ttot;
+        tc.tic(); ttot.tic();
 
 
         size_t i = 0;
@@ -393,10 +347,19 @@ public:
                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
             }
 
+            tc.tic();
             gradrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, gradrec.oper);
-            //deplrec.compute(m_msh, cl);
-            //stab.compute(m_msh, cl, deplrec.oper);
+            tc.toc();
+            pi.m_time_gradrec += tc.to_double();
+            
+            tc.tic();
+            deplrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, deplrec.oper);
+            //stab.compute(m_msh, cl, gradrec.oper);
+            tc.toc();
+            pi.m_time_stab += tc.to_double();
+            
+            tc.tic();
 
             hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
             //hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
@@ -408,21 +371,28 @@ public:
                m_beta = m_elas_param.tau;
                
             /////// NON LINEAIRE /////////
-            tc.tic();
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
 
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  -  m_beta * stab.data * m_solution_data.at(i) ;
             dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
 
+            tc.toc();
+            pi.m_time_elem += tc.to_double();
+            pi.m_time_law += hyperelasticity.time_law;
+            pi.m_time_adapt_stab += hyperelasticity.time_adapt_stab;
 
+            tc.tic();
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
+            tc.toc();
+            pi.m_time_statcond += tc.to_double();
+            
             m_postprocess_data.push_back(x);
 
             i++;
         }
-        tc.toc();
+        ttot.toc();
 
-        pi.time_postprocess = tc.to_double();
+        pi.m_time_post = ttot.to_double();
 
         return pi;
     }
@@ -439,8 +409,7 @@ public:
             m_solution_data.at(i) += m_postprocess_data.at(i);
         }
 
-        cell_basis_type cell_basis(m_degree);
-        size_t cbs = cell_basis.size();
+        size_t cbs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
 
         assert(m_postprocess_data.size() == m_solution_cells.size());
 
@@ -449,8 +418,7 @@ public:
             m_solution_cells.at(i) += (m_postprocess_data.at(i)).block(0,0,cbs,1);
         }
 
-        face_basis_type face_basis(m_degree);
-        size_t fbs = face_basis.size();
+        size_t fbs = m_bqd.face_basis.size();
 
 
         for(size_t i=0; i < m_solution_faces.size(); i++){

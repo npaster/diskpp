@@ -30,35 +30,27 @@
 #include "hho/hho.hpp"
 #include "newton_step.hpp"
 #include "../ElasticityParameters.hpp"
+#include "../BoundaryConditions.hpp"
+#include "../Informations.hpp"
 
 #include "timecounter.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-struct newton_info
-{
-    size_t  linear_system_size;
-    double  time_assembly, time_solve, time_post;
-    double  time_gradrec, time_statcond, time_stab, time_elem, time_law, time_adapt_stab;
-};
 
-
-template<typename Mesh>
+template<typename BQData>
 class NewtonRaphson_solver_hyperelasticity
 {
-   typedef Mesh                                        mesh_type;
-   typedef typename mesh_type::scalar_type            scalar_type;
-
-
-
+   typedef typename BQData::mesh_type          mesh_type;
+   typedef typename mesh_type::scalar_type     scalar_type;
+   
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
+   
+   const BQData&                               m_bqd;
 
-   size_t m_cell_degree, m_face_degree, m_degree;
-
-
-   const mesh_type& m_msh;
+   const mesh_type&                            m_msh;
 
    std::vector<vector_dynamic>         m_solution_data;
    std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
@@ -71,26 +63,9 @@ class NewtonRaphson_solver_hyperelasticity
 
 
 public:
-   NewtonRaphson_solver_hyperelasticity(const mesh_type& msh, const size_t degree, const ElasticityParameters elas_param, int l = 0)
-   : m_msh(msh), m_verbose(false), m_convergence(false), m_elas_param(elas_param)
-   {
-      if ( l < -1 or l > 1)
-      {
-         std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-         l = 0;
-      }
-
-      if (degree == 0 && l == -1)
-      {
-         std::cout << "'l' should be 0 or 1. Reverting to 0." << std::endl;
-         l = 0;
-      }
-
-      m_cell_degree = degree + l;
-      m_face_degree = degree;
-      m_degree = degree;
-
-   }
+   NewtonRaphson_solver_hyperelasticity(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param)
+   : m_msh(msh), m_verbose(false), m_convergence(false), m_elas_param(elas_param), m_bqd(bqd)
+   {}
 
    bool    verbose(void) const     { return m_verbose; }
    void    verbose(bool v)         { m_verbose = v; }
@@ -100,8 +75,7 @@ public:
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                 const std::vector<vector_dynamic>& initial_solution_faces,
                 const std::vector<vector_dynamic>& initial_solution_lagr,
-                const std::vector<vector_dynamic>& initial_solution,
-                const std::vector<size_t>& boundary_neumann)
+                const std::vector<vector_dynamic>& initial_solution)
     {
       m_solution_cells.clear();
       m_solution_cells = initial_solution_cells;
@@ -113,8 +87,6 @@ public:
 
       m_solution_lagr.clear();
       m_solution_lagr = initial_solution_lagr;
-      assert((m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann))
-            == m_solution_lagr.size());
 
       m_solution_data.clear();
       m_solution_data = initial_solution;
@@ -123,76 +95,78 @@ public:
     }
 
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
-   newton_info
+    NewtonSolverInfo
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
-            const std::vector<size_t>& boundary_neumann,
-            const scalar_type epsilon = 5.E-10,
+            const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet,
+            const scalar_type epsilon = 5.E-8,
             const std::size_t iter_max = 10)
    {
-      newton_info ai;
-      bzero(&ai, sizeof(ai));
+      NewtonSolverInfo ni;
       timecounter tc;
+      tc.tic();
+      
+      bool auricchio = true;
 
       //initialise the NewtonRaphson_step
-      NewtonRaphson_step_hyperelasticity<Mesh> newton_step(m_msh, m_degree, m_elas_param, 0);
+      NewtonRaphson_step_hyperelasticity<BQData> newton_step(m_msh, m_bqd, m_elas_param);
 
-      newton_step.initialize(m_solution_cells, m_solution_faces,
-                             m_solution_lagr, m_solution_data, boundary_neumann);
+      newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
 
       m_convergence = false;
+      
+      size_t nb_negative_ev_init = 0;
       // loop
       std::size_t iter = 0;
       while (iter < iter_max && !m_convergence) {
-          tc.tic();
+          
           //assemble lhs and rhs
-          assembly_info time_assembly;
-          bzero(&time_assembly, sizeof(time_assembly));
+          AssemblyInfo assembly_info;
           try {
-             time_assembly = newton_step.assemble(lf, bf, g, boundary_neumann);
+             assembly_info = newton_step.assemble(lf, bf, g, boundary_neumann, boundary_dirichlet);
           }
           catch(const std::invalid_argument& ia){
-             std::cerr << "Invalid argument: " << ia.what() << std::endl;
-             m_convergence = false;
-             tc.toc();
-             ai.time_assembly += tc.to_double();
-             return ai;
+                std::cerr << "Invalid argument: " << ia.what() << std::endl;
+                m_convergence = false;
+                tc.toc();
+                ni.m_time_newton = tc.to_double();
+                return ni;
           }
-          tc.toc();
-          ai.time_assembly += tc.to_double();
 
-          ai.time_gradrec +=  time_assembly.time_gradrec;
-          ai.time_stab +=  time_assembly.time_stab;
-          ai.time_statcond +=  time_assembly.time_statcond;
-          ai.time_elem +=  time_assembly.time_elem;
-          ai.time_law +=  time_assembly.time_law;
-          ai.time_adapt_stab += time_assembly.time_adapt_stab;
+          ni.updateAssemblyInfo( assembly_info);
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
-         //newton_step.test_aurrichio();
+         
+         if(auricchio){
+            size_t nb_negative_ev = newton_step.test_aurrichio();
+            if(iter == 0)
+               nb_negative_ev_init = nb_negative_ev;
+            else if(nb_negative_ev > nb_negative_ev_init)
+               std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
+         }
+
          if(iter < (iter_max-1) && !m_convergence){
             // solve the global system
-            tc.tic();
-            solver_info solve_info = newton_step.solve();
-            tc.toc();
-            ai.time_solve += solve_info.time_solver;
+            SolveInfo solve_info = newton_step.solve();
+            ni.updateSolveInfo(solve_info);
             // update unknowns
-            tc.tic();
-            newton_step.postprocess(lf, g, boundary_neumann);
+            PostprocessInfo post_info = newton_step.postprocess(lf, g, boundary_neumann, boundary_dirichlet);
+            ni.updatePostProcessInfo(post_info);
+
             newton_step.update_solution();
-            tc.toc();
-            ai.time_post += tc.to_double();
          }
          iter++;
       }
 
-      if(!m_convergence)
-         m_convergence = newton_step.test_convergence(1.E-6, iter_max);
+//       if(!m_convergence)
+//          m_convergence = newton_step.test_convergence(1.E-6, iter_max);
 
-        newton_step.save_solutions(m_solution_cells, m_solution_faces,
-                             m_solution_lagr, m_solution_data);
+      if(m_convergence)
+         newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
 
-      return ai;
+      tc.toc();
+      ni.m_time_newton = tc.to_double();
+      return ni;
    }
 
    bool test_convergence() const {return m_convergence;}

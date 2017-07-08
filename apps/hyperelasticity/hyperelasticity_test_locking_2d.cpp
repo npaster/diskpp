@@ -33,6 +33,9 @@
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
 #include "ElasticityParameters.hpp"
+#include "BoundaryConditions.hpp"
+#include "Parameters.hpp"
+#include "Informations.hpp"
 
 #include "timecounter.h"
 
@@ -52,21 +55,11 @@ struct error_type
 };
 
 
-struct run_params
-{
-   size_t  degree;
-   int     l;
-   bool    verbose;
-   size_t n_time_step;
-   size_t mindeg;
-   size_t maxdeg;
-};
-
 
 template<template<typename, size_t , typename> class Mesh,
 typename T, typename Storage>
 error_type
-run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp, const ElasticityParameters& elas_param)
+run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
@@ -112,19 +105,19 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp,
    };
 
    std::vector<size_t> boundary_neumann(0);
+   std::vector<BoundaryConditions> boundary_dirichlet = {};
 
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
-   nl.verbose(false);
+   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
 
 
-   nl.compute_initial_state(boundary_neumann);
+   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
 
-   solve_info solve_info = nl.compute(load, solution, neumann, boundary_neumann, rp.n_time_step);
+   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.degree;
+   error.degree = rp.m_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
@@ -172,7 +165,7 @@ printResults(const std::vector<error_type>& error)
 }
 
 template< typename T>
-void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param)
+void test_triangles_fvca5(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 4;
 
@@ -195,7 +188,7 @@ void test_triangles_fvca5(const run_params& rp, ElasticityParameters& elas_param
 
 
 template< typename T>
-void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_param)
+void test_triangles_netgen(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 4;
 
@@ -219,7 +212,7 @@ void test_triangles_netgen(const run_params& rp, ElasticityParameters& elas_para
 
 
 template< typename T>
-void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
+void test_hexagons(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 4;
 
@@ -242,7 +235,7 @@ void test_hexagons(const run_params& rp, ElasticityParameters& elas_param)
 
 
 template< typename T>
-void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
+void test_kershaws(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 5;
 
@@ -265,7 +258,7 @@ void test_kershaws(const run_params& rp, ElasticityParameters& elas_param)
 
 
 template< typename T>
-void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
+void test_quads_fvca5(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 4;
 
@@ -288,7 +281,7 @@ void test_quads_fvca5(const run_params& rp, ElasticityParameters& elas_param)
 
 
 template< typename T>
-void test_quads_diskpp(const run_params& rp, ElasticityParameters& elas_param)
+void test_quads_diskpp(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 {
    size_t runs = 5;
 
@@ -320,13 +313,11 @@ int main(int argc, char **argv)
    char    *plot_filename  = nullptr;
    int     degree          = 1;
    int     l               = 0;
+   int     n_time_step     = 1;
    int     elems_1d        = 8;
 
-   run_params rp;
-   rp.degree   = 1;
-   rp.l        = 0;
-   rp.verbose  = true;
-   rp.n_time_step = 1;
+   ParamRun<RealType> rp;
+   rp.m_sublevel = 4;
 
    ElasticityParameters param = ElasticityParameters();
    param.lambda = 1.0;
@@ -348,36 +339,38 @@ int main(int argc, char **argv)
                std::cout << "Degree must be positive. Falling back to 1." << std::endl;
                degree = 1;
             }
-            rp.degree = degree;
+            rp.m_degree = degree;
             break;
-
+            
          case 'l':
-            rp.l = atoi(optarg);
+            l = atoi(optarg);
             if (l < -1 or l > 1)
             {
                std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-               rp.l = 0;
+               l = 0;
             }
+            rp.m_l = l;
             break;
-
+            
          case 'n':
-            rp.n_time_step = atoi(optarg);
-            if (rp.n_time_step == 0)
+            n_time_step = atoi(optarg);
+            if (n_time_step == 0)
             {
                std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-               rp.n_time_step = 1;
+               n_time_step = 1;
             }
+            rp.m_n_time_step = n_time_step;
             break;
-
-
+            
+            
          case 'p':
             param.tau = atof(optarg);
             break;
-
+            
          case 'v':
-            rp.verbose = true;
+            rp.m_verbose = true;
             break;
-
+            
          case 'h':
          case '?':
          default:
@@ -393,7 +386,8 @@ int main(int argc, char **argv)
    timecounter tc;
 
    std::cout << " Test convergence rates in 2D for: "<< std::endl;
-   std::cout << " ** Degree k = " << rp.degree << std::endl;
+   std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
+   std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
    std::cout << " ** Stab tau = " << param.tau << std::endl;
    std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;
