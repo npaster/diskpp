@@ -105,7 +105,7 @@ public:
       timecounter tc;
       tc.tic();
       
-      bool auricchio = true;
+      bool auricchio = false;
 
       //initialise the NewtonRaphson_step
       NewtonRaphson_step_hyperelasticity<BQData> newton_step(m_msh, m_bqd, m_elas_param);

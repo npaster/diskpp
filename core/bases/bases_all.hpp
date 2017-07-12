@@ -1310,8 +1310,8 @@ public:
 
          function_value_type fc;
 
-         for( size_t i = 0; i < 3; i++){
-            for( size_t j = 0; j < 3; j++){
+         for( size_t j = 0; j < 3; j++){
+            for( size_t i = 0; i < 3; i++){
                fc = function_value_type::Zero();
                fc(i,j) = val;
                ret.push_back(fc);
@@ -1322,6 +1322,7 @@ public:
       return ret;
    }
 };
+
 
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -1365,8 +1366,8 @@ public:
 
          function_value_type fc;
 
-         for( size_t i = 0; i < 3; i++){
-            for( size_t j = 0; j < 3; j++){
+         for( size_t j = 0; j < 3; j++){
+            for( size_t i = 0; i < 3; i++){
                fc = function_value_type::Zero();
                fc(i,j) = val;
                ret.push_back(fc);
@@ -1426,8 +1427,8 @@ public:
 
          function_value_type fc;
 
-         for( size_t i = 0; i < 2; i++){
-            for( size_t j = 0; j < 2; j++){
+         for( size_t j = 0; j < 2; j++){
+            for( size_t i = 0; i < 2; i++){
                fc = function_value_type::Zero();
                fc(i,j) = val;
                ret.push_back(fc);
@@ -1482,8 +1483,8 @@ public:
          auto vx = iexp_pow(ep.x(), m[0]);
          function_value_type fc;
 
-         for( size_t i = 0; i < 2; i++){
-            for( size_t j = 0; j < 2; j++){
+         for( size_t j = 0; j < 2; j++){
+            for( size_t i = 0; i < 2; i++){
                fc = function_value_type::Zero();
                fc(i,j) = vx;
                ret.push_back(fc);

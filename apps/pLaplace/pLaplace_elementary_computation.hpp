@@ -19,7 +19,8 @@
 #include "common/eigen.hpp"
 #include "bases/bases_utils.hpp"
 #include "bases/bases_ranges.hpp"
-#include "hho/hho_nl.hpp"
+#include "BehaviorLaws/behaviorlaws.hpp"
+#include "BehaviorLaws/maths_tensor.hpp"
 #include "timecounter.h"
 
 //#define USE_BLAS

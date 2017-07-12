@@ -34,7 +34,7 @@
 struct assembly_info
 {
     size_t  linear_system_size;
-    double  time_gradrec, time_statcond, time_stab;
+    double  time_gradrec, time_statcond, time_stab, time_assembly;
 };
 
 struct solver_info
@@ -47,61 +47,6 @@ struct postprocess_info
     double  time_postprocess;
 };
 
-
-template<typename Mesh, typename CellBasisType, typename CellQuadType,
-         typename FaceBasisType, typename FaceQuadType,
-          typename Solution>
-dynamic_vector<typename Mesh::scalar_type>
-compute_reconstruction(const Mesh& msh, const typename Mesh::cell& cl,
-            const Solution& as, dynamic_matrix<typename Mesh::scalar_type> G,
-          size_t degree)
-{
-    typedef dynamic_vector<typename Mesh::scalar_type> vector_type;
-
-    auto cell_basis     = CellBasisType(degree+1);
-    auto cell_quad      = CellQuadType(2*(degree+1));
-
-
-    disk::projector<Mesh, CellBasisType, CellQuadType,
-               FaceBasisType, FaceQuadType> projk(degree);
-
-               disk::projector<Mesh, CellBasisType, CellQuadType,
-                          FaceBasisType, FaceQuadType> projk1(degree+1);
- // projetion of the solution on P^(k+1)_d (solution of (u,v) = (f,v))
-   auto proju = projk.compute_whole(msh, cl, as);
-
-//keep only the part of uT
-// multiply gradrec_oper(0 : N(k+1) -1, 0: Nvt) *  proju(1:N(k+1))
-   auto Gu = G * proju; //G.block(0,0, G.rows() ,proju.rows()-1) *
-                  //proju.block(0,0, proju.rows() ,1);
-
-
-   auto sol = projk1.compute_cell(msh, cl, as);
-
-   for (size_t i = 0; i < Gu.size(); i++) {
-      std::cout << sol(i+1) << " vs " << Gu(i) << " " << Gu(i)-sol(i+1) << '\n';
-   }
-
-     auto cell_quadpoints = cell_quad.integrate(msh, cl);
-     size_t j = 0;
-     vector_type ret = vector_type::Zero(cell_quadpoints.size());
-    // test the reconstructed solution at the gauss point
-    for (auto& qp : cell_quadpoints)
-    {
-        auto phi = cell_basis.eval_functions(msh, cl, qp.point());
-        auto val = as(qp.point()); // value of the analytiqual solution
-        ret(j) = proju(0); // the constant for the continuity
-        assert(Gu.size() == (cell_basis.size()-1)); // verify the size
-
-        //reconstruct the solution
-        for (size_t i = 1; i < cell_basis.size(); i++)
-            ret(j) += Gu(i-1) * phi[i];
-
-         j++;
-    }
-
-    return ret;
-}
 
 template<typename Mesh>
 class diffusion_solver
@@ -164,6 +109,7 @@ public:
 
     bool    verbose(void) const     { return m_verbose; }
     void    verbose(bool v)         { m_verbose = v; }
+    size_t getDofs() {return m_msh.faces_size() * m_bqd.face_basis.size();}
 
     template<typename LoadFunction, typename BoundaryConditionFunction>
     assembly_info
@@ -178,7 +124,9 @@ public:
         assembly_info ai;
         bzero(&ai, sizeof(ai));
 
-        timecounter tc;
+        timecounter tc, ttot;
+        
+        ttot.tic();
 
         for (auto& cl : m_msh)
         {
@@ -204,6 +152,10 @@ public:
 
         assembler.impose_boundary_conditions(m_msh, bcf);
         assembler.finalize(m_system_matrix, m_system_rhs);
+        
+        ttot.toc();
+        
+        ai.time_assembly = ttot.to_double();
 
         ai.linear_system_size = m_system_matrix.rows();
         return ai;

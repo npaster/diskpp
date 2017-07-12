@@ -32,7 +32,6 @@
 #include "hho/hho.hpp"
 #include "hho/hho_vector.hpp"
 #include "hho/hho_vector_bq.hpp"
-#include "hho/hho_nl.hpp"
 #include "hho/hho_nl_vector.hpp"
 #include "../ElasticityParameters.hpp"
 #include "../BoundaryConditions.hpp"
@@ -143,10 +142,10 @@ public:
              const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
-        //stab_type stab(m_bqd);
+        stab_type stab(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
-        deplrec_type deplrec(m_bqd);
-        stab2_type stab(m_bqd);
+//         deplrec_type deplrec(m_bqd);
+//         stab2_type stab(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -162,21 +161,20 @@ public:
         for (auto& cl : m_msh)
         {
             tc.tic();
-            gradrec.compute(m_msh, cl);
+            gradrec.compute(m_msh, cl, false);
             tc.toc();
             ai.m_time_gradrec += tc.to_double();
 
             tc.tic();
-            deplrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, deplrec.oper);
-            //stab.compute(m_msh, cl, gradrec.oper);
+//             deplrec.compute(m_msh, cl);
+//             stab.compute(m_msh, cl, deplrec.oper);
+            stab.compute(m_msh, cl, gradrec.oper());
             tc.toc();
             ai.m_time_stab += tc.to_double();
 
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
-            //hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
             
             if(m_elas_param.adaptative_stab){
                m_beta = hyperelasticity.beta_adap;
@@ -305,10 +303,10 @@ public:
                 const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
-        //stab_type stab(m_bqd);
+        stab_type stab(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
-        deplrec_type deplrec(m_bqd);
-        stab2_type stab(m_bqd);
+//         deplrec_type deplrec(m_bqd);
+//         stab2_type stab(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -348,21 +346,20 @@ public:
             }
 
             tc.tic();
-            gradrec.compute(m_msh, cl);
+            gradrec.compute(m_msh, cl, false);
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
             
             tc.tic();
-            deplrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, deplrec.oper);
-            //stab.compute(m_msh, cl, gradrec.oper);
+//             deplrec.compute(m_msh, cl);
+//             stab.compute(m_msh, cl, deplrec.oper);
+            stab.compute(m_msh, cl, gradrec.oper());
             tc.toc();
             pi.m_time_stab += tc.to_double();
             
             tc.tic();
 
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper, m_solution_data.at(i), m_elas_param);
-            //hyperelasticity.compute2(m_msh, cl, lf, g, boundary_neumann, deplrec.oper, m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
             if(m_elas_param.adaptative_stab){
                m_beta = m_adpat_stab[i];

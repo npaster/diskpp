@@ -87,13 +87,36 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
         return sin(p.x() * M_PI) * sin(p.y() * M_PI);
     };
 
+    timecounter tc;
+    tc.tic();
+    
     diffusion_solver<mesh_type> dp(msh, rp.degree);
     dp.verbose(rp.verbose);
-
-    dp.assemble(load, solution);
-    dp.solve();
-    dp.postprocess(load);
+    
+    auto assembly_info = dp.assemble(load, solution);
+    auto solve_info = dp.solve();
+    auto postpro_info = dp.postprocess(load);
+    
+    tc.toc();
+    
+    
+    if(dp.verbose()){
+       std::cout << " " << std::endl;
+       std::cout << "------------------------------------------------------- " << std::endl;
+       std::cout << "Summaring: " << std::endl;
+       std::cout << "Total time to solve the problem: " << tc.to_double() << " sec" << std::endl;
+       std::cout << "**** Assembly time: " << assembly_info.time_assembly << " sec" << std::endl;
+       std::cout << "****** Gradient reconstruction: " << assembly_info.time_gradrec << " sec" << std::endl;
+       std::cout << "****** Stabilisation: " << assembly_info.time_stab << " sec" << std::endl;
+       std::cout << "****** Static condensation: " << assembly_info.time_statcond << " sec" << std::endl;
+       std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
+       std::cout << "**** Postprocess time: " << postpro_info.time_postprocess << " sec" << std::endl;
+       std::cout << "------------------------------------------------------- " << std::endl;
+       std::cout << " " << std::endl;
+    }
+    
     dp.plot_solution("plot.dat");
+    std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -112,13 +135,36 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
         return sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
     };
 
+    timecounter tc;
+    tc.tic();
+    
     diffusion_solver<mesh_type> dp(msh, rp.degree);
     dp.verbose(rp.verbose);
-
-    dp.assemble(load, solution);
-    dp.solve();
-    dp.postprocess(load);
+    
+    auto assembly_info = dp.assemble(load, solution);
+    auto solve_info = dp.solve();
+    auto postpro_info = dp.postprocess(load);
+    
+    tc.toc();
+    
+    
+    if(dp.verbose()){
+       std::cout << " " << std::endl;
+       std::cout << "------------------------------------------------------- " << std::endl;
+       std::cout << "Summaring: " << std::endl;
+       std::cout << "Total time to solve the problem: " << tc.to_double() << " sec" << std::endl;
+       std::cout << "**** Assembly time: " << assembly_info.time_assembly << " sec" << std::endl;
+       std::cout << "****** Gradient reconstruction: " << assembly_info.time_gradrec << " sec" << std::endl;
+       std::cout << "****** Stabilisation: " << assembly_info.time_stab << " sec" << std::endl;
+       std::cout << "****** Static condensation: " << assembly_info.time_statcond << " sec" << std::endl;
+       std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
+       std::cout << "**** Postprocess time: " << postpro_info.time_postprocess << " sec" << std::endl;
+       std::cout << "------------------------------------------------------- " << std::endl;
+       std::cout << " " << std::endl;
+    }
+    
     dp.plot_solution("plot.dat");
+    std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 

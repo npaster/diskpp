@@ -5,3 +5,8 @@ install(TARGETS diffusion RUNTIME DESTINATION bin)
 add_executable(diffusion_test diffusion_test.cpp)
 target_link_libraries(diffusion_test ${LINK_LIBS})
 install(TARGETS diffusion_test RUNTIME DESTINATION bin)
+
+
+add_executable(diffusion_test_convergence_rates diffusion_test_convergence_rates.cpp)
+target_link_libraries(diffusion_test_convergence_rates ${LINK_LIBS})
+install(TARGETS diffusion_test_convergence_rates RUNTIME DESTINATION bin)

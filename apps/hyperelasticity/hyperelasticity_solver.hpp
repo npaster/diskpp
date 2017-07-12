@@ -25,6 +25,7 @@
 #endif
 
 #include "hho/hho.hpp"
+#include "hho/hho_bq.hpp"
 #include "hho/hho_vector.hpp"
 #include "bases/bases_utils.hpp"
 #include "NewtonSolver/newton_solver.hpp"
@@ -99,7 +100,7 @@ public:
          face_degree = 0;
       }
 
-      m_bqd = bqdata_type(face_degree + l, face_degree);
+      m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l);
 
    }
 
@@ -336,8 +337,8 @@ public:
        for (auto& cl : m_msh)
        {
           auto x = m_solution_data.at(i++);
-          gradrec.compute(m_msh, cl);
-          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
+          gradrec.compute(m_msh, cl, false);
+          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
           dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
           dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
@@ -602,8 +603,8 @@ public:
        for (auto& cl : m_msh)
        {
           vector_dynamic x = m_solution_data.at(cell_i++);
-          gradrec.compute(m_msh, cl);
-          vector_dynamic GTu = gradrec.oper*x;
+          gradrec.compute(m_msh, cl, false);
+          vector_dynamic GTu = gradrec.oper()*x;
           
           auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
