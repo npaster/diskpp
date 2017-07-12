@@ -42,10 +42,10 @@ class NewtonRaphson_solver_leraylions
 {
    typedef typename BQData::mesh_type          mesh_type;
    typedef typename mesh_type::scalar_type     scalar_type;
-   
+
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
-   
+
    const BQData&                               m_bqd;
 
    const mesh_type&                            m_msh;
@@ -91,26 +91,26 @@ public:
       assert(m_msh.cells_size() == m_solution_data.size());
 
     }
-    
+
     void
     prediction(const scalar_type delta_t)
     {
       scalar_type incr = scalar_type(1.0 + delta_t);
-      
+
       for(size_t i = 0; i < m_solution_cells.size(); i++)
          m_solution_cells[i] *= incr;
-      
+
       for(size_t i = 0; i < m_solution_faces.size(); i++)
          m_solution_faces[i] *= incr;
-      
+
       for(size_t i = 0; i < m_solution_lagr.size(); i++)
          m_solution_lagr[i] *= incr;
-      
+
       for(size_t i = 0; i < m_solution_data.size(); i++)
          m_solution_data[i] *= incr;
-       
+
     }
-    
+
 //     template<typename LoadIncrement, typename BoundaryConditionFunction>
 //     NewtonSolverInfo
 //     compute_elastic_guess( const LoadIncrement& lf, const BoundaryConditionFunction& bf)
@@ -118,13 +118,13 @@ public:
 //        NewtonSolverInfo ni;
 //        timecounter tc;
 //        tc.tic();
-//        
+//
 //        //initialise the NewtonRaphson_step
 //        NewtonRaphson_step_leraylions<BQData> newton_step(m_msh, m_bqd, m_leray_param);
-//        
+//
 //        newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
 //        newton_step.verbose(m_verbose);
-//        
+//
 //        //assemble lhs and rhs
 //        AssemblyInfo assembly_info;
 //        try {
@@ -137,25 +137,25 @@ public:
 //           ni.m_time_newton = tc.to_double();
 //           return ni;
 //        }
-//        
+//
 //        ni.updateAssemblyInfo( assembly_info);
-//        
+//
 //        // solve the global system
 //        SolveInfo solve_info = newton_step.solve();
 //        ni.updateSolveInfo(solve_info);
 //        // update unknowns
 //        PostprocessInfo post_info = newton_step.postprocess(lf);
 //        ni.updatePostProcessInfo(post_info);
-//        
+//
 //        newton_step.update_solution();
-// 
+//
 //        newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
-//        
+//
 //        tc.toc();
 //        ni.m_time_newton = tc.to_double();
 //        return ni;
 //     }
-//     
+//
 
     template<typename LoadIncrement, typename BoundaryConditionFunction>
     NewtonSolverInfo
@@ -166,7 +166,7 @@ public:
       NewtonSolverInfo ni;
       timecounter tc;
       tc.tic();
-      
+
       bool coercivity = false;
       bool line_search_ok = false;
 
@@ -174,17 +174,17 @@ public:
       NewtonRaphson_step_leraylions<BQData> newton_step(m_msh, m_bqd, m_leray_param);
 
       m_convergence = false;
-      
+
       size_t nb_negative_ev_init = 0;
       scalar_type error_curr = 1.0;
       // loop
       std::size_t iter = 0;
-      
+
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
-      
+
       while (iter < iter_max && !m_convergence) {
-          
+
           //assemble lhs and rhs
          //if(!line_search_ok){
             AssemblyInfo assembly_info;
@@ -203,7 +203,7 @@ public:
          //}
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter, error_curr);
-         
+
          if(coercivity){
             size_t nb_negative_ev = newton_step.test_coercivity();
             if(iter == 0)
@@ -219,7 +219,7 @@ public:
             // update unknowns
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
-            
+
             scalar_type gamma = 1.0;
             //line_search_ok = newton_step.line_search(lf, bf, gamma, 5 );
 

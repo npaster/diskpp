@@ -34,10 +34,10 @@ namespace LerayLions {
       typedef typename BQData::mesh_type          mesh_type;
       typedef typename mesh_type::scalar_type     scalar_type;
       typedef typename mesh_type::cell            cell_type;
-      
+
       typedef dynamic_matrix<scalar_type>         matrix_type;
       typedef dynamic_vector<scalar_type>         vector_type;
-      
+
       const BQData&                               m_bqd;
 
 
@@ -61,16 +61,16 @@ namespace LerayLions {
          const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
          const size_t grad_basis_size = (m_bqd.grad_basis.range(0, grad_degree)).size();
          const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
-         
-         
+
+
          const size_t cpk = binomial(cell_degree + DIM, cell_degree);
          const size_t fpk = binomial(face_degree  + DIM -1, face_degree);
          const size_t gpk = DIM * binomial(grad_degree + DIM, grad_degree );
-         
+
          assert(cell_basis_size == cpk);
          assert(grad_basis_size == gpk);
          assert(face_basis_size == fpk);
-         
+
          time_law = 0.0;
          timecounter tc;
 

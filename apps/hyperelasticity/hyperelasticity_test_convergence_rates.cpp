@@ -78,65 +78,65 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
-   
+
    T alpha = 0.3;
-   
+
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
-      
+
       T fx = 0.0;
       T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
       return result_type{fx,fy};
    };
-   
+
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T fx = (1.0/lambda + alpha) * p.x();
       T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0,0) = (1.0/lambda + alpha);
       grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
       grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
-      
+
       return grad;
    };
-   
+
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
-      
+
       return result_type{fx,fy};
    };
-   
+
    std::vector<size_t> boundary_neumann(0);
    std::vector<BoundaryConditions> boundary_dirichlet = {};
-   
+
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
-   
+
    nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
-   
+
    SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
-   
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.m_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
-   
+
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
       error.error_grad = nl.compute_l2_gradient_error(gradient);
    }
-   
+
    return error;
 }
 
@@ -295,16 +295,16 @@ template< typename T>
 void test_triangles_fvca5(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_2.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_3.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_4.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -317,16 +317,16 @@ template< typename T>
 void test_triangles_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri02.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri03.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri04.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri05.mesh2d");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -340,16 +340,16 @@ template< typename T>
 void test_hexagons(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -362,16 +362,16 @@ template< typename T>
 void test_kershaws(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_4.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -384,16 +384,16 @@ template< typename T>
 void test_quads_fvca5(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_2.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_3.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_4.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -406,16 +406,16 @@ template< typename T>
 void test_quads_diskpp(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 4;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-256-256.quad");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
@@ -558,9 +558,9 @@ int main(int argc, char **argv)
       switch(ch)
       {
          case '2': three_dimensions = false; break;
-         
+
          case '3': three_dimensions = true; break;
-         
+
          case 'k':
             degree = atoi(optarg);
             if (degree < 1)
@@ -580,7 +580,7 @@ int main(int argc, char **argv)
             }
             rp.m_l = l;
             break;
-            
+
          case 'm':
             sublevel = atoi(optarg);
             if (sublevel <= 0)
@@ -602,14 +602,14 @@ int main(int argc, char **argv)
             break;
 
          case 's': param.adaptative_stab = true; break;
-         
+
          case 't': param.tau = atof(optarg); break;
 
          case 'v': rp.m_verbose = true; break;
-         
+
          case 'h':
-            
-         
+
+
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -669,51 +669,51 @@ int main(int argc, char **argv)
       std::cout << " "<< std::endl;
    }
    else{
-      
+
       tc.tic();
       std::cout << "-Triangles fvca5:" << std::endl;
       test_triangles_fvca5<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout <<  "-Triangles netgen:" << std::endl;
       test_triangles_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles fvca5:"  << std::endl;
       test_quads_fvca5<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles diskpp:"  << std::endl;
       //test_quads_diskpp<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Hexagons:"  << std::endl;
       test_hexagons<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Kershaws:"  << std::endl;
       test_kershaws<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
    }
 
 }

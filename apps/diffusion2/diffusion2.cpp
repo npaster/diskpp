@@ -53,18 +53,18 @@ struct run_params
 // run_diffusion_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
 // {
 //     typedef Mesh<T, 1, Storage> mesh_type;
-// 
+//
 //     auto load = [](const point<T, 1>& p) -> auto {
 //         return M_PI * M_PI * sin(p.x() * M_PI);
 //     };
-// 
+//
 //     auto solution = [](const point<T, 1>& p) -> auto {
 //         return sin(p.x() * M_PI);
 //     };
-// 
+//
 //     diffusion_solver<mesh_type> dp(msh, rp.degree);
 //     dp.verbose(rp.verbose);
-// 
+//
 //     dp.assemble(load, solution);
 //     dp.solve();
 //     dp.postprocess(load);
@@ -86,7 +86,7 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
     auto solution = [](const point<T, 2>& p) -> auto {
         return sin(p.x() * M_PI) * sin(p.y() * M_PI);
     };
-    
+
     timecounter tc;
     tc.tic();
 
@@ -96,10 +96,10 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
     auto assembly_info = dp.assemble(load, solution);
     auto solve_info = dp.solve();
     auto postpro_info = dp.postprocess(load);
-    
+
     tc.toc();
-    
-    
+
+
     if(dp.verbose()){
        std::cout << " " << std::endl;
        std::cout << "------------------------------------------------------- " << std::endl;
@@ -114,7 +114,7 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
        std::cout << "------------------------------------------------------- " << std::endl;
        std::cout << " " << std::endl;
     }
-    
+
     dp.plot_solution("plot.dat");
     std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
     std::cout << dp.compute_l2_error(solution) << std::endl;
@@ -134,7 +134,7 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
     auto solution = [](const point<T, 3>& p) -> auto {
         return sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
     };
-    
+
     timecounter tc;
     tc.tic();
 
@@ -144,10 +144,10 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
     auto assembly_info = dp.assemble(load, solution);
     auto solve_info = dp.solve();
     auto postpro_info = dp.postprocess(load);
-    
+
     tc.toc();
-    
-    
+
+
     if(dp.verbose()){
        std::cout << " " << std::endl;
        std::cout << "------------------------------------------------------- " << std::endl;
@@ -162,8 +162,8 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
        std::cout << "------------------------------------------------------- " << std::endl;
        std::cout << " " << std::endl;
     }
-    
-    
+
+
     dp.plot_solution("plot.dat");
     std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
     std::cout << dp.compute_l2_error(solution) << std::endl;

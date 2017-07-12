@@ -73,46 +73,46 @@ run_leraylions_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, con
 {
    typedef T result_type;
    typedef static_vector<T, 2> result_grad_type;
-   
+
    auto load = [leray_param](const point<T,2>& pt) -> result_type {
       const T p = leray_param;
       result_type norm_G = M_PI * sqrt( std::pow(cos(pt.x() * M_PI) * sin(pt.y() * M_PI),2) +
       std::pow(sin(pt.x() * M_PI) * cos(pt.y() * M_PI),2));
-      
+
       T fx = sin(M_PI*pt.x())*sin(M_PI*pt.y())*
       (
          2.*std::pow(M_PI,2)*std::pow(norm_G, p-2.0) - (p-2)*std::pow(M_PI,4)*std::pow(norm_G, p-4.0)*(
             std::pow(cos(M_PI*pt.x()),2)*cos(2.*M_PI*pt.y()) + cos(2.*M_PI*pt.x())*std::pow(cos(M_PI*pt.y()),2))
       );
-      
+
       return result_type{fx};
    };
-   
+
    auto solution = [](const point<T,2>& pt) -> result_type {
       return sin(pt.x() * M_PI) * sin(pt.y() * M_PI);
    };
-   
+
    auto gradient = [](const point<T,2>& pt) -> auto {
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0) = M_PI * cos(pt.x() * M_PI) * sin(pt.y() * M_PI);
       grad(1) = M_PI * sin(pt.x() * M_PI) * cos(pt.y() * M_PI);
-      
+
       return grad;
    };
-   
-   
+
+
    leraylions_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, leray_param);
-   
-   
+
+
    nl.compute_initial_state();
-   
+
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
-   
+
    SolverInfo solve_info = nl.compute(load, solution);
-   
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.m_degree;
@@ -131,47 +131,47 @@ run_leraylions_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, con
 {
    typedef T result_type;
    typedef static_vector<T, 3> result_grad_type;
-   
+
    auto load = [leray_param](const point<T,3>& pt) -> auto {
       const T p = leray_param;
       T fx = -(std::pow(3.0, p/2.0) *(p-1)*exp((p-1)*(pt.x() + pt.y() + pt.z())));
       return result_type{fx};
    };
-   
+
    auto solution = [](const point<T,3>& pt) -> auto {
       T fx = exp(pt.x() + pt.y() + pt.z());
-      
+
       return result_type{fx};
    };
-   
-   
+
+
    auto gradient = [](const point<T,3>& pt) -> result_grad_type {
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0) = exp(pt.x() + pt.y() + pt.z());
       grad(1) = exp(pt.x() + pt.y() + pt.z());
       grad(2) = exp(pt.x() + pt.y() + pt.z());
-      
+
       return grad;
    };
-   
+
    leraylions_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp, leray_param);
-   
+
    nl.compute_initial_state();
-   
+
    if(nl.verbose()){
       std::cout << "Solving the problem ..." << '\n';
    }
-   
+
    SolverInfo solve_info = nl.compute(load, solution);
-   
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.m_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = nl.compute_l2_error(solution);
    error.error_grad = nl.compute_l2_gradient_error(gradient);
-   
+
    return error;
 }
 
@@ -219,16 +219,16 @@ template< typename T>
 void test_triangles_fvca5(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_2.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_3.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_4.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -241,16 +241,16 @@ template< typename T>
 void test_triangles_netgen(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri02.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri03.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri04.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri05.mesh2d");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -264,16 +264,16 @@ template< typename T>
 void test_hexagons(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -286,16 +286,16 @@ template< typename T>
 void test_kershaws(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_4.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -308,16 +308,16 @@ template< typename T>
 void test_quads_fvca5(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_2.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_3.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_4.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -330,16 +330,16 @@ template< typename T>
 void test_quads_diskpp(const ParamRun<T>& rp, const T leray_param)
 {
    size_t runs = 4;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-256-256.quad");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_leraylions_solver(msh, rp, leray_param));
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
    rp.m_sublevel = 4;
    rp.m_epsilon = 1E-11;
 
-   
+
 
    int ch;
 
@@ -479,9 +479,9 @@ int main(int argc, char **argv)
       switch(ch)
       {
          case '2': three_dimensions = false; break;
-         
+
          case '3': three_dimensions = true; break;
-         
+
          case 'k':
             degree = atoi(optarg);
             if (degree < 1)
@@ -501,7 +501,7 @@ int main(int argc, char **argv)
             }
             rp.m_l = l;
             break;
-            
+
          case 'm':
             sublevel = atoi(optarg);
             if (sublevel <= 0)
@@ -511,7 +511,7 @@ int main(int argc, char **argv)
             }
             rp.m_sublevel = sublevel;
             break;
-            
+
          case 'n':
             n_time_step = atoi(optarg);
             if (n_time_step <= 0)
@@ -521,11 +521,11 @@ int main(int argc, char **argv)
             }
             rp.m_n_time_step = n_time_step;
             break;
-            
+
          case 'p': leray_param = atof(optarg); break;
 
          case 'v': rp.m_verbose = true; break;
-         
+
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -583,51 +583,51 @@ int main(int argc, char **argv)
       std::cout << " "<< std::endl;
    }
    else{
-      
+
       tc.tic();
       std::cout << "-Triangles fvca5:" << std::endl;
       test_triangles_fvca5<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout <<  "-Triangles netgen:" << std::endl;
       test_triangles_netgen<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles fvca5:"  << std::endl;
       test_quads_fvca5<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles diskpp:"  << std::endl;
       test_quads_diskpp<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Hexagons:"  << std::endl;
       test_hexagons<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Kershaws:"  << std::endl;
       test_kershaws<RealType>(rp, leray_param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
    }
 
 }

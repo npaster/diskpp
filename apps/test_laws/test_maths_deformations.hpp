@@ -31,15 +31,15 @@ test_Ftensor(const T prec)
    G(0,0) = T{1.0}; G(0,1) = T{2.0}; G(0,2) = T{3.0};
    G(1,0) = T{4.0}; G(1,1) = T{6.0}; G(1,2) = T{8.0};
    G(2,0) = T{5.0}; G(2,1) = T{7.0}; G(2,2) = T{9.0};
- 
+
    static_matrix<T, 3, 3> F;
    F(0,0) = T{2.0}; F(0,1) = T{2.0}; F(0,2) = T{3.0};
    F(1,0) = T{4.0}; F(1,1) = T{7.0}; F(1,2) = T{8.0};
    F(2,0) = T{5.0}; F(2,1) = T{7.0}; F(2,2) = T{10.0};
-   
+
 
    T error_R = (F - compute_FTensor(G)).norm();
-   
+
    if(error_R > prec){
       std::cout << "error F computation: " << error_R << std::endl;
       std::cout << "F analytique: " << F << std::endl;
@@ -56,12 +56,12 @@ test_CauchyGreen(const T prec)
    F(0,0) = T{2.0}; F(0,1) = T{2.0}; F(0,2) = T{3.0};
    F(1,0) = T{4.0}; F(1,1) = T{7.0}; F(1,2) = T{8.0};
    F(2,0) = T{5.0}; F(2,1) = T{7.0}; F(2,2) = T{10.0};
-   
+
    static_matrix<T, 3, 3> C = F.transpose() * F;
-   
-   
+
+
    T error_R = (C - compute_CauchyGreenRightTensor(F)).norm();
-   
+
    if(error_R > prec){
       std::cout << "error C computation: " << error_R << std::endl;
       std::cout << "C analytique: " << F << std::endl;

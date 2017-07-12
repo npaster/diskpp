@@ -75,31 +75,31 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp)
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
-   
+
    auto load = [](const point<T, 2>& p) -> auto {
       return 2.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI);
    };
-   
+
    auto solution = [](const point<T, 2>& p) -> auto {
       return sin(p.x() * M_PI) * sin(p.y() * M_PI);
    };
-   
+
    auto gradient = [](const point<T,2>& p) -> result_type {
       result_type grad = result_type::Zero();
-      
+
       grad(0,0) = M_PI * cos(p.x() * M_PI) * sin(p.y() * M_PI);
       grad(1,0) = M_PI * sin(p.x() * M_PI) * cos(p.y() * M_PI);
-      
+
       return grad;
    };
-   
+
    diffusion_solver<mesh_type> dp(msh, rp.degree);
    dp.verbose(rp.verbose);
-   
+
    auto assembly_info = dp.assemble(load, solution);
    auto solve_info = dp.solve();
    auto postpro_info = dp.postprocess(load);
-   
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.degree;
@@ -118,39 +118,39 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp)
 {
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
-   
+
    auto load = [](const point<T, 3>& p) -> auto {
       return 3.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
    };
-   
+
    auto solution = [](const point<T, 3>& p) -> auto {
       return sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
    };
-   
+
    auto gradient = [](const point<T,3>& p) -> result_type {
       result_type grad = result_type::Zero();
-      
+
       grad(0,0) = M_PI * cos(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
       grad(1,0) = M_PI * sin(p.x() * M_PI) * cos(p.y() * M_PI) * sin(p.z() * M_PI);
       grad(2,0) = M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI) * cos(p.z() * M_PI);
-      
+
       return grad;
    };
-   
+
    diffusion_solver<mesh_type> dp(msh, rp.degree);
    dp.verbose(rp.verbose);
-   
+
    auto assembly_info = dp.assemble(load, solution);
    auto solve_info = dp.solve();
    auto postpro_info = dp.postprocess(load);
-   
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.degree;
    error.nb_dof = dp.getDofs();
    error.error_depl = dp.compute_l2_error(solution);
    error.error_grad = dp.compute_l2_gradient_error(gradient);
-   
+
    return error;
 }
 
@@ -198,16 +198,16 @@ template< typename T>
 void test_triangles_fvca5(const run_params& rp)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_2.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_3.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_4.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -220,16 +220,16 @@ template< typename T>
 void test_triangles_netgen(const run_params& rp)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri02.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri03.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri04.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri05.mesh2d");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -243,16 +243,16 @@ template< typename T>
 void test_hexagons(const run_params& rp)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -265,16 +265,16 @@ template< typename T>
 void test_kershaws(const run_params& rp)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_4.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -287,16 +287,16 @@ template< typename T>
 void test_quads_fvca5(const run_params& rp)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_2.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_3.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_4.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -309,16 +309,16 @@ template< typename T>
 void test_quads_diskpp(const run_params& rp)
 {
    size_t runs = 4;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-256-256.quad");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_diffusion_solver(msh, rp));
@@ -447,7 +447,7 @@ int main(int argc, char **argv)
    rp.l        = 0;
    rp.verbose  = false;
 
-   
+
 
    int ch;
 
@@ -456,9 +456,9 @@ int main(int argc, char **argv)
       switch(ch)
       {
          case '2': three_dimensions = false; break;
-         
+
          case '3': three_dimensions = true; break;
-         
+
          case 'k':
             degree = atoi(optarg);
             if (degree < 1)
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
             break;
 
          case 'v': rp.verbose = true; break;
-         
+
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -537,51 +537,51 @@ int main(int argc, char **argv)
       std::cout << " "<< std::endl;
    }
    else{
-      
+
       tc.tic();
       std::cout << "-Triangles fvca5:" << std::endl;
       test_triangles_fvca5<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout <<  "-Triangles netgen:" << std::endl;
       test_triangles_netgen<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles fvca5:"  << std::endl;
       test_quads_fvca5<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles diskpp:"  << std::endl;
       test_quads_diskpp<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Hexagons:"  << std::endl;
       test_hexagons<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Kershaws:"  << std::endl;
       test_kershaws<RealType>(rp);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
    }
 
 }

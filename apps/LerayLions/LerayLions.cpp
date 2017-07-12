@@ -49,25 +49,25 @@ void
 run_leraylions_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, const T leray_param)
 {
    typedef T result_type;
-   
+
    auto load = [leray_param](const point<T,2>& pt) -> result_type {
       const T p = leray_param;
       result_type norm_G = M_PI * sqrt( std::pow(cos(pt.x() * M_PI) * sin(pt.y() * M_PI),2) +
       std::pow(sin(pt.x() * M_PI) * cos(pt.y() * M_PI),2));
-      
+
       T fx = sin(M_PI*pt.x())*sin(M_PI*pt.y())*
       (
          2.*std::pow(M_PI,2)*std::pow(norm_G, p-2.0) - (p-2)*std::pow(M_PI,4)*std::pow(norm_G, p-4.0)*(
             std::pow(cos(M_PI*pt.x()),2)*cos(2.*M_PI*pt.y()) + cos(2.*M_PI*pt.x())*std::pow(cos(M_PI*pt.y()),2))
       );
-      
+
       return result_type{fx};
    };
-   
+
    auto solution = [leray_param](const point<T,2>& pt) -> result_type {
       return sin(pt.x() * M_PI) * sin(pt.y() * M_PI);
    };
-   
+
 
    leraylions_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, leray_param);
 
@@ -121,10 +121,10 @@ run_leraylions_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, const T l
       T fx = -(std::pow(3.0, p/2.0) *(p-1)*exp((p-1)*(pt.x() + pt.y() + pt.z())));
       return result_type{fx};
    };
-   
+
    auto solution = [](const point<T,3>& pt) -> auto {
       T fx = exp(pt.x() + pt.y() + pt.z());
-      
+
       return result_type{fx};
    };
 

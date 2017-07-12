@@ -44,10 +44,10 @@ class NewtonRaphson_solver_hyperelasticity
 {
    typedef typename BQData::mesh_type          mesh_type;
    typedef typename mesh_type::scalar_type     scalar_type;
-   
+
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
-   
+
    const BQData&                               m_bqd;
 
    const mesh_type&                            m_msh;
@@ -104,7 +104,7 @@ public:
       NewtonSolverInfo ni;
       timecounter tc;
       tc.tic();
-      
+
       bool auricchio = false;
 
       //initialise the NewtonRaphson_step
@@ -114,12 +114,12 @@ public:
       newton_step.verbose(m_verbose);
 
       m_convergence = false;
-      
+
       size_t nb_negative_ev_init = 0;
       // loop
       std::size_t iter = 0;
       while (iter < iter_max && !m_convergence) {
-          
+
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
@@ -136,7 +136,7 @@ public:
           ni.updateAssemblyInfo( assembly_info);
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter);
-         
+
          if(auricchio){
             size_t nb_negative_ev = newton_step.test_aurrichio();
             if(iter == 0)

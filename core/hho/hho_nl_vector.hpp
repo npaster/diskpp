@@ -89,9 +89,9 @@ namespace disk {
       }
       return nb_face;
    }
-   
-   
-   
+
+
+
    template<typename Mesh>
    size_t
    number_of_lag_conditions(const Mesh& msh, const std::vector<BoundaryConditions>& boundary_dirichlet,
@@ -100,29 +100,29 @@ namespace disk {
       //By default all boundary faces are dirichlet faces
       size_t DIM = msh.dimension;
       size_t nb_lag_conditions = DIM * msh.boundary_faces_size();
-      
+
       // We remove boundary of type neumann;
-      
+
       nb_lag_conditions -= DIM * number_of_neumann_faces(msh, boundary_neumann);
-      
-      
+
+
       if(boundary_dirichlet.empty())
          return nb_lag_conditions;
-      
-      
-      
+
+
+
       size_t nb_condition = boundary_dirichlet.size();
-      
+
       for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
       {
          auto bfc = *itor;
-         
+
          auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
          if (!eid.first)
             throw std::invalid_argument("This is a bug: face not found");
-         
+
          auto face_id = eid.second;
-         
+
          for(auto& elem : boundary_dirichlet)
          {
             if(msh.boundary_id(face_id) == elem.id)
@@ -172,7 +172,7 @@ namespace disk {
                      std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
                      break;
                }
-               
+
                nb_condition--;
                break;
             }
@@ -181,7 +181,7 @@ namespace disk {
             break;
       }
       return nb_lag_conditions;
-   } 
+   }
 
 
    template<typename Mesh,typename FaceBasisType, typename FaceQuadType>
@@ -239,14 +239,14 @@ namespace disk {
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
          rhs = vector_type::Zero(m_num_unknowns);
       }
-      
+
       assembler_nl_vector(const mesh_type& msh, size_t degree, const std::vector<size_t>& boundary_neumann,
                           const std::vector<BoundaryConditions>& boundary_dirichlet)
       : m_degree(degree)
       {
          face_basis          = face_basis_type(m_degree);
          face_quadrature     = face_quadrature_type(2*m_degree);
-         
+
          const size_t nb_lag_conditions = number_of_lag_conditions(msh, boundary_dirichlet, boundary_neumann);
          m_num_unknowns = face_basis.size() * msh.faces_size() + nb_lag_conditions * face_basis.size()/msh.dimension;
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
@@ -418,8 +418,8 @@ namespace disk {
                      for(size_t i = 0; i < fbs; i++)
                         rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
                }
-               
-               
+
+
 
                //lower part
                for(size_t i = 1; i < fbs; i++)
@@ -457,8 +457,8 @@ namespace disk {
             }
          }
       }
-      
-      
+
+
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
@@ -470,13 +470,13 @@ namespace disk {
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
             auto bfc = *itor;
-            
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
-            
+
             auto face_id = eid.second;
-            
+
             //Find if this face is a boundary face with Neumann Condition
             if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
                != boundary_neumann.end()))
@@ -486,9 +486,9 @@ namespace disk {
                //Dirichlet condition
                auto face_offset = face_id * fbs;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
-               
+
                auto fqd = face_quadrature.integrate(msh, bfc);
-               
+
                matrix_type MFF     = matrix_type::Zero(fbs, fbs);
                vector_type rhs_f   = vector_type::Zero(fbs);
                vector_type rhs_bc   = vector_type::Zero(fbs);
@@ -498,20 +498,20 @@ namespace disk {
                   for(size_t i = 0; i < fbs; i++)
                      for(size_t j = i; j < fbs; j++)
                         MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
-                     
-                     
+
+
                      for(size_t i = 0; i < fbs; i++)
                         rhs_bc(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
                }
-               
+
                //lower part
                for(size_t i = 1; i < fbs; i++)
                   for(size_t j = 0; j < i; j++)
                      MFF(i,j) = MFF(j,i) ;
-                  
+
                   vector_type rhs_l = MFF * sol_lagr.at(face_i);
                rhs_f -= MFF * sol_faces.at(face_id);
-               
+
                bool dirichlet_standart = true;
                for(auto& elem : boundary_dirichlet)
                {
@@ -566,10 +566,10 @@ namespace disk {
                      break;
                   }
                }
-               
+
                if(dirichlet_standart)
                   rhs_f += rhs_bc;
-               
+
                #ifdef FILL_COLMAJOR
                for (size_t j = 0; j < MFF.cols(); j++)
                {
@@ -593,7 +593,7 @@ namespace disk {
                   rhs(face_offset+j) -= rhs_l(j);
                }
                #endif
-               
+
                face_i++;
             }
          }
@@ -615,36 +615,36 @@ namespace disk {
          vec = rhs;
       }
    };
-   
-   
-   
+
+
+
    template<typename BQData>
    class assembler_nl_vector_bq
    {
       typedef typename BQData::mesh_type          mesh_type;
       typedef typename mesh_type::scalar_type     scalar_type;
       typedef typename mesh_type::cell            cell_type;
-      
+
       typedef dynamic_matrix<scalar_type>         matrix_type;
-      
-      
+
+
       typedef Eigen::Triplet<scalar_type>         triplet_type;
-      
+
       std::vector<triplet_type>                   m_triplets;
       size_t                                      m_num_unknowns;
-      
+
       const BQData&                               m_bqd;
-      
+
    public:
-      
+
       typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
       typedef dynamic_vector<scalar_type>         vector_type;
-      
+
       sparse_matrix_type      matrix;
       vector_type             rhs;
-      
+
       assembler_nl_vector_bq()                 = delete;
-      
+
       assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd)
       : m_bqd(bqd)
       {
@@ -652,7 +652,7 @@ namespace disk {
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
          rhs = vector_type::Zero(m_num_unknowns);
       }
-      
+
       assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<size_t>& boundary_neumann)
       : m_bqd(bqd)
       {
@@ -661,7 +661,7 @@ namespace disk {
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
          rhs = vector_type::Zero(m_num_unknowns);
       }
-      
+
       assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<size_t>& boundary_neumann,
                           const std::vector<BoundaryConditions>& boundary_dirichlet)
       : m_bqd(bqd)
@@ -671,7 +671,7 @@ namespace disk {
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
          rhs = vector_type::Zero(m_num_unknowns);
       }
-      
+
       template<typename LocalContrib>
       void
       assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
@@ -685,29 +685,29 @@ namespace disk {
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
-            
+
             auto face_id = eid.second;
-            
+
             auto face_offset = face_id * face_basis_size;
-            
+
             auto pos = face_i * face_basis_size;
-            
+
             for (size_t i = 0; i < face_basis_size; i++)
                l2g[pos+i] = face_offset+i;
          }
-         
+
          assert(lc.first.rows() == lc.first.cols());
          assert(lc.first.rows() == lc.second.size());
          assert(lc.second.size() == l2g.size());
-         
+
          //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
-         
+
          #ifdef FILL_COLMAJOR
          for (size_t j = 0; j < lc.first.cols(); j++)
          {
             for (size_t i = 0; i < lc.first.rows(); i++)
                m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
-            
+
             rhs(l2g.at(j)) += lc.second(j);
          }
          #else
@@ -715,12 +715,12 @@ namespace disk {
          {
             for (size_t j = 0; j < lc.first.cols(); j++)
                m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
-            
+
             rhs(l2g.at(i)) += lc.second(i);
          }
          #endif
       }
-      
+
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
@@ -731,21 +731,21 @@ namespace disk {
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
             auto bfc = *itor;
-            
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
-            
+
             auto face_id = eid.second;
-            
+
             auto face_offset = face_id * face_basis_size;
             auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
-            
+
             auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
-            
+
             matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
             vector_type rhs_f   = vector_type::Zero(face_basis_size);
-            
+
             for (auto& qp : fqd)
             {
                auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
@@ -753,22 +753,22 @@ namespace disk {
                for(size_t i = 0; i < face_basis_size; i++)
                   for(size_t j = i; j < face_basis_size; j++)
                      MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
-                  
-                  
+
+
                   for(size_t i = 0; i < face_basis_size; i++)
                      rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
             }
-            
+
             //lower part
             for(size_t i = 1; i < face_basis_size; i++)
                for(size_t j = 0; j < i; j++)
                   MFF(i,j) = MFF(j,i) ;
-               
-               
+
+
                rhs_f -= MFF * sol_faces.at(face_id);
-            
+
             vector_type rhs_l = MFF * sol_lagr.at(face_i);
-            
+
             #ifdef FILL_COLMAJOR
             for (size_t j = 0; j < MFF.cols(); j++)
             {
@@ -792,11 +792,11 @@ namespace disk {
                rhs(face_offset+j) -= rhs_l(j);
             }
             #endif
-            
+
             face_i++;
          }
       }
-      
+
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
@@ -807,13 +807,13 @@ namespace disk {
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
             auto bfc = *itor;
-            
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
-            
+
             auto face_id = eid.second;
-            
+
             //Find if this face is a boundary face with Neumann Condition
             if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
                != boundary_neumann.end()))
@@ -823,9 +823,9 @@ namespace disk {
                //Dirichlet condition
                auto face_offset = face_id * face_basis_size;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
-               
+
                auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
-               
+
                matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
                vector_type rhs_f   = vector_type::Zero(face_basis_size);
                for (auto& qp : fqd)
@@ -835,22 +835,22 @@ namespace disk {
                   for(size_t i = 0; i < face_basis_size; i++)
                      for(size_t j = i; j < face_basis_size; j++)
                         MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
-                     
-                     
+
+
                      for(size_t i = 0; i < face_basis_size; i++)
                         rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
                }
-               
-               
-               
+
+
+
                //lower part
                for(size_t i = 1; i < face_basis_size; i++)
                   for(size_t j = 0; j < i; j++)
                      MFF(i,j) = MFF(j,i);
-                  
+
                   vector_type rhs_l = MFF * sol_lagr.at(face_i);
                rhs_f -= MFF * sol_faces.at(face_id);
-               
+
                #ifdef FILL_COLMAJOR
                for (size_t j = 0; j < MFF.cols(); j++)
                {
@@ -874,13 +874,13 @@ namespace disk {
                   rhs(face_offset+j) -= rhs_l(j);
                }
                #endif
-               
+
                face_i++;
             }
          }
       }
-      
-      
+
+
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
@@ -892,13 +892,13 @@ namespace disk {
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
             auto bfc = *itor;
-            
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
-            
+
             auto face_id = eid.second;
-            
+
             //Find if this face is a boundary face with Neumann Condition
             if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
                != boundary_neumann.end()))
@@ -908,9 +908,9 @@ namespace disk {
                //Dirichlet condition
                auto face_offset = face_id * face_basis_size;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
-               
+
                auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
-               
+
                matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
                vector_type rhs_f   = vector_type::Zero(face_basis_size);
                vector_type rhs_bc   = vector_type::Zero(face_basis_size);
@@ -921,20 +921,20 @@ namespace disk {
                   for(size_t i = 0; i < face_basis_size; i++)
                      for(size_t j = i; j < face_basis_size; j++)
                         MFF(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
-                     
-                     
+
+
                      for(size_t i = 0; i < face_basis_size; i++)
                         rhs_bc(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
                }
-               
+
                //lower part
                for(size_t i = 1; i < face_basis_size; i++)
                   for(size_t j = 0; j < i; j++)
                      MFF(i,j) = MFF(j,i) ;
-                  
+
                   vector_type rhs_l = MFF * sol_lagr.at(face_i);
                rhs_f -= MFF * sol_faces.at(face_id);
-               
+
                bool dirichlet_standart = true;
                for(auto& elem : boundary_dirichlet)
                {
@@ -989,10 +989,10 @@ namespace disk {
                      break;
                   }
                }
-               
+
                if(dirichlet_standart)
                   rhs_f += rhs_bc;
-               
+
                #ifdef FILL_COLMAJOR
                for (size_t j = 0; j < MFF.cols(); j++)
                {
@@ -1016,19 +1016,19 @@ namespace disk {
                   rhs(face_offset+j) -= rhs_l(j);
                }
                #endif
-               
+
                face_i++;
             }
          }
       }
-      
+
       void
       finalize()
       {
          matrix.setFromTriplets(m_triplets.begin(), m_triplets.end());
          m_triplets.clear();
       }
-      
+
       void
       finalize(sparse_matrix_type& mat, vector_type& vec)
       {

@@ -22,7 +22,7 @@ class ParamRun
 {
 public:
    size_t  m_degree;        //face degree
-   int     m_l;             //cell_degree = face_degree + l 
+   int     m_l;             //cell_degree = face_degree + l
 
    size_t  m_n_time_step;   //number of time time_step
    size_t  m_sublevel;      //number od sublevel if there are problems
@@ -30,16 +30,10 @@ public:
    bool    m_verbose;       //some printing
    bool    m_prediction;    //prediction  u_0(t+dt) = (1 +dt) * u_conv(t)
    bool    m_init_elastic;  // elastic initialisation
-   
+
    size_t  m_iter_max;      //maximun nexton iteration
-   T       m_epsilon;       //stop criteria    
-   
+   T       m_epsilon;       //stop criteria
+
    ParamRun() : m_degree(1), m_l(0), m_n_time_step(1), m_sublevel(1), m_prediction(false),
                 m_init_elastic(true), m_verbose(false), m_iter_max(10), m_epsilon(T(10E-8)) {}
 };
-   
-
-
-
-
-

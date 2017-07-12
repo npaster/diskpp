@@ -22,7 +22,7 @@ class ParamRun
 {
 public:
    size_t  m_degree;        //face degree
-   int     m_l;             //cell_degree = face_degree + l 
+   int     m_l;             //cell_degree = face_degree + l
 
    size_t  m_n_time_step;   //number of time time_step
    size_t  m_sublevel;      //number od sublevel if there are problems
@@ -30,19 +30,13 @@ public:
    bool    m_adapt_coeff;   //adapts automatically the stabilisation coefficient
    bool    m_adapt_stab;    //use the adpatative stabilization
    bool    m_verbose;       //some printing
-   
-   size_t  m_iter_max;        //maximun nexton iteration
-   T       m_epsilon;         //stop criteria    
-   
 
-   
-   ParamRun() : m_degree(1), m_l(0), m_n_time_step(1), m_sublevel(1), 
+   size_t  m_iter_max;        //maximun nexton iteration
+   T       m_epsilon;         //stop criteria
+
+
+
+   ParamRun() : m_degree(1), m_l(0), m_n_time_step(1), m_sublevel(1),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
                 m_iter_max(10), m_epsilon(T(10E-6)) {}
 };
-   
-
-
-
-
-

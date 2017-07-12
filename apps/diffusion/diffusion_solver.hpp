@@ -125,7 +125,7 @@ public:
         bzero(&ai, sizeof(ai));
 
         timecounter tc, ttot;
-        
+
         ttot.tic();
 
         for (auto& cl : m_msh)
@@ -152,9 +152,9 @@ public:
 
         assembler.impose_boundary_conditions(m_msh, bcf);
         assembler.finalize(m_system_matrix, m_system_rhs);
-        
+
         ttot.toc();
-        
+
         ai.time_assembly = ttot.to_double();
 
         ai.linear_system_size = m_system_matrix.rows();

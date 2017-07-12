@@ -22,10 +22,10 @@ public:
    size_t  m_linear_system_size;
    double  m_time_assembly;
    double  m_time_gradrec, m_time_statcond, m_time_stab, m_time_elem, m_time_law, m_time_adapt_stab;
-   
-   
+
+
    AssemblyInfo() :  m_linear_system_size(0), m_time_assembly(0.0),
-   m_time_gradrec(0.0), m_time_statcond(0.0), m_time_stab(0.0), m_time_elem(0.0), 
+   m_time_gradrec(0.0), m_time_statcond(0.0), m_time_stab(0.0), m_time_elem(0.0),
    m_time_law(0.0), m_time_adapt_stab(0.0) {}
 };
 
@@ -35,12 +35,12 @@ class SolveInfo
 public:
    size_t  m_linear_system_size, m_nonzeros;
    double  m_time_solve;
-   
-   
+
+
    SolveInfo() :  m_linear_system_size(0), m_nonzeros(0), m_time_solve(0.0) {}
-   SolveInfo(const size_t linear_system_size, const size_t nonzeros, const double time_solve) :  
+   SolveInfo(const size_t linear_system_size, const size_t nonzeros, const double time_solve) :
    m_linear_system_size(linear_system_size), m_nonzeros(nonzeros), m_time_solve(time_solve) {}
-   
+
 };
 
 
@@ -49,10 +49,10 @@ class PostprocessInfo
 public:
    double  m_time_post;
    double  m_time_gradrec, m_time_statcond, m_time_stab, m_time_elem, m_time_law, m_time_adapt_stab;
-   
-   
+
+
    PostprocessInfo() :  m_time_post(0.0),
-   m_time_gradrec(0.0), m_time_statcond(0.0), m_time_stab(0.0), m_time_elem(0.0), 
+   m_time_gradrec(0.0), m_time_statcond(0.0), m_time_stab(0.0), m_time_elem(0.0),
    m_time_law(0.0), m_time_adapt_stab(0.0) {}
 };
 
@@ -66,9 +66,9 @@ public:
    PostprocessInfo  m_postprocess_info;
    double           m_time_newton;
 
-   
+
    NewtonSolverInfo() :  m_assembly_info(), m_solve_info(), m_postprocess_info(), m_time_newton(0.0) {}
-                         
+
    void updateAssemblyInfo(const AssemblyInfo&  assembly_info)
    {
       m_assembly_info.m_linear_system_size = assembly_info.m_linear_system_size;
@@ -80,14 +80,14 @@ public:
       m_assembly_info.m_time_law += assembly_info.m_time_law;
       m_assembly_info.m_time_adapt_stab += assembly_info.m_time_adapt_stab;
    }
-   
+
    void updateSolveInfo(const SolveInfo&  solve_info)
    {
       m_solve_info.m_linear_system_size = solve_info.m_linear_system_size;
       m_solve_info.m_nonzeros = solve_info.m_nonzeros;
       m_solve_info.m_time_solve += solve_info.m_time_solve;
    }
-   
+
    void updatePostProcessInfo(const PostprocessInfo&  postprocess_info)
    {
       m_postprocess_info.m_time_post += postprocess_info.m_time_post;
@@ -106,10 +106,10 @@ class SolverInfo
 public:
    NewtonSolverInfo  m_newton_info;
    double  m_time_solver;
-   
-   
+
+
    SolverInfo() :  m_newton_info(), m_time_solver(0.0) {}
-                        
+
    void updateInfo(const NewtonSolverInfo& newton_solver_info)
    {
       m_newton_info.updateAssemblyInfo(newton_solver_info.m_assembly_info);
@@ -118,9 +118,3 @@ public:
       m_newton_info.m_time_newton += newton_solver_info.m_time_newton;
    }
 };
-   
-
-
-
-
-

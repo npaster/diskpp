@@ -62,10 +62,10 @@ class leraylions_solver
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
-   
+
    typedef disk::gradient_reconstruction_full_bq<bqdata_type>     gradrec_type;
    typedef disk::projector_bq<bqdata_type>                        projector_type;
-   
+
    bqdata_type     m_bqd;
 
    const mesh_type& m_msh;
@@ -163,12 +163,12 @@ public:
 //          m_solution_data[i].setConstant(10.0);
 //          m_solution_cells[i].setConstant(10.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.faces_size(); i++)
 //       {
 //          m_solution_faces[i].setConstant(10.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
 //          m_solution_lagr[i].setConstant(1.0);
 //      }
@@ -200,34 +200,34 @@ public:
          step.level = 1;
          list_step.push_back(step);
       }
-      
+
       size_t current_step = 0;
       size_t total_step = m_rp.m_n_time_step;
-      
+
       scalar_type old_time = 0.0;
-      
-      
+
+
       //Newton solver
       NewtonRaphson_solver_leraylions<bqdata_type> newton_solver(m_msh, m_bqd, m_leray_param);
-      
+
       newton_solver.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
-      
+
       newton_solver.verbose(m_verbose);
-      
+
 //       //elastic guess
 //       if(m_rp.m_init_elastic){
 //          const time_step step = list_step.front();
 //          const scalar_type current_time = step.time;
-//          
+//
 //          auto rlf = [&lf, &current_time](const Point& p) -> auto {
 //             return disk::mm_prod(current_time, lf(p));
-//             
+//
 //          };
-//          
+//
 //          auto rbcf = [&bcf, &current_time](const Point& p) -> auto {
 //             return disk::mm_prod(current_time, bcf(p));
 //          };
-//          
+//
 //          NewtonSolverInfo newton_info = newton_solver.compute_elastic_guess(rlf, rbcf);
 //          si.updateInfo(newton_info);
 //       }
@@ -309,7 +309,7 @@ public:
         newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
 
       ttot.toc();
-      si.m_time_solver = ttot.to_double(); 
+      si.m_time_solver = ttot.to_double();
       return si;
    }
 
@@ -336,7 +336,7 @@ public:
 
         return sqrt(err_dof);
     }
-    
+
 
     size_t getDofs() {return total_dof_depl_static;}
 
@@ -412,17 +412,17 @@ public:
 
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
-    
-    
+
+
     void
     compute_conforme_solution(const std::string& filename)
     {
        visu::Gmesh gmsh = visu::convertMesh(m_msh);
        auto storage = m_msh.backend_storage();
        size_t nb_nodes(gmsh.getNumberofNodes());
-       
+
        //first(number of data at this node), second(cumulated value)
-       std::vector<std::pair<size_t, scalar_type>> value(nb_nodes, std::make_pair(0, 0.0)); 
+       std::vector<std::pair<size_t, scalar_type>> value(nb_nodes, std::make_pair(0, 0.0));
 
        size_t cell_i(0);
        for (auto& cl : m_msh)
@@ -440,40 +440,40 @@ public:
 
              // plot magnitude at node
              scalar_type sol = phi.dot(x);
-                   
+
              value[point_ids].first +=1;
              value[point_ids].second += sol;
           }
        }
-       
+
        std::vector<visu::Data> data; //create data
        std::vector<visu::SubData> subdata; //create subdata
        data.reserve(nb_nodes); // data has a size of nb_node
-       
+
       for(size_t  i_node = 0; i_node < value.size(); i_node++){
          std::vector<double> tmp_value(1, value[i_node].second/ double(value[i_node].first));
-   
+
          visu::Data tmp_data(i_node + 1, tmp_value);
          data.push_back(tmp_data); //add data
       }
-       
+
        visu::NodeData nodedata(1, 0.0, "sol", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
 
-    
-    
+
+
     template<typename AnalyticalSolution>
     void
     plot_l2error_at_gausspoint(const std::string& filename, const AnalyticalSolution& as)
     {
        visu::Gmesh msh; //creta a mesh
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
        size_t nb_node =  msh.getNumberofNodes();
-       
+
        size_t cell_i = 0;
        for (auto& cl : m_msh)
        {
@@ -481,12 +481,12 @@ public:
           auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
           {
-             
+
              auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
              scalar_type sol = phi.dot(x);
-             
+
              auto true_depl = as(qp.point()); // a voir et projeté
-             
+
              nb_node += 1;
              visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
              std::vector<double> value(1, std::abs(sol - true_depl)); // save the solution at gauss point
@@ -494,17 +494,17 @@ public:
              subdata.push_back(sdata); // add subdata
           }
        }
-       
+
        visu::NodeData nodedata(1, 0.0, "error_sol", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, msh); // save the view
     }
-    
+
     void
     plot_solution_at_gausspoint(const std::string& filename)
     {
        visu::Gmesh msh; //creta a mesh
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
        size_t nb_node =  msh.getNumberofNodes();
@@ -516,23 +516,23 @@ public:
           auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
           {
-             
+
              auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-             std::vector<double> sol(1, phi.dot(x));  
-             
+             std::vector<double> sol(1, phi.dot(x));
+
              nb_node += 1;
              visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
              visu::SubData sdata(sol, snode);
-             subdata.push_back(sdata); // add subdata 
+             subdata.push_back(sdata); // add subdata
           }
        }
-       
+
        visu::NodeData nodedata(1, 0.0, "sol", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, msh); // save the view
     }
-    
-    
+
+
     void
     compute_deformed(const std::string& filename)
     {
@@ -541,11 +541,11 @@ public:
        else {
           visu::Gmesh gmsh(DIM);
           auto storage = m_msh.backend_storage();
-          
-          
+
+
           std::vector<visu::Data> data; //create data (not used)
           std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-          
+
           size_t cell_i(0);
           size_t nb_nodes(0);
           for (auto& cl : m_msh)
@@ -558,31 +558,31 @@ public:
                 nb_nodes++;
                 auto point_ids = cell_nodes[i];
                 auto pt = storage->points[point_ids];
-                
+
                 auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
-                
+
                 std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-                
+
                 visu::init_coor(pt, coor);
                 visu::Node tmp_node(coor, nb_nodes, 0);
                 new_nodes.push_back(tmp_node);
                 gmsh.addNode(tmp_node);
-                
+
                 // plot magnitude at node
                 scalar_type pot = x.dot(phi);
-                
+
                 std::vector<double> value(3, 0.0);
                 value[DIM+1 -1] = {double(pot)};
                 visu::Data datatmp(nb_nodes, value);
-                
+
                 data.push_back(datatmp);
              }
              // add new element
              visu::add_element(gmsh, new_nodes);
           }
-          
+
           visu::NodeData nodedata(3, 0.0, "sol_node_deformed", data, subdata); // create and init a nodedata view
-          
+
           nodedata.saveNodeData(filename, gmsh); // save the view
        }
     }

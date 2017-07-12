@@ -106,61 +106,61 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
 
 // T alpha = 0.3;
-// 
+//
 // auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T lambda = elas_param.lambda;
 //    T mu = elas_param.mu;
-// 
+//
 //    T fx = 0.0;
 //    T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T lambda = elas_param.lambda;
 //    T fx = (1.0/lambda + alpha) * p.x();
 //    T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
-// 
+//
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    T lambda = elas_param.lambda;
 //    result_grad_type grad = result_grad_type::Zero();
-// 
+//
 //    grad(0,0) = (1.0/lambda + alpha);
 //    grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
 //    grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
-// 
+//
 //    return grad;
 // };
-   
-   
+
+
    T alpha = 0.3;
-   
+
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
-      
+
       T fx = 0.0;
       T fy = 0.0;
       return result_type{fx,fy};
    };
-   
+
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T fx = 0.0;
       T fy = alpha * (p.x() + 1) * (p.x() - 1);
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
       return grad;
    };
-   
+
 
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
@@ -172,12 +172,12 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    std::vector<size_t> boundary_neumann = {1,2}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
-   
-   
+
+
    BoundaryConditions d3;
    d3.id = 3;
    d3.boundary_type = CLAMPED;
-   
+
    std::vector<BoundaryConditions> boundary_dirichlet = {d3};
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);

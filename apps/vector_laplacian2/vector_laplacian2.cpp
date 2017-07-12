@@ -329,7 +329,7 @@ int main(int argc, char **argv)
       run_vector_laplacian_solver(msh, rp, material_data);
       return 0;
    }
-   
+
    /* DiSk++ cartesian 3D */
    if (std::regex_match(mesh_filename, std::regex(".*\\.msh$") ))
    {

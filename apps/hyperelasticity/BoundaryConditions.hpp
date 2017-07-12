@@ -36,10 +36,3 @@ struct BoundaryConditions
    size_t boundary_type;
    // add a function for each boundary and logical to say if we use it
 };
-   
-   
-
-
-
-
-

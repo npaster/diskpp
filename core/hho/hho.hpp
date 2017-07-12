@@ -236,41 +236,41 @@ namespace disk {
 
          return ret;
       }
-      
-      
+
+
       template<typename Function>
       vector_type
       compute_cell_grad(const mesh_type& msh, const cell_type& cl, const Function& f)
       {
          const size_t DIM= msh.dimension;
          const size_t cell_degree = m_bqd.cell_degree();
-         
+
          const size_t grad_basis_size = (m_bqd.grad_basis.range(0, cell_degree + 1)).size();
-         
+
          matrix_type mm = matrix_type::Zero(grad_basis_size, grad_basis_size);
          vector_type rhs = vector_type::Zero(grad_basis_size);
-         
+
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
          for (auto& qp : grad_quadpoints)
          {
             auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
             assert(gphi.size() == grad_basis_size);
-            
+
             for(size_t i = 0; i < grad_basis_size; i++)
                for(size_t j = i; j < grad_basis_size; j++)
                   mm(i,j)  += qp.weight() *mm_prod(gphi[i], gphi[j]);
-               
+
                //lower part
                for (size_t i = 1; i < grad_basis_size; i++)
                   for (size_t j = 0; j < i; j++)
                      mm(i,j) = mm(j,i);
-                  
+
                   for(size_t i=0; i < grad_basis_size; i++){
                      rhs(i) += qp.weight() * mm_prod( f(qp.point()) , gphi[i]);
                   }
-                  
+
          }
-         
+
          grad_mm = mm;
          return mm.llt().solve(rhs);
       }
@@ -728,9 +728,9 @@ namespace disk {
          data  = BG.transpose() * oper;  // A
       }
    };
-   
-   
-   
+
+
+
    template<typename Mesh, typename CellBasisType, typename CellQuadType,
    typename FaceBasisType, typename FaceQuadType,
    typename GradBasisType, typename GradQuadType>
@@ -740,35 +740,35 @@ namespace disk {
       typedef typename mesh_type::scalar_type     scalar_type;
       typedef typename mesh_type::cell            cell_type;
       typedef typename mesh_type::face            face_type;
-      
+
       typedef CellBasisType                       cell_basis_type;
       typedef CellQuadType                        cell_quadrature_type;
       typedef FaceBasisType                       face_basis_type;
       typedef FaceQuadType                        face_quadrature_type;
       typedef GradBasisType                       grad_basis_type;
       typedef GradQuadType                        grad_quadrature_type;
-      
+
       typedef dynamic_matrix<scalar_type>         matrix_type;
       typedef dynamic_vector<scalar_type>         vector_type;
-      
+
       typedef material_tensor<scalar_type, mesh_type::dimension, mesh_type::dimension>
       material_tensor_type;
-      
+
       cell_basis_type                             cell_basis;
       cell_quadrature_type                        cell_quadrature;
-      
+
       face_basis_type                             face_basis;
       face_quadrature_type                        face_quadrature;
-      
+
       grad_basis_type                             grad_basis;
       grad_quadrature_type                        grad_quadrature;
-      
+
       size_t                                      m_degree;
-      
+
    public:
       matrix_type     oper;
       matrix_type     data;
-      
+
       gradient_reconstruction_stab()
       : m_degree(1)
       {
@@ -779,7 +779,7 @@ namespace disk {
          grad_basis          = grad_basis_type(m_degree);
          grad_quadrature     = grad_quadrature_type(2*m_degree);
       }
-      
+
       gradient_reconstruction_stab(size_t degree)
       : m_degree(degree)
       {
@@ -790,47 +790,47 @@ namespace disk {
          grad_basis          = grad_basis_type(m_degree + 1);
          grad_quadrature     = grad_quadrature_type(2 * (m_degree + 1));
       }
-      
+
       void compute(const mesh_type& msh, const cell_type& cl)
       {
          const size_t  DIM = msh.dimension;
          const size_t gpk = DIM * binomial( m_degree +1 +DIM, m_degree+1);
          const size_t gpk2 = grad_basis.size();
-         
+
          assert(gpk == gpk2);
-         
+
          auto fcs = faces(msh, cl);
          const size_t num_faces = fcs.size();
-         
+
          const size_t num_grad_dofs = grad_basis.range(0, m_degree + 1).size();
          const size_t num_cell_dofs = cell_basis.range(0, m_degree).size();
          const size_t num_face_dofs = face_basis.size();
-         
+
          assert(num_grad_dofs == gpk);
-         
+
          dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
-         
+
          assert(dsr.total_size() == (num_cell_dofs + num_faces * num_face_dofs));
-         
+
          matrix_type BG = matrix_type::Zero(num_grad_dofs, dsr.total_size());
-         
+
          matrix_type MG = matrix_type::Zero(num_grad_dofs, num_grad_dofs);
-         
-         
+
+
          auto grad_quadpoints = grad_quadrature.integrate(msh, cl);
          for (auto& qp : grad_quadpoints)
          {
             auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
             assert(num_grad_dofs == gphi.size());
-            
+
             auto dphi = cell_basis.eval_gradients(msh, cl, qp.point(), 0, m_degree);
             assert(cell_basis.size() == dphi.rows());
-            
+
             for(size_t i = 0; i < num_grad_dofs; i++){
                for(size_t j = i; j < num_grad_dofs; j++){
                   MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
                }
-               
+
                for(size_t j = 0; j < num_cell_dofs; j++){
                   assert(dphi.cols() == DIM);
                   auto dphi_j = gphi[i] ;
@@ -840,52 +840,52 @@ namespace disk {
                }
             }
          }
-         
-         
+
+
          // lower part MG
          for(size_t i = 1; i < gpk; i++)
             for(size_t j = 0; j < i; j++)
                MG(i,j) = MG(j,i);
-            
+
             for (size_t face_i = 0; face_i < num_faces; face_i++)
             {
                auto current_face_range = dsr.face_range(face_i);
                auto fc = fcs[face_i];
                auto n = normal(msh, cl, fc);
                auto face_quadpoints = face_quadrature.integrate(msh, fc);
-               
+
                for (auto& qp : face_quadpoints)
                {
                   matrix_type c_phi = cell_basis.eval_functions(msh, cl, qp.point(), 0, m_degree);
                   auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
-                  
+
                   // tau.n
                   matrix_type gphi_n = matrix_type::Zero(gphi.size(), 1);
                   for(size_t i = 0; i < gphi.size(); i++)
                      gphi_n(i,0) = mm_prod(gphi[i], n);
-                  
-                  
+
+
                   matrix_type T = qp.weight() * gphi_n * c_phi.transpose();
-                  
+
                   assert(T.rows() == num_grad_dofs);
                   assert(T.cols() == num_cell_dofs);
-                  
+
                   BG.block(0, 0, num_grad_dofs, num_cell_dofs) -= T;
-                  
+
                   matrix_type f_phi = face_basis.eval_functions(msh, fc, qp.point());
                   matrix_type F = qp.weight() * gphi_n * f_phi.transpose();
-                  
+
                   assert(F.rows() == num_grad_dofs);
                   assert(F.cols() == current_face_range.size());
-                  
+
                   BG.block(0, current_face_range.min(),
                            num_grad_dofs, current_face_range.size()) += F;
                }
             }
-            
+
             oper  = MG.llt().solve(BG);    // GT
             data  = BG.transpose() * oper;  // A
-            
+
             assert(oper.rows() == num_grad_dofs);
             assert(oper.cols() == dsr.total_size());
             assert(data.rows() == dsr.total_size());
@@ -1282,7 +1282,7 @@ namespace disk {
 
          const size_t cell_size = dsr.cell_range().size();
          const size_t face_size = dsr.all_faces_range().size();
-         
+
          assert( cell_size ==  cell_rhs.rows() && "wrong rhs dimension");
          assert( (cell_size + face_size) ==  local_mat.rows() && "wrong lhs rows dimension");
          assert( (cell_size + face_size) ==  local_mat.cols() && "wrong lhs cols dimension");
@@ -1307,8 +1307,8 @@ namespace disk {
 
          return std::make_pair(AC, bC);
       }
-      
-      
+
+
       std::pair<matrix_type, vector_type>
       compute(const mesh_type& msh, const cell_type& cl,
               const matrix_type& local_mat,
@@ -1318,42 +1318,42 @@ namespace disk {
          const size_t face_degree = m_bqd.face_degree();
          const size_t num_cell_dofs = m_bqd.cell_basis.range(0, cell_degree).size();
          const size_t num_face_dofs = m_bqd.face_basis.range(0, face_degree).size();
-         
+
          auto fcs = faces(msh, cl);
          const size_t num_faces = fcs.size();
-         
+
          dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
-         
+
          const size_t cell_size = dsr.cell_range().size();
          const size_t faces_size = dsr.all_faces_range().size();
-         
+
          assert( (cell_size + faces_size) ==  rhs.rows() && "wrong rhs dimension");
          assert( (cell_size + faces_size) ==  local_mat.rows() && "wrong lhs rows dimension");
          assert( (cell_size + faces_size) ==  local_mat.cols() && "wrong lhs cols dimension");
-         
+
          const matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
          const matrix_type K_TF = local_mat.topRightCorner(cell_size, faces_size);
          const matrix_type K_FT = local_mat.bottomLeftCorner(faces_size, cell_size);
          const matrix_type K_FF = local_mat.bottomRightCorner(faces_size, faces_size);
-         
+
          assert(K_TT.cols() == cell_size && "wrong K_TT dimension");
          assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
          assert(K_TT.rows() + K_FT.rows() == local_mat.rows());
          assert(K_TF.rows() + K_FF.rows() == local_mat.rows());
          assert(K_FT.cols() + K_FF.cols() == local_mat.cols());
-         
+
          const vector_type rhs_cell = rhs.block(0,0, cell_size, 1);
          const vector_type rhs_faces = rhs.block(cell_size,0, faces_size, 1);
-         
+
          assert((rhs_cell.rows() + rhs_faces.rows() ) ==  rhs.rows() && "wrong rhs decomposition");
-         
+
          auto K_TT_ldlt = K_TT.llt();
          const matrix_type AL = K_TT_ldlt.solve(K_TF);
          const vector_type bL = K_TT_ldlt.solve(rhs_cell);
-         
+
          const matrix_type AC = K_FF - K_FT * AL;
          const vector_type bC = rhs_faces - K_FT * bL;
-         
+
          return std::make_pair(AC, bC);
       }
 
@@ -1375,7 +1375,7 @@ namespace disk {
 
          const size_t cell_size        = dsr.cell_range().size();
          const size_t all_faces_size   = dsr.all_faces_range().size();
-         
+
          assert(cell_rhs.rows() == cell_size && "wrong rhs_cell dimension");
          assert(solF.rows() == all_faces_size && "wrong solF dimension");
          assert( (cell_size + all_faces_size) == local_mat.rows() && "wrong lhs rows dimension");
@@ -1385,10 +1385,10 @@ namespace disk {
 
          const matrix_type K_TT = local_mat.topLeftCorner(cell_size, cell_size);
          const matrix_type K_TF = local_mat.topRightCorner(cell_size, all_faces_size);
-         
+
          assert(K_TT.cols() == cell_size && "wrong K_TT dimension");
          assert(K_TT.cols() + K_TF.cols() == local_mat.cols());
-         
+
          assert(num_cell_dofs == cell_rhs.size());
          assert((num_face_dofs * num_faces) == solF.size());
 

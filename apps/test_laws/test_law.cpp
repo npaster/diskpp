@@ -25,16 +25,16 @@
 int main(int argc, char **argv)
 {
     using RealType = double;
-    
+
     test_plaplace_2d<RealType>(1E-15);
     test_plaplace_3d<RealType>(1E-15);
-    
+
     test_tm_prod<RealType>(1E-15);
-    
+
     test_Ftensor<RealType>(1E-15);
-    
+
     test_CauchyGreen<RealType>(1E-15);
-    
+
     test_kronecker<RealType>(1E-15);
     test_prodsup<RealType>(1E-15);
     test_prodinf<RealType>(1E-15);

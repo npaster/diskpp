@@ -81,7 +81,7 @@ class NewtonRaphson_step_hyperelasticity
     vector_type            m_system_rhs, m_system_solution;
 
     solver_type             solver;
-    
+
     const BQData&                               m_bqd;
 
     const mesh_type& m_msh;
@@ -131,7 +131,7 @@ public:
       m_solution_data.clear();
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
-      
+
       if(m_elas_param.adaptative_stab)
          m_adpat_stab.resize(m_msh.cells_size());
     }
@@ -175,7 +175,7 @@ public:
 
             tc.tic();
             hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
-            
+
             if(m_elas_param.adaptative_stab){
                m_beta = hyperelasticity.beta_adap;
                m_adpat_stab[i] = m_beta;
@@ -209,7 +209,7 @@ public:
 
          assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann, boundary_dirichlet);
          assembler.finalize(m_system_matrix, m_system_rhs);
-         
+
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
          ai.m_linear_system_size = m_system_matrix.rows();
@@ -240,11 +240,11 @@ public:
       if(es.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not compute eigenvalues of the matrix" << std::endl;
       }
-      
+
       auto ev = es.eigenvalues();
-      
+
       size_t nb_negative_eigenvalue(0);
-      
+
       size_t i_ev = 0;
       while(ev(i_ev) <= scalar_type(0.0))
       {
@@ -299,7 +299,7 @@ public:
 
     template<typename LoadFunction, typename NeumannFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf, const NeumannFunction& g, 
+    postprocess(const LoadFunction& lf, const NeumannFunction& g,
                 const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
@@ -349,14 +349,14 @@ public:
             gradrec.compute(m_msh, cl, false);
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
-            
+
             tc.tic();
 //             deplrec.compute(m_msh, cl);
 //             stab.compute(m_msh, cl, deplrec.oper);
             stab.compute(m_msh, cl, gradrec.oper());
             tc.toc();
             pi.m_time_stab += tc.to_double();
-            
+
             tc.tic();
 
             hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param);
@@ -366,7 +366,7 @@ public:
             }
             else
                m_beta = m_elas_param.tau;
-               
+
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
 
@@ -382,7 +382,7 @@ public:
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
             tc.toc();
             pi.m_time_statcond += tc.to_double();
-            
+
             m_postprocess_data.push_back(x);
 
             i++;

@@ -65,14 +65,14 @@ class diffusion_solver
     typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>    cell_basis_type;
     typedef disk::scaled_monomial_scalar_basis<mesh_type, face_type>    face_basis_type;
     typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    grad_basis_type;
-    
+
     typedef disk::basis_quadrature_data_full<mesh_type,   disk::scaled_monomial_scalar_basis,
                                              disk::scaled_monomial_vector_basis,
                                              disk::quadrature>          bqdata_type;
 
 
     typedef disk::gradient_reconstruction_full_bq<bqdata_type>          gradrec_type;
-                                                          
+
     typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
     typedef disk::assembler<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
     typedef disk::projector_bq<bqdata_type> projk_type;
@@ -113,7 +113,7 @@ public:
 
     bool    verbose(void) const     { return m_verbose; }
     void    verbose(bool v)         { m_verbose = v; }
-    
+
     size_t getDofs() {return m_msh.faces_size() * m_bqd.face_basis.size();}
 
     template<typename LoadFunction, typename BoundaryConditionFunction>
@@ -128,7 +128,7 @@ public:
         bzero(&ai, sizeof(ai));
 
         timecounter tc, ttot;
-        
+
         ttot.tic();
 
         for (auto& cl : m_msh)
@@ -150,9 +150,9 @@ public:
 
         assembler.impose_boundary_conditions(m_msh, bcf);
         assembler.finalize(m_system_matrix, m_system_rhs);
-        
+
         ttot.toc();
-        
+
         ai.time_assembly = ttot.to_double();
 
         ai.linear_system_size = m_system_matrix.rows();
@@ -260,20 +260,20 @@ public:
 
         return sqrt(err_dof);
     }
-    
-    
+
+
     template<typename AnalyticalSolution>
     scalar_type
     compute_l2_gradient_error(const AnalyticalSolution& grad)
     {
        scalar_type err_dof = scalar_type{0.0};
-       
+
        projk_type projk(m_bqd);
-       
+
        gradrec_type gradrec(m_bqd);
-       
+
        size_t i = 0;
-       
+
        for (auto& cl : m_msh)
        {
           auto x = m_postprocess_data.at(i++);
@@ -284,7 +284,7 @@ public:
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
           err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
        }
-       
+
        return sqrt(err_dof);
     }
 
