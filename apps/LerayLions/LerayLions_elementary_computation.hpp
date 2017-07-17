@@ -110,8 +110,15 @@ namespace LerayLions {
                   //compute (Gkt v, A(u) : Gkt du)
                   AT(i,j) += qp.weight() * disk::mm_prod(Agphi_i, gphi[j]);
                }
+            }
+
                // compute (PK1(u), G^k_T v)_T
-               aT(i) += qp.weight() * disk::mm_prod(tensor_behavior.first, gphi[i]);
+            for(std::size_t i = 0; i < grad_basis_size; i += DIM){
+               size_t row = i;
+               for(size_t k = 0; k < DIM; k++){
+                  aT(row) += qp.weight() * tensor_behavior.first(k) * gphi[row](k);
+                  row++;
+               }
             }
 
             //compute (f,v)_T
