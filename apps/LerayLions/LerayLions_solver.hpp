@@ -158,20 +158,20 @@ public:
       total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
       //provisoire
 
-//       for(size_t i = 0; i < m_msh.cells_size(); i++)
-//       {
-//          m_solution_data[i].setConstant(10.0);
-//          m_solution_cells[i].setConstant(10.0);
-//       }
-//
-//       for(size_t i = 0; i < m_msh.faces_size(); i++)
-//       {
-//          m_solution_faces[i].setConstant(10.0);
-//       }
-//
-//       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
-//          m_solution_lagr[i].setConstant(1.0);
-//      }
+      for(size_t i = 0; i < m_msh.cells_size(); i++)
+      {
+         m_solution_data[i].setConstant(0.01);
+         m_solution_cells[i].setConstant(0.01);
+      }
+
+      for(size_t i = 0; i < m_msh.faces_size(); i++)
+      {
+         m_solution_faces[i].setConstant(0.01);
+      }
+
+      for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
+         m_solution_lagr[i].setConstant(0.01);
+     }
    }
 
    template<typename LoadFunction, typename BoundaryConditionFunction>
@@ -214,23 +214,6 @@ public:
 
       newton_solver.verbose(m_verbose);
 
-//       //elastic guess
-//       if(m_rp.m_init_elastic){
-//          const time_step step = list_step.front();
-//          const scalar_type current_time = step.time;
-//
-//          auto rlf = [&lf, &current_time](const Point& p) -> auto {
-//             return disk::mm_prod(current_time, lf(p));
-//
-//          };
-//
-//          auto rbcf = [&bcf, &current_time](const Point& p) -> auto {
-//             return disk::mm_prod(current_time, bcf(p));
-//          };
-//
-//          NewtonSolverInfo newton_info = newton_solver.compute_elastic_guess(rlf, rbcf);
-//          si.updateInfo(newton_info);
-//       }
 
       //loading
       while(!list_step.empty())
@@ -255,11 +238,6 @@ public:
             return disk::mm_prod(current_time, bcf(p));
          };
 
-
-         //prediction
-         if(m_rp.m_prediction){
-            newton_solver.prediction(delta_t);
-         }
          //correction
          NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, m_rp.m_epsilon, m_rp.m_iter_max);
          si.updateInfo(newton_info);

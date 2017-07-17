@@ -474,13 +474,15 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "23k:l:m:n:p:v")) != -1 )
+   while ( (ch = getopt(argc, argv, "23i:k:l:m:n:p:v")) != -1 )
    {
       switch(ch)
       {
          case '2': three_dimensions = false; break;
 
          case '3': three_dimensions = true; break;
+
+         case 'i': rp.m_iter_max = atoi(optarg); break;
 
          case 'k':
             degree = atoi(optarg);

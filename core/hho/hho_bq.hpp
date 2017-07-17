@@ -151,68 +151,75 @@ namespace disk {
             assert(num_cell_dofs == dphi.rows());
             assert(dphi.cols() == DIM);
 
-            for(size_t i = 0; i < num_grad_dofs; i++){
-               for(size_t j = i; j < num_grad_dofs; j++){
-                  MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
-               }
-
-               for(size_t j = 0; j < num_cell_dofs; j++){
-                  auto dphi_j = gphi[i];
-                  for(size_t d = 0; d < dphi.cols(); d++) { dphi_j(d) = dphi(j,d);}
-                  BG(i,j) += qp.weight() * mm_prod(gphi[i], dphi_j );
+            for(size_t j = 0; j < num_grad_dofs; j += DIM){
+               size_t col = j;
+               for(size_t k = 0; k < DIM; k++){
+                  for(size_t i = col; i < num_grad_dofs; i += DIM){
+                     MG(i,col) += qp.weight() * gphi[i](k) * gphi[col](k);
+                  }
+                  col++;
                }
             }
-         }
 
+            for(size_t j = 0; j < num_cell_dofs; j++){
+               for(size_t i = 0; i < num_grad_dofs; i += DIM){
+                  size_t row = i;
+                  for(size_t k = 0; k < DIM; k++){
+                     BG(row,j) += qp.weight() * gphi[row](k) * dphi(j,k);
+                     row++;
+                  }
+               }
+            }
+         }// end qp
 
          // lower part MG
-         for(size_t i = 1; i < num_grad_dofs; i++)
-            for(size_t j = 0; j < i; j++)
+         for(size_t i = 1; i <  num_grad_dofs; i++)
+            for(size_t j = i; j < num_grad_dofs; j++)
                MG(i,j) = MG(j,i);
 
-            for (size_t face_i = 0; face_i < num_faces; face_i++)
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            auto current_face_range = dsr.face_range(face_i);
+            auto fc = fcs[face_i];
+            auto n = normal(msh, cl, fc);
+            auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+
+            for (auto& qp : face_quadpoints)
             {
-               auto current_face_range = dsr.face_range(face_i);
-               auto fc = fcs[face_i];
-               auto n = normal(msh, cl, fc);
-               auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+               matrix_type c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
+               auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
 
-               for (auto& qp : face_quadpoints)
-               {
-                  matrix_type c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
-                  auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+               // tau.n
+               matrix_type gphi_n = matrix_type::Zero(num_grad_dofs, 1);
+               for(size_t i = 0; i < num_grad_dofs; i += DIM)
+                  for(size_t k = 0; k < DIM; k++)
+                     gphi_n(i + k,0) = gphi[i + k](k) * n(k);
 
-                  // tau.n
-                  matrix_type gphi_n = matrix_type::Zero(gphi.size(), 1);
-                  for(size_t i = 0; i < gphi.size(); i++)
-                     gphi_n(i,0) = mm_prod(gphi[i], n);
+                     matrix_type T = qp.weight() * gphi_n * c_phi.transpose();
 
+                     assert(T.rows() == num_grad_dofs);
+                     assert(T.cols() == num_cell_dofs);
 
-                  matrix_type T = qp.weight() * gphi_n * c_phi.transpose();
+                     BG.block(0, 0, num_grad_dofs, num_cell_dofs) -= T;
 
-                  assert(T.rows() == num_grad_dofs);
-                  assert(T.cols() == num_cell_dofs);
+                     matrix_type f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
+                     matrix_type F = qp.weight() * gphi_n * f_phi.transpose();
 
-                  BG.block(0, 0, num_grad_dofs, num_cell_dofs) -= T;
+                     assert(F.rows() == num_grad_dofs);
+                     assert(F.cols() == current_face_range.size());
 
-                  matrix_type f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
-                  matrix_type F = qp.weight() * gphi_n * f_phi.transpose();
-
-                  assert(F.rows() == num_grad_dofs);
-                  assert(F.cols() == current_face_range.size());
-
-                  BG.block(0, current_face_range.min(),
-                           num_grad_dofs, current_face_range.size()) += F;
+                     BG.block(0, current_face_range.min(),
+                     num_grad_dofs, current_face_range.size()) += F;
+                  }
                }
-            }
 
-            m_oper  = MG.llt().solve(BG);    // GT
-            if(compute_data)
+               m_oper  = MG.llt().solve(BG);    // GT
+               if(compute_data)
                m_data  = BG.transpose() * m_oper;  // A
 
-            assert(m_oper.rows() == num_grad_dofs);
-            assert(m_oper.cols() == dsr.total_size());
-      }
+               assert(m_oper.rows() == num_grad_dofs);
+               assert(m_oper.cols() == dsr.total_size());
+            }
    };
 
 
