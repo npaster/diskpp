@@ -42,7 +42,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#include "hyperelasticity_solver.hpp"
+#include "hyperelasticity2_solver.hpp"
 
 
 void
@@ -72,7 +72,6 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    std::cout << "Degree k= " << rp.m_degree << std::endl;
    std::cout << "mu= " << elas_param.mu << std::endl;
    std::cout << "lambda= " << elas_param.lambda << std::endl;
-   std::cout << "tau= " << elas_param.tau << std::endl;
    std::cout << "gamma= " << gamma << std::endl;
    std::cout << "gamma_normalise= " << gamma/elas_param.mu << std::endl;
    std::cout << "law= " << elas_param.type_law << std::endl;
@@ -106,7 +105,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    // 4 for Aurrichio test1
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
 
 
    nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
@@ -138,7 +137,6 @@ int main(int argc, char **argv)
     using RealType = double;
 
     char    *mesh_filename  = nullptr;
-    char    *plot_filename  = nullptr;
     int     degree          = 1;
     int     l               = 0;
     int     n_time_step     = 1;
@@ -152,18 +150,18 @@ int main(int argc, char **argv)
 
     param.mu = 40.0;
     param.lambda = param.mu * 1E5;
-    param.tau = 10.0;
-    param.adaptative_stab = false;
     param.type_law = 3;
     
     RealType gamma = 1.0;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "g:k:l:m:n:o:s:t:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "e:i:g:k:l:m:n:t:v")) != -1 )
     {
        switch(ch)
        {
+          case 'i': rp.m_iter_max = atof(optarg); break;
+          case 'e': rp.m_epsilon = atof(optarg); break;
           case 'g': gamma = atof(optarg); break;
           case 'k':
              degree = atoi(optarg);
@@ -205,11 +203,8 @@ int main(int argc, char **argv)
              rp.m_n_time_step = n_time_step;
              break;
              
-          case 'o': param.type_law = atoi(optarg); break;
-          case 's': param.adaptative_stab = true; break;
-          
-          case 't': param.tau = atof(optarg); break;
-          
+          case 't': param.type_law = atoi(optarg); break;
+
           case 'v': rp.m_verbose = true; break;
              
           case 'h':

@@ -75,7 +75,7 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
    };
 
 
-   vector_laplacian_solver<mesh_type> vl(msh, rp.degree);
+   vector_laplacian_solver<mesh_type> vl(msh, rp.degree, rp.l);
    vl.verbose(rp.verbose);
 
    vl.changeLaplacianParameters(material_data);
@@ -155,7 +155,7 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
    };
 
 
-   vector_laplacian_solver<mesh_type> vl(msh, rp.degree);
+   vector_laplacian_solver<mesh_type> vl(msh, rp.degree, rp.l);
    vl.verbose(rp.verbose);
 
    vl.changeLaplacianParameters(material_data);
@@ -329,7 +329,7 @@ int main(int argc, char **argv)
       run_vector_laplacian_solver(msh, rp, material_data);
       return 0;
    }
-
+   
    /* DiSk++ cartesian 3D */
    if (std::regex_match(mesh_filename, std::regex(".*\\.msh$") ))
    {

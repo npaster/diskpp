@@ -16,7 +16,7 @@
 
 #include <iostream>
 
-#include <sstream>
+   #include <sstream>
 
 #include "../../config.h"
 
@@ -65,10 +65,10 @@ class hyperelasticity2_solver
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
-   
+
    typedef disk::gradient_reconstruction_elas_full_bq<bqdata_type>     gradrec_type;
    typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
-   
+
    bqdata_type     m_bqd;
 
    const mesh_type& m_msh;
@@ -120,7 +120,7 @@ public:
 
       const size_t nb_faces_dirichlet = m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann);
       const size_t nb_lag_conditions = number_of_lag_conditions(m_msh, boundary_dirichlet, boundary_neumann);
-      
+
       assert(nb_faces_dirichlet == nb_lag_conditions/m_msh.dimension);
 
       m_solution_data.reserve(m_msh.cells_size());
@@ -171,12 +171,12 @@ public:
 //          m_solution_data[i].setConstant(10.0);
 //          m_solution_cells[i].setConstant(10.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.faces_size(); i++)
 //       {
 //          m_solution_faces[i].setConstant(10.0);
 //       }
-// 
+//
 //       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
 //          m_solution_lagr[i].setConstant(1.0);
 //      }
@@ -199,9 +199,17 @@ public:
 
       newton_solver.verbose(m_verbose);
 
+
       scalar_type delta_t = 1.0/m_rp.m_n_time_step;
 
       std::list<time_step> list_step;
+
+      if(m_rp.m_init_elas){
+            time_step step1;
+            step1.time = 1E-5;
+            step1.level = 1;
+            list_step.push_back(step1);
+      }
 
       for (size_t n = 0; n < m_rp.m_n_time_step; n++)
       {
@@ -210,10 +218,10 @@ public:
          step.level = 1;
          list_step.push_back(step);
       }
-      
+
       size_t current_step = 0;
-      size_t total_step = m_rp.m_n_time_step;
-      
+      size_t total_step = list_step.size();
+
       scalar_type old_time = 0.0;
 
       while(!list_step.empty())
@@ -222,11 +230,11 @@ public:
          time_step step = list_step.front();
          const scalar_type current_time = step.time;
          delta_t = current_time - old_time;
-         
+
          if(m_verbose){
-            std::cout << "--------------------------------------------------------------" << std::endl;
-            std::cout << "*************** Time : " << current_time << " sec (step: " << current_step
-            << "/" << total_step << ") *****************|" << std::endl;
+            std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
+            std::cout << "*********************************   Time : " << current_time << " sec (step: " << current_step
+            << "/" << total_step << ")   ********************************|" << std::endl;
          }
 
          auto rlf = [&lf, &current_time](const Point& p) -> auto {
@@ -242,13 +250,15 @@ public:
          auto rgf = [&g, &current_time](const Point& p) -> auto {
             return disk::mm_prod(current_time, g(p));
          };
-         
+
          //prediction
          if(m_rp.m_prediction){
             newton_solver.prediction(delta_t);
          }
 
-         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rgf, boundary_neumann, boundary_dirichlet);
+         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rgf, boundary_neumann, boundary_dirichlet,
+                                                               m_rp.m_epsilon, m_rp.m_iter_max);
+
          si.updateInfo(newton_info);
 
          if(m_verbose){
@@ -296,7 +306,7 @@ public:
         newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
 
       ttot.toc();
-      si.m_time_solver = ttot.to_double(); 
+      si.m_time_solver = ttot.to_double();
       return si;
    }
 
@@ -401,8 +411,8 @@ public:
 
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
-    
-    
+
+
     void
     compute_conforme_solution(const std::string& filename)
     {
@@ -410,9 +420,9 @@ public:
        auto storage = m_msh.backend_storage();
        std::vector<double> vzero(3,0.0);
        size_t nb_nodes(gmsh.getNumberofNodes());
-       
+
        //first(number of data at this node), second(cumulated value)
-       std::vector<std::pair<size_t, std::vector<scalar_type> > > value(nb_nodes, std::make_pair(0, vzero)); 
+       std::vector<std::pair<size_t, std::vector<scalar_type> > > value(nb_nodes, std::make_pair(0, vzero));
 
        size_t cell_i(0);
        for (auto& cl : m_msh)
@@ -434,28 +444,28 @@ public:
              for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
                 for(size_t j=0; j < DIM; j++)
                    depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
-                   
+
              value[point_ids].first +=1;
              for(size_t j=0; j < DIM; j++)
                value[point_ids].second[j] += depl[j];
           }
        }
-       
+
        std::vector<visu::Data> data; //create data
        std::vector<visu::SubData> subdata; //create subdata
        data.reserve(nb_nodes); // data has a size of nb_node
-       
+
       for(size_t  i_node = 0; i_node < value.size(); i_node++){
          std::vector<double> tmp_value(3,0.0);
          for(size_t j=0; j < DIM; j++)
             tmp_value[j] = value[i_node].second[j]/ double(value[i_node].first);
-         
+
          visu::Data tmp_data(i_node + 1, tmp_value);
          data.push_back(tmp_data); //add data
       }
-       
+
        visu::NodeData nodedata(3, 0.0, "depl_node", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
 
@@ -502,18 +512,18 @@ public:
        gmsh.writeGmesh(filename, 2);
 
     }
-    
-    
+
+
     template<typename AnalyticalSolution>
     void
     plot_l2error_at_gausspoint(const std::string& filename, const AnalyticalSolution& as)
     {
        visu::Gmesh msh; //creta a mesh
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
        size_t nb_node =  msh.getNumberofNodes();
-       
+
        size_t cell_i = 0;
        for (auto& cl : m_msh)
        {
@@ -521,42 +531,42 @@ public:
           auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
           {
-             
+
              auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-             
+
              std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
 
              for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.m_cell_degree()).size(); i += DIM)
                 for(size_t j = 0; j < DIM; j++)
                    depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
-             
+
              auto true_depl = as(qp.point()); // a voir et projeté
-             
+
              nb_node += 1;
              visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
              std::vector<double> value(1, 0.0); // save the solution at gauss point
              for(size_t i = 0; i < DIM; i++)
                 value[0] += std::pow(depl[i] - true_depl(i), 2.0);
-             
+
              value[0] = sqrt(value[0]);
-             
+
              visu::SubData sdata(value, snode);
              subdata.push_back(sdata); // add subdata
-             
-             
+
+
           }
        }
-       
+
        visu::NodeData nodedata(1, 0.0, "error_depl", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, msh); // save the view
     }
-    
+
     void
     plot_displacement_at_gausspoint(const std::string& filename)
     {
        visu::Gmesh msh; //creta a mesh
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
        size_t nb_node =  msh.getNumberofNodes();
@@ -568,72 +578,72 @@ public:
           auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
           {
-             
+
              auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-             
+
              std::vector<double> depl(3, double{0.0});
-             
+
              for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
                 for(size_t j = 0; j < DIM; j++)
                    depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
-             
-             
+
+
              nb_node += 1;
              visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
              visu::SubData sdata(depl, snode);
              subdata.push_back(sdata); // add subdata
-             
-             
+
+
           }
        }
-       
+
        visu::NodeData nodedata(3, 0.0, "depl", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, msh); // save the view
     }
-    
-    
+
+
     void
     plot_J_at_gausspoint(const std::string& filename)
     {
        visu::Gmesh msh; //creta a mesh
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
        size_t nb_node =  msh.getNumberofNodes();
-       
+
        gradrec_type gradrec(m_bqd);
-       
+
        size_t cell_i = 0;
        for (auto& cl : m_msh)
        {
           vector_dynamic x = m_solution_data.at(cell_i++);
           gradrec.compute(m_msh, cl);
           vector_dynamic GTu = gradrec.oper()*x;
-          
+
           auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
           {
-             
+
              auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-             
+
              // Compute local gradient and norm
              auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
              auto FT_iqn = compute_FTensor(GT_iqn);
-             
+
              std::vector<double> J(1, FT_iqn.determinant());
-             
+
             nb_node += 1;
             visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
             visu::SubData sdata(J, snode);
              subdata.push_back(sdata); // add subdata
-             
-             
+
+
           }
        }
-       
+
        visu::NodeData nodedata(1, 0.0, "Jacobian", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, msh); // save the view
     }
 

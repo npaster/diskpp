@@ -42,7 +42,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#include "hyperelasticity_solver.hpp"
+#include "hyperelasticity2_solver.hpp"
 
 struct error_type
 {
@@ -119,7 +119,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    std::vector<size_t> boundary_neumann(0);
    std::vector<BoundaryConditions> boundary_dirichlet = {};
    
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
    
    nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
    
@@ -229,7 +229,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 
 
-   hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp, elas_param);
 
    nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
 
@@ -547,8 +547,6 @@ int main(int argc, char **argv)
    ElasticityParameters param = ElasticityParameters();
    param.lambda = 1.0;
    param.mu = 1.0;
-   param.tau = 1000.0;
-   param.adaptative_stab = false;
    param.type_law = 1;
 
    int ch;
@@ -601,10 +599,6 @@ int main(int argc, char **argv)
             rp.m_n_time_step = n_time_step;
             break;
 
-         case 's': param.adaptative_stab = true; break;
-         
-         case 't': param.tau = atof(optarg); break;
-
          case 'v': rp.m_verbose = true; break;
          
          case 'h':
@@ -626,8 +620,6 @@ int main(int argc, char **argv)
    std::cout << " Test convergence rates for: "<< std::endl;
    std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
    std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
-   std::cout << " ** Stab tau = " << param.tau << std::endl;
-   std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;
    std::cout << " "<< std::endl;
 

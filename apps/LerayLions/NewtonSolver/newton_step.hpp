@@ -70,7 +70,7 @@ class NewtonRaphson_step_leraylions
     vector_type            m_system_rhs, m_system_solution;
 
     solver_type             solver;
-
+    
     const BQData&                               m_bqd;
 
     const mesh_type& m_msh;
@@ -142,7 +142,7 @@ public:
 
             tc.tic();
             elem.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_leray_param);
-
+            
 
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = elem.K_int;
@@ -163,13 +163,13 @@ public:
 
          assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr);
          assembler.finalize(m_system_matrix, m_system_rhs);
-
+         
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
          ai.m_linear_system_size = m_system_matrix.rows();
         return ai;
     }
-
+    
 
     void
     saveMatrix(const std::string& filename)
@@ -195,11 +195,11 @@ public:
       if(es.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not compute eigenvalues of the matrix" << std::endl;
       }
-
+      
       auto ev = es.eigenvalues();
-
+      
       size_t nb_negative_eigenvalue(0);
-
+      
       size_t i_ev = 0;
       while(ev(i_ev) <= scalar_type(0.0))
       {
@@ -222,7 +222,7 @@ public:
       return nb_negative_eigenvalue;
     }
 
-
+    
     SolveInfo
     solve(void)
     {
@@ -231,45 +231,45 @@ public:
        #else
        Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
        #endif
-
+       
        timecounter tc;
-
+       
        tc.tic();
        solver.analyzePattern(m_system_matrix);
        solver.factorize(m_system_matrix);
-
+       
        if(solver.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not factorize the matrix" << std::endl;
        }
-
+       
        m_system_solution = solver.solve(m_system_rhs);
        if(solver.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not solve the linear system" << std::endl;
        }
        tc.toc();
-
+       
        return SolveInfo(m_system_matrix.rows(), m_system_matrix.nonZeros(), tc.to_double());
     }
-
+    
     //a améliorer supprimer condensation statique
     template<typename LoadFunction, typename BoundaryConditionFunction>
     bool
     line_search(const LoadFunction& lf, const BoundaryConditionFunction& bcf,
                 scalar_type& gamma, const size_t max_iter)
     {
-
+       
        gamma = scalar_type(1.0);
        const scalar_type r0 = m_system_rhs.norm();
 
-
-
+       
+       
        for(size_t iter = 0; iter < max_iter; iter++){
-
-
+       
+       
          std::vector<vector_dynamic>        solution_data(m_solution_data);
          std::vector<vector_dynamic>        solution_faces(m_solution_faces);
          std::vector<vector_dynamic>        solution_lagr(m_solution_lagr);
-
+         
          for(size_t i=0; i < m_postprocess_data.size(); i++){
             solution_data.at(i) += gamma * m_postprocess_data.at(i);
          }
@@ -282,8 +282,8 @@ public:
          for(size_t i=0; i < m_solution_lagr.size(); i++){
             solution_lagr.at(i) += gamma * m_system_solution.block(lagrange_offset + i * fbs, 0, fbs, 1);
          }
-
-
+         
+         
          //compute rhs
          gradrec_type    gradrec(m_bqd);
          elem_type       elem(m_bqd);
@@ -291,32 +291,32 @@ public:
          assembler_type  assembler(m_msh, m_bqd);
          sparse_matrix_type     system_matrix;
          vector_type            system_rhs;
-
+         
          AssemblyInfo ai;
-
+         
          timecounter tc, ttot;
-
+         
          ttot.tic();
          size_t i = 0;
-
-
-
-
+         
+         
+         
+         
          for (auto& cl : m_msh)
          {
             tc.tic();
             gradrec.compute(m_msh, cl);
             tc.toc();
             ai.m_time_gradrec += tc.to_double();
-
+            
             tc.tic();
             elem.compute(m_msh, cl, lf, gradrec.oper, solution_data.at(i), m_leray_param);
-
-
+            
+            
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = elem.K_int;
             dynamic_vector<scalar_type> rhs = elem.RTF;
-
+            
             tc.toc();
             ai.m_time_elem += tc.to_double();
             ai.m_time_law += elem.time_law;
@@ -324,30 +324,30 @@ public:
             auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
             tc.toc();
             ai.m_time_statcond += tc.to_double();
-
+            
             assembler.assemble(m_msh, cl, scnp);
-
+            
             i++;
          }
-
+         
          assembler.impose_boundary_conditions(m_msh, bcf, solution_faces, solution_lagr);
          assembler.finalize(system_matrix, system_rhs);
-
+         
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
          ai.m_linear_system_size = system_matrix.rows();
-
+         
          const scalar_type r = system_rhs.norm();
-
+         
          std::cout << "r0= " << r0 << " , r= " << r << std::endl;
-
+         
          if(std::abs(r) < 0.1*std::abs(r0)){
             m_system_matrix = system_matrix;
             m_system_rhs = system_rhs;
             return true;
-         }
+         }  
          else
-            gamma /=2;
+            gamma /=2; 
        }//fin for
        gamma = 1.0;
        return false;
@@ -401,10 +401,10 @@ public:
             gradrec.compute(m_msh, cl, false);
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
-
+            
             tc.tic();
             elem.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_leray_param);
-
+               
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = elem.K_int;
             dynamic_vector<scalar_type> rhs = elem.RTF;
@@ -418,7 +418,7 @@ public:
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
             tc.toc();
             pi.m_time_statcond += tc.to_double();
-
+            
             m_postprocess_data.push_back(x);
 
             i++;
@@ -483,10 +483,10 @@ public:
          relative_error = 0.0;
          max_error = 0.0;
       }
-
+      
       size_t nb_faces_dof = m_bqd.face_basis.size() * m_msh.faces_size();
       size_t nb_lag_dof = m_bqd.face_basis.size() * m_msh.boundary_faces_size();
-
+      
       scalar_type norm_depl = (m_system_rhs.head(nb_faces_dof)).norm();
       scalar_type norm_lag = (m_system_rhs.tail(nb_lag_dof)).norm();
 
@@ -503,13 +503,13 @@ public:
          std::ios::fmtflags f( std::cout.flags() );
          std::cout.precision(5);
          std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-         std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   "
+         std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   " 
          << norm_depl << "  |   " << norm_lag << "  |" << std::endl;
          std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
          std::cout.flags( f );
       }
-
-      error = std::min(relative_error, residual);
+      
+      error = std::min(max_error, residual);
 
       if(error <= epsilon ){
          return true;
