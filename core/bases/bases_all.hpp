@@ -1137,8 +1137,8 @@ class scaled_monomial_vector_basis<Mesh<T,1,Storage>, typename Mesh<T,1,Storage>
    typedef priv::monomial_basis_bones<1>           base;
 
 public:
-   typedef T              function_value_type;
-   typedef T           gradient_value_type;
+   typedef static_vector<T,1>              function_value_type;
+   typedef static_matrix<T,1,1>            gradient_value_type;
 
    scaled_monomial_vector_basis()
       : base(1)
@@ -1164,7 +1164,7 @@ public:
          auto m = *itor;
          auto vx = iexp_pow(ep.x(), m[0]);
          function_value_type val;
-         val = vx;
+         val(0) = vx;
 
          ret.push_back(val);
       }
@@ -1190,7 +1190,7 @@ public:
          auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
 
          gradient_value_type sg;
-         sg = dx ;
+         sg(0,0) = dx ;
          ret.push_back(sg);
       }
 
@@ -1215,7 +1215,7 @@ public:
          auto dx = (m[0] == 0) ? 0 : (m[0]/h)*iexp_pow(ep.x(), m[0]-1);
 
          gradient_value_type sg;
-         sg = dx ;
+         sg(0,0) = dx ;
          ret.push_back(sg);
       }
 
@@ -1234,7 +1234,7 @@ class scaled_monomial_vector_basis<Mesh<T,1,Storage>, typename Mesh<T,1,Storage>
    typedef priv::monomial_basis_bones<0>               base;
 
 public:
-   typedef T              function_value_type;
+   typedef static_vector<T,1>              function_value_type;
 
    scaled_monomial_vector_basis()
       : base(1)
@@ -1253,7 +1253,7 @@ public:
       assert(this->size() == 1);
 
       function_value_type val;
-      val = T{1};
+      val(0) = T{1};
 
       ret.push_back(val);
       return ret;
