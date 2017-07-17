@@ -184,15 +184,16 @@ public:
       ttot.tic();
 
       //time step
-      const scalar_type tinit = 1E-6;
-      scalar_type delta_t = (1.0)/m_rp.m_n_time_step;
-
+      scalar_type delta_t = (1.0 - m_rp.m_t_init)/m_rp.m_n_time_step;
       std::list<time_step> list_step;
 
-//       time_step step1;
-//       step1.time = tinit;
-//       step1.level = 1;
-//       list_step.push_back(step1);
+      if(m_rp.m_init){
+         time_step step1;
+         step1.time = m_rp.m_t_init;
+         step1.level = 1;
+         list_step.push_back(step1);
+      }
+
       for (size_t n = 0; n < m_rp.m_n_time_step; n++)
       {
          time_step step;

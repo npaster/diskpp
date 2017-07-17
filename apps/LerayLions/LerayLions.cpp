@@ -41,7 +41,66 @@
 
 #include "LerayLions_solver.hpp"
 
+template<template<typename, size_t , typename> class Mesh,
+         typename T, typename Storage>
+void
+run_leraylions_solver(const Mesh<T, 1, Storage>& msh, ParamRun<T>& rp, const T leray_param)
+{
+   typedef T result_type;
 
+   auto load = [leray_param](const point<T,1>& pt) -> result_type {
+      const T p = leray_param;
+      result_type norm_G = M_PI *  std::abs(cos(pt.x() * M_PI));
+
+      T fx = 0;
+
+      return result_type{fx};
+   };
+
+   auto solution = [leray_param](const point<T,1>& pt) -> result_type {
+      return sin(pt.x() * M_PI);
+   };
+
+
+   leraylions_solver<Mesh, T, 1, Storage,  point<T, 1> > nl(msh, rp, leray_param);
+
+
+   nl.compute_initial_state();
+
+   if(nl.verbose()){
+      std::cout << "Solving the problem ..."  << '\n';
+   }
+
+   SolverInfo solve_info = nl.compute(load, solution);
+
+   if(nl.verbose()){
+      std::cout << " " << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << "Summaring: " << std::endl;
+      std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << std::endl;
+      std::cout << "**** Assembly time: " << solve_info.m_newton_info.m_assembly_info.m_time_assembly << " sec" << std::endl;
+      std::cout << "****** Gradient reconstruction: " << solve_info.m_newton_info.m_assembly_info.m_time_gradrec << " sec" << std::endl;
+      std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
+      std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
+      std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
+      std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_postprocess_info.m_time_post << " sec" << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << " " << std::endl;
+   }
+
+
+   if(nl.test_convergence()){
+      std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
+      std::cout << "l2 error displacement: " << nl.compute_l2_error(solution) << std::endl;
+
+        std::cout << "Post-processing: " << std::endl;
+         nl.compute_discontinuous_solution("sol_disc1D.msh");
+//         nl.compute_conforme_solution("sol_conf2D.msh");
+         nl.plot_solution_at_gausspoint("depl_gp1D.msh");
+         nl.compute_deformed("def2d.msh");
+   }
+}
 
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
@@ -181,11 +240,10 @@ int main(int argc, char **argv)
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "e:i:k:l:n:p:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "i:k:l:n:p:t:v")) != -1 )
     {
         switch(ch)
         {
-            case 'e': rp.m_prediction = true; break;
             case 'i': rp.m_iter_max = atoi(optarg); break;
             case 'k':
                 degree = atoi(optarg);
@@ -222,6 +280,11 @@ int main(int argc, char **argv)
                leray_param = atof(optarg);
                break;
 
+            case 't':
+               rp.m_init = true;
+               rp.m_t_init = atof(optarg);
+               break;
+
             case 'v':
                 rp.m_verbose = true;
                 break;
@@ -238,7 +301,9 @@ int main(int argc, char **argv)
 
     if (argc == 0)
     {
-        std::cout << "Mesh format: 1D uniform (Not avaible)" << std::endl;
+        std::cout << "Mesh format: 1D uniform" << std::endl;
+        //auto msh = disk::load_uniform_1d_mesh<RealType>(0, 1, elems_1d);
+        //run_leraylions_solver(msh, rp, leray_param);
         return 0;
     }
 

@@ -474,7 +474,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "23i:k:l:m:n:p:v")) != -1 )
+   while ( (ch = getopt(argc, argv, "23i:k:l:m:n:p:t:v")) != -1 )
    {
       switch(ch)
       {
@@ -525,6 +525,11 @@ int main(int argc, char **argv)
             break;
 
          case 'p': leray_param = atof(optarg); break;
+
+         case 't':
+            rp.m_init = true;
+            rp.m_t_init = atof(optarg);
+            break;
 
          case 'v': rp.m_verbose = true; break;
 
