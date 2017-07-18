@@ -224,8 +224,6 @@ int main(int argc, char **argv)
         std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
         auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
-
-        visu::Gmesh gmsh = visu::convertMesh(msh);
         return 0;
     }
 
@@ -235,10 +233,6 @@ int main(int argc, char **argv)
         std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
         auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
-
-        visu::Gmesh gmsh = visu::convertMesh(msh);
-
-
         return 0;
     }
 
@@ -248,8 +242,6 @@ int main(int argc, char **argv)
         std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
         auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
-
-        visu::Gmesh gmsh = visu::convertMesh(msh);
         return 0;
     }
 
@@ -259,8 +251,6 @@ int main(int argc, char **argv)
         std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
         auto msh = disk::load_netgen_3d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
-
-        visu::Gmesh gmsh = visu::convertMesh(msh);
         return 0;
     }
 
@@ -270,9 +260,21 @@ int main(int argc, char **argv)
         std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
         auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
-
-        visu::Gmesh gmsh = visu::convertMesh(msh);
         return 0;
     }
+    
+    
+    /* Medit 2d*/
+    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
+    {
+       std::cout << "Guessed mesh format: Medit format" << std::endl;
+       auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+       run_diffusion_solver(msh, rp);
+       visu::Gmesh gmsh = visu::convertMesh(msh);
+       gmsh.writeGmesh("test_M2.msh",2);
+       return 0;
+    }
+    
+    
 
 }

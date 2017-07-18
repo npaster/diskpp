@@ -50,6 +50,7 @@
 #include <cassert>
 #include <thread>
 #include <set>
+#include "common/eigen.hpp"
 
 #include "geometry/geometry.hpp"
 #include "loader_utils.hpp"
@@ -2103,6 +2104,341 @@ public:
 
 };
 
+
+
+template<typename T, size_t N>
+class medit_mesh_loader
+{
+   static_assert(N == 2, "Medit supports only 2D for the moment");
+};
+
+
+template<typename T>
+class medit_mesh_loader<T,2> : public mesh_loader<generic_mesh<T,2>>
+{
+   typedef generic_mesh<T,2>                       mesh_type;
+   typedef typename mesh_type::point_type          point_type;
+   typedef typename mesh_type::node_type           node_type;
+   typedef typename mesh_type::edge_type           edge_type;
+   typedef typename mesh_type::surface_type        surface_type;
+   
+   typedef Eigen::SparseMatrix<bool>               sparse_matrix_type;
+   
+   sparse_matrix_type                              edge_ok;
+   
+   struct medit2d_poly
+   {
+      std::vector<size_t>                 nodes;
+      size_t                              id;
+      std::set<std::array<size_t, 2>>     attached_edges;
+      
+      bool operator<(const medit2d_poly& other) {
+         return nodes < other.nodes;
+      }
+   };
+   
+   std::vector<point_type>                         m_points;
+   std::vector<std::array<ident_impl_t, 2>>        m_edges;
+   std::vector<medit2d_poly>                       m_polys;
+   std::vector<std::pair<std::array<ident_impl_t, 2>, size_t> >      m_boundary_edges;
+   
+   
+   bool medit_read_vertices(std::ifstream& ifs)
+   {
+      size_t      elements_to_read;
+      T           x, y, z;
+      T           id;
+      
+      ifs >> elements_to_read;
+      
+      if (this->verbose())
+         std::cout << "Attempting to read " << elements_to_read << " points" << std::endl;
+      
+      m_points.reserve(elements_to_read);
+      
+      for (size_t i = 0; i < elements_to_read; i++)
+      {
+         ifs >> x >> y >> z >> id;
+         m_points.push_back(point_type{x,y});
+      }
+      
+      //not very good but ok for the moment
+      edge_ok = sparse_matrix_type(elements_to_read, elements_to_read);
+      
+      return true;
+   }
+   
+   
+   bool medit_read_polygons(std::ifstream& ifs, size_t polynum)
+   {
+      size_t      elements_to_read;
+      
+      ifs >> elements_to_read;
+      if (this->verbose())
+         std::cout << "Reading " << elements_to_read << " " << polynum << "-angles" << std::endl;
+      
+      for (size_t i = 0; i < elements_to_read; i++)
+      {
+         medit2d_poly p;
+         std::vector<ident_impl_t> nodes(polynum+1, 0);
+         
+         for (size_t j = 0; j < polynum; j++)
+         {
+            ident_impl_t val;
+            ifs >> val;
+            p.nodes.push_back(val-1);
+            nodes[j] = val - 1;
+         }
+            nodes[polynum] = nodes[0];
+         
+         ifs >> p.id;
+         
+         m_polys.push_back(p);
+         
+         size_t p_id = m_polys.size();
+         
+         //We have too create edges
+         for (size_t j = 0; j < polynum; j++)
+         {
+            std::array<ident_impl_t, 2> b_edge = {nodes[j], nodes[j+1]};
+            assert(b_edge[0] != b_edge[1]);
+            if (b_edge[0] > b_edge[1])
+               std::swap(b_edge[0], b_edge[1]);
+            
+            if(!edge_ok.coeff(b_edge[0], b_edge[1]))
+            {
+               edge_ok.insert(b_edge[0], b_edge[1]) = true;
+               m_edges.push_back(b_edge);
+            }
+            m_polys.at(p_id-1).attached_edges.insert({b_edge[0], b_edge[1]});
+         }
+         
+      }
+      
+      return true;
+   }
+   
+   
+   bool medit_read_boundary_edges(std::ifstream& ifs)
+   {
+      size_t      elements_to_read;
+      
+      ifs >> elements_to_read;
+      if (this->verbose())
+         std::cout << "Reading " << elements_to_read << " boundary edges" << std::endl;
+      
+      m_boundary_edges.reserve(elements_to_read);
+      
+      for (size_t i = 0; i < elements_to_read; i++)
+      {
+         std::array<ident_impl_t, 2> b_edge;
+         ifs >> b_edge[0]; b_edge[0] -= 1;
+         ifs >> b_edge[1]; b_edge[1] -= 1;
+         
+         assert(b_edge[0] != b_edge[1]);
+         
+         if (b_edge[0] > b_edge[1])
+            std::swap(b_edge[0], b_edge[1]);
+         
+         
+         std::array<ident_impl_t, 2>   bnd = { b_edge[0], b_edge[1] } ;
+         
+         size_t b_id;
+         ifs >> b_id;
+         
+         m_boundary_edges.push_back(std::make_pair(bnd, b_id));
+      }
+      
+      return true;
+   }
+   
+   
+   
+   bool medit_read(const std::string& filename)
+   {
+      std::ifstream   ifs(filename);
+      std::string     keyword;
+      
+      if (!ifs.is_open())
+      {
+         std::cout << "Error opening " << filename << std::endl;
+         return false;
+      }
+      
+      ifs >> keyword;
+      if ( keyword != "MeshVersionFormatted" )
+      {
+         std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
+         return false;
+      }
+      
+      size_t format;
+      ifs >> format;
+      
+      if ( format != 2 )
+      {
+         std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
+         return false;
+      }
+      
+      ifs >> keyword;
+      if ( keyword != "Dimension" )
+      {
+         std::cout << "Expected keyword \"Dimension\"" << std::endl;
+         return false;
+      }
+      
+      size_t dim;
+      ifs >> dim;
+      
+      if (dim != 3 )
+      {
+         std::cout << "Expected dimension >=2 (here: " << dim << ")" << std::endl;
+         return false;
+      }
+      
+      ifs >> keyword;     
+      while( keyword != "End")
+      {
+         if ( keyword == "Vertices" )
+         {
+            medit_read_vertices(ifs);
+         }
+         else if ( keyword == "Triangles" )
+         {
+            medit_read_polygons(ifs, 3);
+         }
+         else if ( keyword == "Quadrilaterals" )
+         {
+            medit_read_polygons(ifs, 4);
+         }
+         else if ( keyword == "Edges" )
+         {
+            m_boundary_edges.clear();
+            medit_read_boundary_edges(ifs);
+         }
+         else
+         {
+            std::cout << "Error parsing Medit file" << std::endl;
+            return false;
+         }
+
+         ifs >> keyword;
+      }
+      
+      ifs.close();
+      return true;
+   }
+   
+public:
+   medit_mesh_loader() = default;
+   
+   bool read_mesh(const std::string& s)
+   {
+      if (this->verbose())
+         std::cout << " *** READING MEDIT 2D MESH ***" << std::endl;
+      
+      return medit_read(s);
+   }
+   
+   bool populate_mesh(mesh_type& msh)
+   {
+      if (this->verbose())
+         std::cout << " *** POPULATING MEDIT MESH ***" << std::endl;
+      auto storage = msh.backend_storage();
+      
+      /* Points */
+      size_t nodes_size = m_points.size();
+      storage->points = std::move(m_points);
+      
+      /* Nodes */
+      std::vector<node_type> nodes(nodes_size);
+      for (size_t i = 0; i < nodes_size; i++)
+         nodes[i] = node_type(point_identifier<2>(i));
+      
+      storage->nodes = std::move(nodes);
+      
+      /* Edges */
+      /* Make the vector containing the edges */
+      std::vector<edge_type> edges;
+      edges.reserve(m_edges.size());
+      for (size_t i = 0; i < m_edges.size(); i++)
+      {
+         assert(m_edges[i][0] < m_edges[i][1]);
+         auto node1 = typename node_type::id_type(m_edges[i][0]);
+         auto node2 = typename node_type::id_type(m_edges[i][1]);
+         
+         auto e = edge_type{{node1, node2}};
+         
+         e.set_point_ids(m_edges[i].begin(), m_edges[i].begin()+2); /* XXX: crap */
+         edges.push_back(e);
+      }
+      /* Sort them */
+      std::sort(edges.begin(), edges.end());
+      
+      /* Detect which ones are boundary edges */
+      storage->boundary_info.resize(m_edges.size());
+      for (size_t i = 0; i < m_boundary_edges.size(); i++)
+      {
+         assert(m_boundary_edges[i].first[0] < m_boundary_edges[i].first[1]);
+         auto node1 = typename node_type::id_type(m_boundary_edges[i].first[0]);
+         auto node2 = typename node_type::id_type(m_boundary_edges[i].first[1]);
+         
+         auto e = edge_type{{node1, node2}};
+         
+         auto position = find_element_id(edges.begin(), edges.end(), e);
+         
+         if (position.first == false)
+         {
+            std::cout << "Bad bug at " << __FILE__ << "("
+            << __LINE__ << ")" << std::endl;
+            return false;
+         }
+         
+         bnd_info bi{m_boundary_edges[i].second, true};
+         storage->boundary_info.at(position.second) = bi;
+      }
+      
+      storage->edges = std::move(edges);
+      
+      /* Surfaces */
+      std::vector<surface_type> surfaces;
+      surfaces.reserve( m_polys.size() );
+      
+      for (auto& p : m_polys)
+      {
+         std::vector<typename edge_type::id_type> surface_edges;
+         for (auto& e : p.attached_edges)
+         {
+            assert(e[0] < e[1]);
+            auto n1 = typename node_type::id_type(e[0]);
+            auto n2 = typename node_type::id_type(e[1]);
+            
+            edge_type edge{{n1, n2}};
+            auto edge_id = find_element_id(storage->edges.begin(),
+                                           storage->edges.end(), edge);
+            if (!edge_id.first)
+            {
+               std::cout << "Bad bug at " << __FILE__ << "("
+               << __LINE__ << ")" << std::endl;
+               return false;
+            }
+            
+            surface_edges.push_back(edge_id.second);
+         }
+         auto surface = surface_type(surface_edges);
+         surface.set_point_ids(p.nodes.begin(), p.nodes.end()); /* XXX: crap */
+         surfaces.push_back( surface );
+      }
+      
+      std::sort(surfaces.begin(), surfaces.end());
+      storage->surfaces = std::move(surfaces);
+      
+      return true;
+   }
+};
+
+
 /* Helper to load uniform 1D meshes. */
 template<typename T>
 disk::generic_mesh<T,1>
@@ -2220,6 +2556,22 @@ load_fvca6_3d_mesh(const char *filename)
    loader.read_mesh(filename);
    loader.populate_mesh(msh);
 
+   return msh;
+}
+
+
+/* Helper to load 2D meshes in Medit format */
+template<typename T>
+disk::generic_mesh<T,2>
+load_medit_2d_mesh(const char *filename)
+{
+   typedef disk::generic_mesh<T, 2>  mesh_type;
+   
+   mesh_type msh;
+   disk::medit_mesh_loader<T, 2> loader;
+   loader.read_mesh(filename);
+   loader.populate_mesh(msh);
+   
    return msh;
 }
 

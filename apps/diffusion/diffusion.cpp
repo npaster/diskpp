@@ -272,6 +272,14 @@ int main(int argc, char **argv)
         run_diffusion_solver(msh, rp);
         return 0;
     }
+    
+    /* Medit 2d*/
+    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
+    {
+       std::cout << "Guessed mesh format: Medit format" << std::endl;
+       auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+       return 0;
+    }
 
     /* Netgen 3D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$") ))

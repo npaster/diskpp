@@ -40,7 +40,7 @@
 #include <cmath>
 
 #include "LerayLions_solver.hpp"
-
+/*
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
 void
@@ -100,7 +100,7 @@ run_leraylions_solver(const Mesh<T, 1, Storage>& msh, ParamRun<T>& rp, const T l
          nl.plot_solution_at_gausspoint("depl_gp1D.msh");
          nl.compute_deformed("def2d.msh");
    }
-}
+}*/
 
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
@@ -343,6 +343,14 @@ int main(int argc, char **argv)
        std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
        auto msh = disk::load_cartesian_2d_mesh2<RealType>(mesh_filename);
        run_leraylions_solver(msh, rp, leray_param);
+       return 0;
+    }
+    
+    /* Medit 2d*/
+    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
+    {
+       std::cout << "Guessed mesh format: Medit format" << std::endl;
+       auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
        return 0;
     }
 
