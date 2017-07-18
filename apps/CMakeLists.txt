@@ -3,7 +3,7 @@
 #add_subdirectory(diffusion2)
 #add_subdirectory(LerayLions)
 #add_subdirectory(hyperelasticity)
-#add_subdirectory(hyperelasticity2)
+add_subdirectory(hyperelasticity2)
 #add_subdirectory(timing_test)
 #add_subdirectory(parallel_diffusion)
 #add_subdirectory(app_template)

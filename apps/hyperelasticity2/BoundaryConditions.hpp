@@ -18,7 +18,7 @@
 
 
 
-enum BoundaryType : size_t
+enum DirichletType : size_t
 {
    CLAMPED = 0,
    DX = 1,
@@ -30,16 +30,16 @@ enum BoundaryType : size_t
 };
 
 
+enum NeumannType : size_t
+{
+   FREE = 0,
+   NEUMANN = 1
+};
+
+
 struct BoundaryConditions
 {
    size_t id;
    size_t boundary_type;
    // add a function for each boundary and logical to say if we use it
 };
-   
-   
-
-
-
-
-

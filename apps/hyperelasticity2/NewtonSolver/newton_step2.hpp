@@ -77,7 +77,7 @@ class NewtonRaphson_step_hyperelasticity2
     vector_type            m_system_rhs, m_system_solution;
 
     solver_type             solver;
-    
+
     const BQData&                               m_bqd;
 
     const mesh_type& m_msh;
@@ -174,7 +174,7 @@ public:
 
          assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann, boundary_dirichlet);
          assembler.finalize(m_system_matrix, m_system_rhs);
-         
+
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
          ai.m_linear_system_size = m_system_matrix.rows();
@@ -205,11 +205,11 @@ public:
       if(es.info() != Eigen::Success) {
           std::cerr << "ERROR: Could not compute eigenvalues of the matrix" << std::endl;
       }
-      
+
       auto ev = es.eigenvalues();
-      
+
       size_t nb_negative_eigenvalue(0);
-      
+
       size_t i_ev = 0;
       while(ev(i_ev) <= scalar_type(0.0))
       {
@@ -264,8 +264,8 @@ public:
 
     template<typename LoadFunction, typename NeumannFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf, const NeumannFunction& g, 
-                const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+    postprocess(const LoadFunction& lf, const NeumannFunction& g,
+                const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
@@ -309,11 +309,11 @@ public:
             gradrec.compute(m_msh, cl, false);
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
-   
+
             tc.tic();
 
             hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param);
-               
+
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
 
@@ -328,7 +328,7 @@ public:
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
             tc.toc();
             pi.m_time_statcond += tc.to_double();
-            
+
             m_postprocess_data.push_back(x);
 
             i++;
@@ -382,51 +382,51 @@ public:
     {
        if(iter == 0)
           initial_residual = m_system_rhs.norm();
-       
+
        scalar_type residual = m_system_rhs.norm();
        scalar_type max_error = m_system_rhs.maxCoeff();
-       
+
        scalar_type relative_error = residual / initial_residual;
-       
+
        if(initial_residual == scalar_type{0.0})
        {
           relative_error = 0.0;
           max_error = 0.0;
        }
-       
+
        size_t nb_faces_dof = m_bqd.face_basis.size() * m_msh.faces_size();
-       
+
        scalar_type norm_depl = (m_system_rhs.head(nb_faces_dof)).norm();
        scalar_type norm_lag = (m_system_rhs.tail(m_system_rhs.size() - nb_faces_dof)).norm();
-       
+
        if(m_verbose){
           std::string s_iter = "   " + std::to_string(iter) + "               ";
           s_iter.resize(9);
-          
+
           if(iter == 0){
              std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
              std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error | Residual face  |  Residual lagr |" << std::endl;
              std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
-             
+
           }
           std::ios::fmtflags f( std::cout.flags() );
           std::cout.precision(5);
           std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-          std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   " 
+          std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   "
           << norm_depl << "  |   " << norm_lag << "  |" << std::endl;
           std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
           std::cout.flags( f );
        }
-       
+
        error = std::min(relative_error, residual);
-       
+
        if(error <= epsilon ){
           return true;
        }
        else {
           return false;
        }
-       
+
     }
 
    void

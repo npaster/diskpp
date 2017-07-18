@@ -104,7 +104,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann(0);
+   std::vector<BoundaryConditions> boundary_neumann = {};
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 
 

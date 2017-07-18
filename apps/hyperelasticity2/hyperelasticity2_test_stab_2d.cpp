@@ -103,7 +103,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    };
 
 
-   std::vector<size_t> boundary_neumann(0);
+   std::vector<BoundaryConditions> boundary_neumann = {};
 
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
@@ -339,7 +339,7 @@ int main(int argc, char **argv)
             }
             rp.m_degree = degree;
             break;
-            
+
          case 'l':
             l = atoi(optarg);
             if (l < -1 or l > 1)
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
             }
             rp.m_l = l;
             break;
-            
+
          case 'n':
             n_time_step = atoi(optarg);
             if (n_time_step == 0)
@@ -359,16 +359,16 @@ int main(int argc, char **argv)
             }
             rp.m_n_time_step = n_time_step;
             break;
-            
-            
+
+
          case 'p':
             param.tau = atof(optarg);
             break;
-            
+
          case 'v':
             rp.m_verbose = true;
             break;
-            
+
          case 'h':
          case '?':
          default:

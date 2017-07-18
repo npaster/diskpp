@@ -16,9 +16,7 @@
 
 #pragma once
 
-
-
-enum BoundaryType : size_t
+enum DirichletType : size_t
 {
    CLAMPED = 0,
    DX = 1,
@@ -27,6 +25,13 @@ enum BoundaryType : size_t
    DXDY = 4,
    DXDZ = 5,
    DYDZ = 6
+};
+
+
+enum NeumannType : size_t
+{
+   FREE = 0,
+   NEUMANN = 1
 };
 
 

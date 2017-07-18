@@ -102,7 +102,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
+   std::vector<BoundaryConditions> boundary_neumann(1,4); //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 

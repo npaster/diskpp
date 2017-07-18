@@ -44,10 +44,10 @@ class NewtonRaphson_solver_hyperelasticity2
 {
    typedef typename BQData::mesh_type          mesh_type;
    typedef typename mesh_type::scalar_type     scalar_type;
-   
+
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
-   
+
    const BQData&                               m_bqd;
 
    const mesh_type&                            m_msh;
@@ -92,25 +92,6 @@ public:
       assert(m_msh.cells_size() == m_solution_data.size());
 
     }
-    
-    void
-    prediction(const scalar_type delta_t)
-    {
-       scalar_type incr = scalar_type(1.0 + delta_t);
-       
-       for(size_t i = 0; i < m_solution_cells.size(); i++)
-          m_solution_cells[i] *= incr;
-       
-       for(size_t i = 0; i < m_solution_faces.size(); i++)
-          m_solution_faces[i] *= incr;
-       
-       for(size_t i = 0; i < m_solution_lagr.size(); i++)
-          m_solution_lagr[i] *= incr;
-       
-       for(size_t i = 0; i < m_solution_data.size(); i++)
-          m_solution_data[i] *= incr;
-       
-    }
 
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
@@ -122,7 +103,7 @@ public:
       NewtonSolverInfo ni;
       timecounter tc;
       tc.tic();
-      
+
       bool auricchio = false;
 
       //initialise the NewtonRaphson_step
@@ -132,12 +113,12 @@ public:
       newton_step.verbose(m_verbose);
 
       m_convergence = false;
-      
+
       size_t nb_negative_ev_init = 0;
       // loop
       std::size_t iter = 0;
       while (iter < iter_max && !m_convergence) {
-          
+
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
@@ -150,7 +131,7 @@ public:
                 ni.m_time_newton = tc.to_double();
                 return ni;
           }
-          
+
           //je pense que l'on peut le supprimer
           if(auricchio && iter == 0){
              nb_negative_ev_init = newton_step.test_aurrichio();
@@ -180,8 +161,8 @@ public:
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
-      
-      
+
+
       if(auricchio && m_convergence){
          size_t nb_negative_ev = newton_step.test_aurrichio();
          if(nb_negative_ev > nb_negative_ev_init)

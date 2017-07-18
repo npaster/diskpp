@@ -45,7 +45,7 @@ namespace Hyperelasticity {
       template<typename NeumannFunction>
       void
       add_NeumannConditions(const mesh_type& msh, const cell_type& cl, const NeumannFunction& g,
-                            const std::vector<size_t>& boundary_neumann)
+                            const std::vector<BoundaryConditions>& boundary_neumann)
       {
          auto fcs = faces(msh, cl);
          const size_t face_basis_size = m_bqd.face_basis.size();
@@ -87,7 +87,7 @@ namespace Hyperelasticity {
       template<typename Function, typename NeumannFunction>
       void
       compute(const mesh_type& msh, const cell_type& cl, const Function& load, const NeumannFunction& neumann,
-              const std::vector<size_t>& boundary_neumann, const matrix_type& GT,
+              const std::vector<BoundaryConditions>& boundary_neumann, const matrix_type& GT,
               const vector_type& uTF, const ElasticityParameters elas_param,
               const bool adapt_stab = false)
       {

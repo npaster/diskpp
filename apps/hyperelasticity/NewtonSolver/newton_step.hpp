@@ -139,7 +139,7 @@ public:
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
     AssemblyInfo
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-             const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+             const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
         stab_type stab(m_bqd);
@@ -300,7 +300,7 @@ public:
     template<typename LoadFunction, typename NeumannFunction>
     PostprocessInfo
     postprocess(const LoadFunction& lf, const NeumannFunction& g,
-                const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+                const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
         stab_type stab(m_bqd);

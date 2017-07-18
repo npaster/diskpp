@@ -111,7 +111,7 @@ public:
 
    //template<typename DeplFunction, typename StressFunction>
    void
-   compute_initial_state(const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet )//const DeplFunction& df, const StressFunction& bcf)
+   compute_initial_state(const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet )//const DeplFunction& df, const StressFunction& bcf)
    {
       m_solution_data.clear();
       m_solution_cells.clear();
@@ -185,7 +185,7 @@ public:
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
    SolverInfo
    compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-           const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+           const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
    {
 
       SolverInfo si;

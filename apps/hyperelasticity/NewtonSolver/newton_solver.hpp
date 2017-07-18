@@ -97,7 +97,8 @@ public:
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
-            const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet,
+            const sstd::vector<BoundaryConditions>& boundary_neumann,
+            const std::vector<BoundaryConditions>& boundary_dirichlet,
             const scalar_type epsilon = 5.E-8,
             const std::size_t iter_max = 10)
    {

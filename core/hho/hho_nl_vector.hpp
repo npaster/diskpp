@@ -67,7 +67,7 @@ namespace disk {
 
    template<typename Mesh>
    size_t
-   number_of_neumann_faces(const Mesh& msh, const std::vector<size_t>& boundary_neumann)
+   number_of_neumann_faces(const Mesh& msh, const std::vector<BoundaryConditions>& boundary_neumann)
    {
       if(boundary_neumann.empty())
          return 0;
@@ -95,7 +95,7 @@ namespace disk {
    template<typename Mesh>
    size_t
    number_of_lag_conditions(const Mesh& msh, const std::vector<BoundaryConditions>& boundary_dirichlet,
-                                             const std::vector<size_t>& boundary_neumann)
+                                             const std::vector<BoundaryConditions>& boundary_neumann)
    {
       //By default all boundary faces are dirichlet faces
       size_t DIM = msh.dimension;
@@ -228,7 +228,7 @@ namespace disk {
          rhs = vector_type::Zero(m_num_unknowns);
       }
 
-      assembler_nl_vector(const mesh_type& msh, size_t degree, const std::vector<size_t>& boundary_neumann)
+      assembler_nl_vector(const mesh_type& msh, size_t degree, const std::vector<BoundaryConditions>& boundary_neumann)
       : m_degree(degree)
       {
          face_basis          = face_basis_type(m_degree);
@@ -240,7 +240,7 @@ namespace disk {
          rhs = vector_type::Zero(m_num_unknowns);
       }
 
-      assembler_nl_vector(const mesh_type& msh, size_t degree, const std::vector<size_t>& boundary_neumann,
+      assembler_nl_vector(const mesh_type& msh, size_t degree, const std::vector<BoundaryConditions>& boundary_neumann,
                           const std::vector<BoundaryConditions>& boundary_dirichlet)
       : m_degree(degree)
       {
@@ -379,7 +379,7 @@ namespace disk {
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
-                                 const std::vector<vector_type>& sol_lagr, const std::vector<size_t>& boundary_neumann)
+                                 const std::vector<vector_type>& sol_lagr, const std::vector<BoundaryConditions>& boundary_neumann)
       {
          size_t fbs = face_basis.size();
          size_t face_i = 0;
@@ -462,7 +462,7 @@ namespace disk {
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
-                                 const std::vector<vector_type>& sol_lagr, const std::vector<size_t>& boundary_neumann,
+                                 const std::vector<vector_type>& sol_lagr, const std::vector<BoundaryConditions>& boundary_neumann,
                                  const std::vector<BoundaryConditions>& boundary_dirichlet)
       {
          size_t fbs = face_basis.size();
@@ -653,7 +653,7 @@ namespace disk {
          rhs = vector_type::Zero(m_num_unknowns);
       }
 
-      assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<size_t>& boundary_neumann)
+      assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<BoundaryConditions>& boundary_neumann)
       : m_bqd(bqd)
       {
          const size_t nb_faces_dirichlet = msh.boundary_faces_size() - number_of_neumann_faces(msh, boundary_neumann);
@@ -662,7 +662,7 @@ namespace disk {
          rhs = vector_type::Zero(m_num_unknowns);
       }
 
-      assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<size_t>& boundary_neumann,
+      assembler_nl_vector_bq(const mesh_type& msh, const BQData& bqd, const std::vector<BoundaryConditions>& boundary_neumann,
                           const std::vector<BoundaryConditions>& boundary_dirichlet)
       : m_bqd(bqd)
       {
@@ -800,7 +800,7 @@ namespace disk {
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
-                                 const std::vector<vector_type>& sol_lagr, const std::vector<size_t>& boundary_neumann)
+                                 const std::vector<vector_type>& sol_lagr, const std::vector<BoundaryConditions>& boundary_neumann)
       {
          const size_t face_basis_size = m_bqd.face_basis.size();
          size_t face_i = 0;
@@ -884,7 +884,7 @@ namespace disk {
       template<typename Function>
       void
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
-                                 const std::vector<vector_type>& sol_lagr, const std::vector<size_t>& boundary_neumann,
+                                 const std::vector<vector_type>& sol_lagr, const std::vector<BoundaryConditions>& boundary_neumann,
                                  const std::vector<BoundaryConditions>& boundary_dirichlet)
       {
          const size_t face_basis_size = m_bqd.face_basis.size();

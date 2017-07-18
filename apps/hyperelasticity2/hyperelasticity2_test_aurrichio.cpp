@@ -88,7 +88,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
 
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [](const point<T,2>& p) -> result_grad_type {
       result_grad_type grad = result_grad_type::Zero();
       return grad;
@@ -101,7 +101,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann(1,4); //by default 0 is for a dirichlet face
+   std::vector<BoundaryConditions> boundary_neumann(1,4); //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
     param.mu = 40.0;
     param.lambda = param.mu * 1E5;
     param.type_law = 3;
-    
+
     RealType gamma = 1.0;
 
     int ch;
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
              }
              rp.m_degree = degree;
              break;
-             
+
           case 'l':
              l = atoi(optarg);
              if (l < -1 or l > 1)
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
              }
              rp.m_l = l;
              break;
-             
+
           case 'm':
              sublevel = atoi(optarg);
              if (sublevel <= 0)
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
              }
              rp.m_sublevel = sublevel;
              break;
-             
+
           case 'n':
              n_time_step = atoi(optarg);
              if (n_time_step <= 0)
@@ -202,11 +202,11 @@ int main(int argc, char **argv)
              }
              rp.m_n_time_step = n_time_step;
              break;
-             
+
           case 't': param.type_law = atoi(optarg); break;
 
           case 'v': rp.m_verbose = true; break;
-             
+
           case 'h':
           case '?':
           default:

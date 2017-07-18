@@ -170,7 +170,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
       return result_type{fx,fy};
    };
 
-   std::vector<size_t> boundary_neumann = {1,2}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryConditions> boundary_neumann = {}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -306,7 +306,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       return result_type{fx,fy,fz};
    };
 
-   std::vector<size_t> boundary_neumann = {};
+   std::vector<BoundaryConditions> boundary_neumann = {};
 
    std::vector<BoundaryConditions> boundary_dirichlet = {};
 
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
        run_hyperelasticity_solver(msh, rp, param);
        return 0;
     }
-    
+
     /* Medit 2d*/
     if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
     {

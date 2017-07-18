@@ -102,12 +102,9 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-
-   std::vector<size_t> boundary_neumann(0);
-
+   std::vector<BoundaryConditions> boundary_neumann = {};
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
-
 
    nl.compute_initial_state(boundary_neumann);
 
