@@ -262,8 +262,8 @@ int main(int argc, char **argv)
         run_diffusion_solver(msh, rp);
         return 0;
     }
-    
-    
+
+
     /* Medit 2d*/
     if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
     {
@@ -274,7 +274,19 @@ int main(int argc, char **argv)
        gmsh.writeGmesh("test_M2.msh",2);
        return 0;
     }
-    
-    
+
+
+    /* Medit 3d*/
+   //  if (std::regex_match(mesh_filename, std::regex(".*\\.medit3d$") ))
+   //  {
+   //     std::cout << "Guessed mesh format: Medit format" << std::endl;
+   //     auto msh = disk::load_medit_3d_mesh<RealType>(mesh_filename);
+   //     ///run_diffusion_solver(msh, rp);
+   //     visu::Gmesh gmsh = visu::convertMesh(msh);
+   //     gmsh.writeGmesh("test_M3.msh",2);
+   //     return 0;
+   //  }
+
+
 
 }
