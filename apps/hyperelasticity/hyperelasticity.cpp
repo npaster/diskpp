@@ -136,8 +136,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 // };
 
 
-   T alpha = 0.3;
-
+   T alpha = 1.5;
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
@@ -149,8 +148,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
-      T fx = 0.0;
-      T fy = alpha * (p.x() + 1) * (p.x() - 1);
+      T fx = alpha * 2.0 * p.x() - p.x();
+      T fy = alpha * 2.0 * p.y() - p.y();
 
       return result_type{fx,fy};
    };
@@ -169,8 +168,17 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
       return result_type{fx,fy};
    };
+   
+   BoundaryConditions N1;
+   N1.id = 11;//4
+   N1.boundary_type = FREE;
+   
+   
+   BoundaryConditions N2;
+   N2.id = 14;
+   N2.boundary_type = FREE;
 
-   std::vector<BoundaryConditions> boundary_neumann = {}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryConditions> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -178,7 +186,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    d3.id = 3;
    d3.boundary_type = CLAMPED;
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {d3};
+   std::vector<BoundaryConditions> boundary_dirichlet = {};
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
 
@@ -221,6 +229,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
         nl.compute_deformed("def2D.msh");
         nl.plot_displacement_at_gausspoint("depl_gp2D.msh");
         nl.plot_J_at_gausspoint("J_gp2D.msh");
+        nl.plot_J("J_dis2d.msh");
    }
 }
 
@@ -364,8 +373,8 @@ int main(int argc, char **argv)
 
     ElasticityParameters param = ElasticityParameters();
 
-    param.mu = 1.0;
-    param.lambda = 10.0 ;
+    param.mu = 0.333;
+    param.lambda = 1664000.44 ;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
@@ -476,6 +485,7 @@ int main(int argc, char **argv)
     {
        std::cout << "Guessed mesh format: Medit format" << std::endl;
        auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+       run_hyperelasticity_solver(msh, rp, param);
        return 0;
     }
 

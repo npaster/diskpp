@@ -77,8 +77,8 @@ namespace disk {
          if ( (cell_degree + 1 < face_degree) or (cell_degree > face_degree + 1) )
             throw std::invalid_argument("Invalid cell degree");
 
-         if ( (cell_degree + 1 < grad_degree) or (grad_degree < cell_degree) )
-            throw std::invalid_argument("Invalid grad degree");
+//          if ( (cell_degree + 1 < grad_degree) or (grad_degree < cell_degree) )
+//             throw std::invalid_argument("Invalid grad degree");
 
          m_cell_degree = cell_degree;
          m_face_degree = face_degree;

@@ -100,7 +100,7 @@ public:
          face_degree = 0;
       }
 
-      m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l + 1);
+      m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l + 2);
 
    }
 
@@ -177,9 +177,9 @@ public:
 //          m_solution_faces[i].setConstant(10.0);
 //       }
 //
-//       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
-//          m_solution_lagr[i].setConstant(1.0);
-//      }
+      for(size_t i = 0; i < m_solution_lagr.size(); i++){
+         m_solution_lagr[i].setConstant(1.0);
+     }
    }
 
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
@@ -200,21 +200,20 @@ public:
       newton_solver.verbose(m_verbose);
 
 
-      scalar_type delta_t = 1.0/m_rp.m_n_time_step;
-
+      scalar_type delta_t = (1.0 - m_rp.m_t_init)/m_rp.m_n_time_step;
       std::list<time_step> list_step;
-
-      if(m_rp.m_init_elas){
-            time_step step1;
-            step1.time = 1E-5;
-            step1.level = 1;
-            list_step.push_back(step1);
+      
+      if(m_rp.m_init){
+         time_step step1;
+         step1.time = m_rp.m_t_init;
+         step1.level = 1;
+         list_step.push_back(step1);
       }
 
-      for (size_t n = 0; n < m_rp.m_n_time_step; n++)
+      for (size_t n = 1; n <= m_rp.m_n_time_step; n++)
       {
          time_step step;
-         step.time = (n+1) * delta_t;
+         step.time = m_rp.m_t_init + n * delta_t;
          step.level = 1;
          list_step.push_back(step);
       }
@@ -299,6 +298,9 @@ public:
 
       if(m_convergence)
         newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+      
+//       for(size_t i = 0; i < m_solution_lagr.size(); i++)
+//          std::cout << m_solution_lagr[i] << std::endl;
 
       ttot.toc();
       si.m_time_solver = ttot.to_double();
@@ -357,6 +359,39 @@ public:
 
        return sqrt(err_dof);
     }
+    
+    std::array<scalar_type, 3>
+    displacement_node(const size_t num_node)
+    {
+       auto storage = m_msh.backend_storage();
+       std::array<scalar_type, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
+        //avooir cell cell
+       size_t cell_i = 0;
+       for (auto& cl : m_msh)
+       {
+            vector_dynamic x = m_solution_cells.at(cell_i++);
+            auto cell_nodes = visu::cell_nodes(m_msh, cl);
+            for (size_t i = 0; i < cell_nodes.size(); i++)
+            {
+               auto point_ids = cell_nodes[i];
+               if(point_ids == num_node){
+                  auto pt = storage->points[point_ids];
+               
+                  auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
+
+                  // plot magnitude at node
+                  for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
+                     for(size_t j=0; j < DIM; j++)
+                        depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
+               
+                  return depl;
+               }
+            }
+       }
+          
+          std::cout << "Invalid node number" << std::endl;
+          return depl;
+    }
 
     void
     compute_discontinuous_solution(const std::string& filename)
@@ -391,9 +426,9 @@ public:
              gmsh.addNode(tmp_node);
 
              // plot magnitude at node
-             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
+             for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                 for(size_t j=0; j < DIM; j++)
-                   depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+                   depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
 
                visu::Data datatmp(nb_nodes, depl);
                data.push_back(datatmp);
@@ -436,9 +471,9 @@ public:
              std::vector<scalar_type> depl(3, scalar_type{0});
 
              // plot magnitude at node
-             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
+             for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                 for(size_t j=0; j < DIM; j++)
-                   depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+                   depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
 
              value[point_ids].first +=1;
              for(size_t j=0; j < DIM; j++)
@@ -489,9 +524,9 @@ public:
              std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
 
              visu::init_coor(pt, coor);
-             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
+             for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                 for(size_t j=0; j < DIM; j++)
-                   depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+                   depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
 
             for(size_t j=0; j < DIM; j++)
                coor[j] += depl[j];

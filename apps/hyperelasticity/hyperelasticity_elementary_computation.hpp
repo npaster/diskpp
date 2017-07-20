@@ -49,29 +49,40 @@ namespace Hyperelasticity {
       {
          auto fcs = faces(msh, cl);
          const size_t face_basis_size = m_bqd.face_basis.size();
-
-         size_t face_i = 0;
+         
          for (auto& fc : fcs)
          {
             //Find if this face is a boundary face
             if(msh.is_boundary(fc)){
+               
+               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+               
+              auto face_id = eid.second;
+               const size_t b_id = msh.boundary_id(face_id);
+               
                //Find if this face is a boundary face with Neumann Condition
-               if ( std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(fc))
-                   != boundary_neumann.end() ){
-                  auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
-                  for (auto& qp : face_quadpoints)
+               for(auto& elem : boundary_neumann)
+               {
+                  if(b_id == elem.id)
                   {
-                     auto fphi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
-                     assert(fphi.size() == face_basis_size);
-
-                     for(size_t i=0; i < face_basis_size; i++)
-                        RTF(i) += qp.weight() * disk::mm_prod(g(qp.point()) , fphi[i]);
+                     if( elem.boundary_type == NEUMANN ){
+                        auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+                        for (auto& qp : face_quadpoints)
+                        {
+                           auto fphi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+                           assert(fphi.size() == face_basis_size);
+                           
+                           for(size_t i=0; i < face_basis_size; i++)
+                              RTF(i) += qp.weight() * disk::mm_prod(g(qp.point()) , fphi[i]);
+                        }
+                     }
+                     break;
                   }
                }
             }
-            face_i++;
          }
-
       }
 
 

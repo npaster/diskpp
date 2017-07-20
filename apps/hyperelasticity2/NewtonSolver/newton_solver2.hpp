@@ -96,7 +96,7 @@ public:
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
-            const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet,
+            const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet,
             const scalar_type epsilon = 1.E-6,
             const std::size_t iter_max = 10)
    {
@@ -156,8 +156,9 @@ public:
          iter++;
       }
 
-//       if(!m_convergence)
-//          m_convergence = newton_step.test_convergence(1.E-6, iter_max);
+      scalar_type error(0.0);
+      if(!m_convergence)
+         m_convergence = newton_step.test_convergence(8.E-5, iter_max, error);
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);

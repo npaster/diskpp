@@ -466,7 +466,7 @@ public:
          std::cout.flags( f );
       }
 
-      if(relative_error <= epsilon || residual <= epsilon ){
+      if(max_error <= epsilon || residual <= epsilon ){
          return true;
       }
       else {

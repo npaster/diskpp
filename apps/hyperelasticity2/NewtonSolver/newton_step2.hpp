@@ -128,7 +128,7 @@ public:
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
     AssemblyInfo
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-             const std::vector<size_t>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+             const  std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
     {
         gradrec_type gradrec(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
@@ -405,7 +405,7 @@ public:
 
           if(iter == 0){
              std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
-             std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error | Residual face  |  Residual lagr |" << std::endl;
+             std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error | Residual face  |  Residual BC   |" << std::endl;
              std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
 
           }
@@ -418,7 +418,7 @@ public:
           std::cout.flags( f );
        }
 
-       error = std::min(relative_error, residual);
+       error = std::min(max_error, residual);
 
        if(error <= epsilon ){
           return true;

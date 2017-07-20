@@ -82,10 +82,14 @@ namespace disk {
             throw std::invalid_argument("This is a bug: face not found");
 
          auto face_id = eid.second;
-
-         if ( std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
-            != boundary_neumann.end() )
-            nb_face++;
+         const size_t b_id = msh.boundary_id(face_id);
+         
+         //Find if this face is a boundary face with Neumann Condition
+         for(auto& elem : boundary_neumann)
+         {
+            if(b_id == elem.id)
+               nb_face++;
+         }
       }
       return nb_face;
    }
@@ -392,13 +396,19 @@ namespace disk {
                throw std::invalid_argument("This is a bug: face not found");
 
             auto face_id = eid.second;
-
+            const size_t b_id = msh.boundary_id(face_id);
+            
+            bool dirichlet_face = true;
+            
             //Find if this face is a boundary face with Neumann Condition
-            if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
-               != boundary_neumann.end()))
-            {/* We don't no nothing*/}
-            else
-            {
+            for(auto& elem : boundary_neumann){
+               if(b_id == elem.id){
+                  dirichlet_face = false;
+                  break;
+               }
+            }
+
+            if(dirichlet_face){
                //Dirichlet condition
                auto face_offset = face_id * fbs;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
@@ -418,7 +428,6 @@ namespace disk {
                      for(size_t i = 0; i < fbs; i++)
                         rhs_f(i) += qp.weight() * mm_prod( f_phi[i],  bc(qp.point()));
                }
-
 
 
                //lower part
@@ -476,13 +485,19 @@ namespace disk {
                throw std::invalid_argument("This is a bug: face not found");
 
             auto face_id = eid.second;
-
+            const size_t b_id = msh.boundary_id(face_id);
+            
+            bool dirichlet_face = true;
+            
             //Find if this face is a boundary face with Neumann Condition
-            if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
-               != boundary_neumann.end()))
-            {/* We don't no nothing*/}
-            else
-            {
+            for(auto& elem : boundary_neumann){
+               if(b_id == elem.id){
+                  dirichlet_face = false;
+                  break;
+               }
+            }
+            
+            if(dirichlet_face){
                //Dirichlet condition
                auto face_offset = face_id * fbs;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
@@ -813,13 +828,19 @@ namespace disk {
                throw std::invalid_argument("This is a bug: face not found");
 
             auto face_id = eid.second;
-
+            const size_t b_id = msh.boundary_id(face_id);
+            
+            bool dirichlet_face = true;
+            
             //Find if this face is a boundary face with Neumann Condition
-            if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
-               != boundary_neumann.end()))
-            {/* We don't no nothing*/}
-            else
-            {
+            for(auto& elem : boundary_neumann){
+               if(b_id == elem.id){
+                  dirichlet_face = false;
+                  break;
+               }
+            }
+            
+            if(dirichlet_face){
                //Dirichlet condition
                auto face_offset = face_id * face_basis_size;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
@@ -898,13 +919,19 @@ namespace disk {
                throw std::invalid_argument("This is a bug: face not found");
 
             auto face_id = eid.second;
-
+            const size_t b_id = msh.boundary_id(face_id);
+            
+            bool dirichlet_face = true;
+            
             //Find if this face is a boundary face with Neumann Condition
-            if ( (std::find(boundary_neumann.begin(), boundary_neumann.end(), msh.boundary_id(face_id))
-               != boundary_neumann.end()))
-            {/* We don't no nothing*/}
-            else
-            {
+            for(auto& elem : boundary_neumann){
+               if(b_id == elem.id){
+                  dirichlet_face = false;
+                  break;
+               }
+            }
+            
+            if(dirichlet_face){
                //Dirichlet condition
                auto face_offset = face_id * face_basis_size;
                auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;

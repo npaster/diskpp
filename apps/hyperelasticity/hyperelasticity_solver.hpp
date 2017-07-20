@@ -347,6 +347,39 @@ public:
 
        return sqrt(err_dof);
     }
+    
+    std::array<scalar_type, 3>
+    displacement_node(const size_t num_node)
+    {
+       auto storage = m_msh.backend_storage();
+       std::array<scalar_type, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
+       //avooir cell cell
+       size_t cell_i = 0;
+       for (auto& cl : m_msh)
+       {
+          vector_dynamic x = m_solution_cells.at(cell_i++);
+          auto cell_nodes = visu::cell_nodes(m_msh, cl);
+          for (size_t i = 0; i < cell_nodes.size(); i++)
+          {
+             auto point_ids = cell_nodes[i];
+             if(point_ids == num_node){
+                auto pt = storage->points[point_ids];
+                
+                auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
+                
+                // plot magnitude at node
+                for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
+                   for(size_t j=0; j < DIM; j++)
+                      depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
+                      
+                      return depl;
+             }
+          }
+       }
+       
+       std::cout << "Invalid node number" << std::endl;
+       return depl;
+    }
 
     void
     compute_discontinuous_solution(const std::string& filename)
@@ -615,12 +648,12 @@ public:
              // Compute local gradient and norm
              auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
              auto FT_iqn = compute_FTensor(GT_iqn);
-
+             
              std::vector<double> J(1, FT_iqn.determinant());
-
-            nb_node += 1;
-            visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
-            visu::SubData sdata(J, snode);
+             
+             nb_node += 1;
+             visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
+             visu::SubData sdata(J, snode);
              subdata.push_back(sdata); // add subdata
 
 
@@ -630,6 +663,62 @@ public:
        visu::NodeData nodedata(1, 0.0, "Jacobian", data, subdata); // create and init a nodedata view
 
        nodedata.saveNodeData(filename, msh); // save the view
+    }
+    
+    
+    void
+    plot_J(const std::string& filename)
+    {
+       visu::Gmesh gmsh(DIM);
+       auto storage = m_msh.backend_storage();
+       
+       std::vector<visu::Data> data; //create data (not used)
+       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+       
+       gradrec_type gradrec(m_bqd);
+       
+       size_t cell_i(0);
+       size_t nb_nodes(0);
+       for (auto& cl : m_msh)
+       {
+          vector_dynamic x = m_solution_data.at(cell_i++);
+          gradrec.compute(m_msh, cl, false);
+          vector_dynamic GTu = gradrec.oper()*x;
+          auto cell_nodes = visu::cell_nodes(m_msh, cl);
+          std::vector<visu::Node> new_nodes;
+          for (size_t i = 0; i < cell_nodes.size(); i++)
+          {
+             nb_nodes++;
+             auto point_ids = cell_nodes[i];
+             auto pt = storage->points[point_ids];
+             
+             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
+             
+             visu::init_coor(pt, coor);
+             visu::Node tmp_node(coor, nb_nodes, 0);
+             new_nodes.push_back(tmp_node);
+             gmsh.addNode(tmp_node);
+             
+             
+             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
+             
+             // Compute local gradient and norm
+             auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
+             auto FT_iqn = compute_FTensor(GT_iqn);
+             
+             std::vector<double> J(1, FT_iqn.determinant());
+             
+             visu::Data datatmp(nb_nodes, J);
+             data.push_back(datatmp);
+             
+          }
+          // add new element
+          visu::add_element(gmsh, new_nodes);
+       }
+       
+       visu::NodeData nodedata(1, 0.0, "J_node", data, subdata); // create and init a nodedata view
+       
+       nodedata.saveNodeData(filename, gmsh); // save the view
     }
 
 };
