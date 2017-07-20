@@ -42,14 +42,24 @@ Fichier pour gérer les lois de comportements
  * Energy :  W(F) = Wiso(F) + Wvol(F)
  *   - Wiso(F) =    mu / 2 *[tr(F^T * F) - d] - mu * ln(J)
  *   - Wvol(F) =  lambda/2 * U(J)**2
+ * ** We set T1(J) = J * U(J) * U'(J) and T2(J) =  U(J) * J *( U''(J) * J + U'(J)) + ( J * U'(J))^2
  * Stress :  PK1(F) = Piso(F) + Pvol(F)
  *   - Piso(F) = mu * ( F - F^{-T})
- *   - Pvol(F) = lambda * J * U(J) * U'(J) * F^{-T}
+ *   - Pvol(F) = lambda * T1(J) * F^{-T}
  * Module :  A(F) = PK1(F) = Aiso(F) + Avol(F)
  *   - Aiso(F) = mu * ( I4 + F^{-T} \time_inf F^{-1})
- *   - Avol(F) = -lambda * J * U(J) * U'(J) * F^{-T} \time_inf F^{-1}
- *                  + lambda *( U(J) * J *( U''(J) * J + U'(J)) + ( J * U'(J))^2) * F^{-T} \kronecker F^{-T}
+ *   - Avol(F) = -lambda * T1(J) * F^{-T} \time_inf F^{-1}
+ *                  + lambda * T2(J) * F^{-T} \kronecker F^{-T}
  */
+
+/* Laws:
+ * 1- U(J) = ln(J)
+ * 2- U(J) = J -1
+ * 3- U(J) = log10(J)
+ * 4- U(J) = 1 -1 /J
+ * 5- U(J) = J^2 -1
+ * 6- U(J) = sqrt( ( J^2 -1 - 2 *ln(J)) /2)
+ * */
 
 
 template<typename scalar_type>
@@ -59,55 +69,50 @@ class NeoHookeanLaw
    scalar_type m_lambda;
    size_t m_type;
 
-   const size_t maxtype = 4;
+   const size_t maxtype = 6;
 
    scalar_type
-   computeU(scalar_type J)
+   compute_T1(scalar_type J)
    {
-      if(m_type > maxtype)
-         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
-
       if(m_type == 1)
          return log(J);
       else if(m_type == 2)
-         return J - scalar_type{1.0};
+         return J * ( J - 1.0);
       else if(m_type == 3)
-         return log10(J);
+         return log(J)/(log(10)*log(10));
+      else if(m_type == 4)
+         return (J - 1.0)/(J*J);
+      else if(m_type == 5){
+         scalar_type J2 = J *J;
+         return 2*J2*(J2 -1.0);
+      }
+      else if(m_type == 6)
+         return (J*J -1.0)/2.0;
       else
-         return scalar_type{1.0} - scalar_type{1.0}/J;
+         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 6");
    }
 
    scalar_type
-   computeUprime(scalar_type J)
+   compute_T2(scalar_type J)
    {
-      if(m_type > maxtype)
-         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
-
       if(m_type == 1)
-         return scalar_type{1.0}/J;
+         return 1.0;
       else if(m_type == 2)
-         return scalar_type{1.0};
+         return J * ( 2.0 * J - 1.0);
       else if(m_type == 3)
-         return scalar_type{1.0}/(log(scalar_type{10.0})*J);
+         return 1.0/(log(10)*log(10));
+      else if(m_type == 4)
+         return (2.0 - J)/(J*J);
+      else if(m_type == 5){
+         scalar_type J2 = J *J;
+         return J2*(8.0*J2 -4.0);
+      }
+      else if(m_type == 6)
+         return J*J;
       else
-         return scalar_type{1.0}/(J*J);
+         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 6");
    }
 
-   scalar_type
-   computeUsecond(scalar_type J)
-   {
-      if(m_type > maxtype)
-         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 3");
-
-      if(m_type == 1)
-         return -scalar_type{1.0}/(J*J);
-      else if(m_type == 2)
-         return scalar_type{0.0};
-      else if(m_type == 3)
-         return -scalar_type{1.0}/(log(scalar_type{10.0})*J*J);
-      else
-         return -scalar_type{2.0}/(J*J*J);
-   }
 
 public:
    NeoHookeanLaw()
@@ -169,13 +174,12 @@ public:
    {
       static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       scalar_type J = F.determinant();
-      scalar_type UJ = computeU(J);
-      scalar_type UJp = computeUprime(J);
+      scalar_type T1 = compute_T1(J);
 
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      return  m_mu * F + ( m_lambda * UJ * UJp * J  - m_mu) * invF.transpose();
+      return  m_mu * F + ( m_lambda * T1 - m_mu) * invF.transpose();
    }
 
 
@@ -186,13 +190,17 @@ public:
       static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
       scalar_type J = F.determinant();
+      scalar_type T1 = compute_T1(J);
+      scalar_type T2 = compute_T2(J);
+      
+      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
+      static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
 
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
-
-      return m_lambda * computeKroneckerProduct(invFt, invFt) + m_mu * I4 + (m_mu - m_lambda * log(J)) * computeProductInf(invFt, invF);
+      return m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
    }
 
 
@@ -204,12 +212,9 @@ public:
       static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
 
       scalar_type J = F.determinant();
-      scalar_type UJ = computeU(J);
-      scalar_type UJp = computeUprime(J);
-      scalar_type UJs = computeUsecond(J);
-      scalar_type c1 = J * UJp;
-      scalar_type c2 = UJ * c1;
-      scalar_type c3 = UJ * J * (J * UJs + UJp) + c1 * c1;
+      scalar_type T1 = compute_T1(J);
+      scalar_type T2 = compute_T2(J);
+
 
       if(J <=0.0){
          std::cout << "J = " << J << std::endl;
@@ -220,9 +225,9 @@ public:
       static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
       static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
 
-      auto PK1 = m_mu * F + ( m_lambda * c2 - m_mu) * invFt;
+      auto PK1 = m_mu * F + ( m_lambda * T1 - m_mu) * invFt;
 
-      auto A = m_mu * (I4 + invFt_invF) + m_lambda *( c3 * invFt_invFt - c2 * invFt_invF);
+      auto A = m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
 
       return std::make_pair(PK1, A);
    }

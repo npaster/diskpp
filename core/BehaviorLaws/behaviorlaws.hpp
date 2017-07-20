@@ -22,5 +22,6 @@
 #include "Laws/NeohookeanLaw.hpp"
 #include "Laws/pLaplaceLaw.hpp"
 #include "Laws/LinearElasticityLaw.hpp"
+#include "Laws/LawNoLinear.hpp"
 
 #undef _BEHAVIOR_HPP_WAS_INCLUDED_
