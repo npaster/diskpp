@@ -57,7 +57,7 @@ struct resultat_type
 template<template<typename, size_t , typename> class Mesh,
          typename T, typename Storage>
 resultat_type
-run_cook2_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param, 
+run_cook2_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param,
                  const std::string& name)
 {
    typedef Mesh<T, 2, Storage> mesh_type;
@@ -84,35 +84,36 @@ run_cook2_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const El
 
       return result_type{fx,fy};
    };
-   
+
    //NEUMANN CONDITION
-   
-   BoundaryConditions N1;
+
+   BoundaryType N1;
    N1.id = 3;
    N1.boundary_type = FREE;
-   
-   BoundaryConditions N2;
+
+   BoundaryType N2;
    N2.id = 8;
    N2.boundary_type = FREE;
-   
-   BoundaryConditions N3;
+
+   BoundaryType N3;
    N3.id = 6;
    N3.boundary_type = NEUMANN;
 
-   std::vector<BoundaryConditions> boundary_neumann = {N1, N2, N3};
+   std::vector<BoundaryType> boundary_neumann = {N1, N2, N3};
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> >
+   nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
@@ -143,13 +144,13 @@ run_cook2_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const El
         nl.compute_discontinuous_solution(name + "_k_" + std::to_string(rp.m_degree) + "_sol_disc2D.msh");
         nl.compute_conforme_solution(name + "_k_" + std::to_string(rp.m_degree) + "_sol_conf2D.msh");
         nl.plot_J_at_gausspoint(name + "_k_" + std::to_string(rp.m_degree) + "_J_gp2D.msh");
-        
+
         auto depl = nl.displacement_node(2);
-        
+
         resultat.ux = depl[0];
         resultat.uy = depl[1];
    }
-   
+
    return resultat;
 }
 
@@ -160,24 +161,24 @@ printResults(const std::vector<resultat_type>& resultat)
       std::ios::fmtflags f( std::cout.flags() );
       std::cout.precision(3);
       std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-      
+
       std::cout << "Cook's membrane test for k = " << resultat[0].degree << std::endl;
       std::cout << "-----------------------------------------------------------------------------" << std::endl;
       std::cout << "|  Name mesh   | Size mesh   | Displacement A | Displacement A |    Total   |" << std::endl;
       std::cout << "|              |    h        |       ux       |       uy       | faces DOF  |" << std::endl;
       std::cout << "-----------------------------------------------------------------------------" << std::endl;
-      
+
       for(size_t i = 0; i < resultat.size(); i++){
          std::string s_dof = " " + std::to_string(resultat[i].nb_dof) + "                  ";
          s_dof.resize(10);
-         
+
          std::string s_name = " " + resultat[i].name + "                  ";
          s_name.resize(14);
-         
+
          std::cout << "|" <<  s_name << "|  " << resultat[i].h << "  |   " << resultat[i].ux << "   |    " <<
          resultat[i].uy <<  "   | "  << s_dof <<  " |" << std::endl;
       }
-      
+
       std::cout << "-----------------------------------------------------------------------------" << std::endl;
       std::cout << "  " <<std::endl;
       std::cout.flags( f );
@@ -190,7 +191,7 @@ template< typename T>
 void test_cook(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/Tests/Cook/Cook-2x2.medit2d");
    paths.push_back("../diskpp/meshes/Tests/Cook/Cook-4x4.medit2d");
@@ -200,7 +201,7 @@ void test_cook(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
    paths.push_back("../diskpp/meshes/Tests/Cook/Cook-64x64.medit2d");
    paths.push_back("../diskpp/meshes/Tests/Cook/Cook-128x128.medit2d");
    paths.push_back("../diskpp/meshes/Tests/Cook/Cook-256x256.medit2d");
-   
+
    std::vector<std::string> names;
    names.push_back("Cook-2x2");
    names.push_back("Cook-4x4");
@@ -210,11 +211,11 @@ void test_cook(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
    names.push_back("Cook-64x64");
    names.push_back("Cook-128x128");
    names.push_back("Cook-256x256");
-   
-   
-   
+
+
+
    std::vector<resultat_type> results;
-   
+
    for(int i = 0; i < runs; i++){
       auto msh = disk::load_medit_2d_mesh<T>(paths[i].c_str());
       auto resultat = run_cook2_solver(msh, rp, elas_param, names[i]);
@@ -282,13 +283,13 @@ int main(int argc, char **argv)
             case 'p':
                rp.m_init = true;
                rp.m_t_init = atof(optarg);
-               break;   
-               
-               
+               break;
+
+
             case 'v':
                 rp.m_verbose = true;
                 break;
-                
+
 
             case '?':
             default:

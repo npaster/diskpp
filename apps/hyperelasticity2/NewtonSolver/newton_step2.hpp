@@ -87,6 +87,7 @@ class NewtonRaphson_step_hyperelasticity2
 
     bool m_verbose;
 
+    BoundaryConditions m_boundary_condition;
 
     ElasticityParameters m_elas_param;
 
@@ -94,8 +95,10 @@ class NewtonRaphson_step_hyperelasticity2
 
 
 public:
-   NewtonRaphson_step_hyperelasticity2(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param)
-   : m_msh(msh), m_verbose(false), m_elas_param(elas_param), m_bqd(bqd)
+   NewtonRaphson_step_hyperelasticity2(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param,
+                                       const BoundaryConditions& boundary_conditions)
+   : m_msh(msh), m_verbose(false), m_elas_param(elas_param), m_bqd(bqd),
+    m_boundary_condition(boundary_conditions)
     {}
 
     bool    verbose(void) const     { return m_verbose; }
@@ -127,15 +130,14 @@ public:
 
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
     AssemblyInfo
-    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-             const  std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
     {
         gradrec_type gradrec(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
 
         statcond_type statcond(m_bqd);
 
-        assembler_type assembler(m_msh, m_bqd, boundary_neumann, boundary_dirichlet);
+        assembler_type assembler(m_msh, m_bqd, m_boundary_condition);
 
         AssemblyInfo ai;
 
@@ -152,7 +154,7 @@ public:
             ai.m_time_gradrec += tc.to_double();
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
 
             /////// NON LINEAIRE /////////
@@ -172,7 +174,7 @@ public:
             i++;
         }
 
-         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, boundary_neumann, boundary_dirichlet);
+         assembler.impose_boundary_conditions(m_msh, bcf, m_solution_faces, m_solution_lagr, m_boundary_condition);
          assembler.finalize(m_system_matrix, m_system_rhs);
 
          ttot.toc();
@@ -264,8 +266,7 @@ public:
 
     template<typename LoadFunction, typename NeumannFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf, const NeumannFunction& g,
-                const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+    postprocess(const LoadFunction& lf, const NeumannFunction& g)
     {
         gradrec_type gradrec(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
@@ -312,7 +313,7 @@ public:
 
             tc.tic();
 
-            hyperelasticity.compute(m_msh, cl, lf, g, boundary_neumann, gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
@@ -370,9 +371,11 @@ public:
         }
 
         const size_t lagrange_offset = m_solution_faces.size() * fbs;
+        const size_t num_lagr_dofs = fbs/m_msh.dimension;
         for(size_t i=0; i < m_solution_lagr.size(); i++){
-            assert(m_solution_lagr.at(i).size() == fbs);
-            m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * fbs, 0, fbs, 1);
+           const size_t pos = lagrange_offset + m_boundary_condition.begin_lag_conditions_faceI(i);
+           const size_t size = num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i);
+           m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * fbs, 0, fbs, 1);
         }
     }
 

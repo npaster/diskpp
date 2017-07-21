@@ -106,32 +106,32 @@ run_hyperelasticity2_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, con
 
 
 // T alpha = 0.3;
-// 
+//
 // auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T lambda = elas_param.lambda;
 //    T mu = elas_param.mu;
-// 
+//
 //    T fx = 0.0;
 //    T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T lambda = elas_param.lambda;
 //    T fx = (1.0/lambda + alpha) * p.x();
 //    T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
-// 
+//
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    T lambda = elas_param.lambda;
 //    result_grad_type grad = result_grad_type::Zero();
-// 
+//
 //    grad(0,0) = (1.0/lambda + alpha);
 //    grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
 //    grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
-// 
+//
 //    return grad;
 // };
 
@@ -140,20 +140,20 @@ run_hyperelasticity2_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, con
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
-      
+
       T fx = 0.0;
       T fy = 0.0;
       return result_type{fx,fy};
    };
-   
+
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T fx = alpha * 2.0 * p.x() - p.x();
       T fy = alpha * 2.0 * p.y() - p.y();
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       result_grad_type grad = result_grad_type::Zero();
@@ -169,35 +169,36 @@ run_hyperelasticity2_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, con
       return result_type{fx,fy};
    };
 
-   BoundaryConditions N1;
+   BoundaryType N1;
    N1.id = 11;//4
    N1.boundary_type = FREE;
-   
-   
-   BoundaryConditions N2;
+
+
+   BoundaryType N2;
    N2.id = 14;
    N2.boundary_type = FREE;
-   
-   std::vector<BoundaryConditions> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
+
+   std::vector<BoundaryType> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
-   BoundaryConditions d3;
+   BoundaryType d3;
    d3.id = 3;
    d3.boundary_type = CLAMPED;
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> >
+   nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
@@ -312,19 +313,20 @@ run_hyperelasticity2_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, con
       return result_type{fx,fy,fz};
    };
 
-   std::vector<BoundaryConditions> boundary_neumann = {};
+   std::vector<BoundaryType> boundary_neumann = {};
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity2_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 3, Storage,  point<T, 3> >
+   nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..." << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
@@ -412,8 +414,8 @@ int main(int argc, char **argv)
             case 'p':
                rp.m_init = true;
                rp.m_t_init = atof(optarg);
-               break;   
-               
+               break;
+
 
             case 'v':
                 rp.m_verbose = true;

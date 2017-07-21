@@ -11,9 +11,9 @@ target_link_libraries(hyperelasticity2_test_convergence_rates ${LINK_LIBS})
 install(TARGETS hyperelasticity2_test_convergence_rates RUNTIME DESTINATION bin)
 
 
- #add_executable(hyperelasticity_test_locking_2d hyperelasticity_test_locking_2d.cpp)
- #target_link_libraries(hyperelasticity_test_locking_2d ${LINK_LIBS})
- #install(TARGETS hyperelasticity_test_locking_2d RUNTIME DESTINATION bin)
+ add_executable(hyperelasticity2_test_locking_2d hyperelasticity2_test_locking_2d.cpp)
+ target_link_libraries(hyperelasticity2_test_locking_2d ${LINK_LIBS})
+ install(TARGETS hyperelasticity2_test_locking_2d RUNTIME DESTINATION bin)
 
 
 

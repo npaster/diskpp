@@ -42,7 +42,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#include "hyperelasticity_solver.hpp"
+#include "hyperelasticity2_solver.hpp"
 
 struct error_type
 {
@@ -104,16 +104,17 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<BoundaryConditions> boundary_neumann = {};
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_neumann = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> >
+   nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    error_type error;
    error.h = average_diameter(msh);
@@ -307,77 +308,76 @@ void test_quads_diskpp(const ParamRun<T>& rp, ElasticityParameters& elas_param)
 
 int main(int argc, char **argv)
 {
-   using RealType = double;
+    using RealType = double;
 
-   char    *mesh_filename  = nullptr;
-   char    *plot_filename  = nullptr;
-   int     degree          = 1;
-   int     l               = 0;
-   int     n_time_step     = 1;
-   int     elems_1d        = 8;
+    char    *mesh_filename  = nullptr;
+    int degree, n_time_step, l;
 
-   ParamRun<RealType> rp;
-   rp.m_sublevel = 4;
+    ParamRun<RealType> rp;
+    rp.m_sublevel = 8;
+    rp.m_verbose = true;
 
-   ElasticityParameters param = ElasticityParameters();
-   param.lambda = 1.0;
-   param.mu = 1.0;
-   param.tau = 10.0;
-   param.adaptative_stab = false;
-   param.type_law = 1;
+    ElasticityParameters param = ElasticityParameters();
 
-   int ch;
+    param.mu = 0.42;
+    param.lambda = 0.91;
+    param.type_law = 6;
 
-   while ( (ch = getopt(argc, argv, "k:l:n:p:v:t")) != -1 )
-   {
-      switch(ch)
-      {
-         case 'k':
-            degree = atoi(optarg);
-            if (degree < 0)
-            {
-               std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-               degree = 1;
-            }
-            rp.m_degree = degree;
-            break;
+    int ch;
 
-         case 'l':
-            l = atoi(optarg);
-            if (l < -1 or l > 1)
-            {
-               std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-               l = 0;
-            }
-            rp.m_l = l;
-            break;
+    while ( (ch = getopt(argc, argv, "e:i:k:l:n:p:v")) != -1 )
+    {
+        switch(ch)
+        {
+            case 'e': rp.m_epsilon = atof(optarg); break;
+            case 'i': rp.m_iter_max = atoi(optarg); break;
+            case 'k':
+                degree = atoi(optarg);
+                if (degree < 0)
+                {
+                    std::cout << "Degree must be positive. Falling back to 1." << std::endl;
+                    degree = 1;
+                }
+                rp.m_degree = degree;
+                break;
 
-         case 'n':
-            n_time_step = atoi(optarg);
-            if (n_time_step == 0)
-            {
-               std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-               n_time_step = 1;
-            }
-            rp.m_n_time_step = n_time_step;
-            break;
+            case 'l':
+                l = atoi(optarg);
+                if (l < -1 or l > 1)
+                {
+                    std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
+                    l = 0;
+                }
+                rp.m_l = l;
+                break;
+
+            case 'n':
+               n_time_step = atoi(optarg);
+               if (n_time_step == 0)
+                {
+                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
+                    n_time_step = 1;
+                }
+                rp.m_n_time_step = n_time_step;
+                break;
+
+            case 'p':
+               rp.m_init = true;
+               rp.m_t_init = atof(optarg);
+               break;
 
 
-         case 'p':
-            param.tau = atof(optarg);
-            break;
+            case 'v':
+                rp.m_verbose = true;
+                break;
 
-         case 'v':
-            rp.m_verbose = true;
-            break;
 
-         case 'h':
-         case '?':
-         default:
-            std::cout << "wrong arguments" << std::endl;
-            exit(1);
-      }
-   }
+            case '?':
+            default:
+                std::cout << "wrong arguments" << std::endl;
+                exit(1);
+        }
+    }
 
    argc -= optind;
    argv += optind;
@@ -388,7 +388,6 @@ int main(int argc, char **argv)
    std::cout << " Test convergence rates in 2D for: "<< std::endl;
    std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
    std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
-   std::cout << " ** Stab tau = " << param.tau << std::endl;
    std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;
    std::cout << " "<< std::endl;

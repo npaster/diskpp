@@ -60,10 +60,14 @@ class NewtonRaphson_solver_hyperelasticity2
 
    ElasticityParameters m_elas_param;
 
+   BoundaryConditions m_boundary_condition;
+
 
 public:
-   NewtonRaphson_solver_hyperelasticity2(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param)
-   : m_msh(msh), m_verbose(false), m_convergence(false), m_elas_param(elas_param), m_bqd(bqd)
+   NewtonRaphson_solver_hyperelasticity2(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param,
+                                          const BoundaryConditions& boundary_conditions)
+   : m_msh(msh), m_verbose(false), m_convergence(false), m_elas_param(elas_param), m_bqd(bqd),
+     m_boundary_condition(boundary_conditions)
    {}
 
    bool    verbose(void) const     { return m_verbose; }
@@ -96,7 +100,6 @@ public:
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
-            const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet,
             const scalar_type epsilon = 1.E-6,
             const std::size_t iter_max = 10)
    {
@@ -107,7 +110,7 @@ public:
       bool auricchio = false;
 
       //initialise the NewtonRaphson_step
-      NewtonRaphson_step_hyperelasticity2<BQData> newton_step(m_msh, m_bqd, m_elas_param);
+      NewtonRaphson_step_hyperelasticity2<BQData> newton_step(m_msh, m_bqd, m_elas_param, m_boundary_condition);
 
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
@@ -122,7 +125,7 @@ public:
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
-             assembly_info = newton_step.assemble(lf, bf, g, boundary_neumann, boundary_dirichlet);
+             assembly_info = newton_step.assemble(lf, bf, g);
           }
           catch(const std::invalid_argument& ia){
                 std::cerr << "Invalid argument: " << ia.what() << std::endl;
@@ -148,7 +151,7 @@ public:
             SolveInfo solve_info = newton_step.solve();
             ni.updateSolveInfo(solve_info);
             // update unknowns
-            PostprocessInfo post_info = newton_step.postprocess(lf, g, boundary_neumann, boundary_dirichlet);
+            PostprocessInfo post_info = newton_step.postprocess(lf, g);
             ni.updatePostProcessInfo(post_info);
 
             newton_step.update_solution();

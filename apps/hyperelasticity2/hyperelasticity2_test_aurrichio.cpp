@@ -101,25 +101,26 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   BoundaryConditions N1;
+   BoundaryType N1;
    N1.id = 4;//4
    N1.boundary_type = NEUMANN;
 
-   std::vector<BoundaryConditions> boundary_neumann = {N1}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N1}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   hyperelasticity2_solver<Mesh, T, 2, Storage,  point<T, 2> >
+   nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << '\n';

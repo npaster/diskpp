@@ -45,7 +45,7 @@ namespace Hyperelasticity {
       template<typename NeumannFunction>
       void
       add_NeumannConditions(const mesh_type& msh, const cell_type& cl, const NeumannFunction& g,
-                            const std::vector<BoundaryConditions>& boundary_neumann)
+                            const std::vector<BoundaryType>& boundary_neumann)
       {
          auto fcs = faces(msh, cl);
          const size_t face_basis_size = m_bqd.face_basis.size();
@@ -54,14 +54,14 @@ namespace Hyperelasticity {
          {
             //Find if this face is a boundary face
             if(msh.is_boundary(fc)){
-               
+
                auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
                if (!eid.first)
                   throw std::invalid_argument("This is a bug: face not found");
-               
+
                auto face_id = eid.second;
                const size_t b_id = msh.boundary_id(face_id);
-               
+
                //Find if this face is a boundary face with Neumann Condition
                for(auto& elem : boundary_neumann)
                {
@@ -97,7 +97,7 @@ namespace Hyperelasticity {
       template<typename Function, typename NeumannFunction>
       void
       compute(const mesh_type& msh, const cell_type& cl, const Function& load, const NeumannFunction& neumann,
-              const std::vector<BoundaryConditions>& boundary_neumann, const matrix_type& GT,
+              const std::vector<BoundaryType>& boundary_neumann, const matrix_type& GT,
               const vector_type& uTF, const ElasticityParameters elas_param)
       {
          const size_t DIM= msh.dimension;
