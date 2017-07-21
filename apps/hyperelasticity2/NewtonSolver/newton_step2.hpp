@@ -379,56 +379,80 @@ public:
         }
     }
 
-
-
     bool test_convergence(const scalar_type epsilon, const size_t iter, scalar_type& error)
     {
-       if(iter == 0)
-          initial_residual = m_system_rhs.norm();
+      if(iter == 0)
+         initial_residual = m_system_rhs.norm();
 
-       scalar_type residual = m_system_rhs.norm();
-       scalar_type max_error = m_system_rhs.maxCoeff();
+      scalar_type residual = m_system_rhs.norm();
+      scalar_type max_error(0.0);
+      for(size_t i = 0; i < m_system_rhs.size(); i++)
+         max_error = std::max( max_error, std::abs(m_system_rhs(i)));
 
-       scalar_type relative_error = residual / initial_residual;
+      scalar_type relative_error = residual / initial_residual;
 
-       if(initial_residual == scalar_type{0.0})
-       {
-          relative_error = 0.0;
-          max_error = 0.0;
-       }
+      if(initial_residual == scalar_type{0.0})
+      {
+         relative_error = 0.0;
+         max_error = 0.0;
+      }
 
-       size_t nb_faces_dof = m_bqd.face_basis.size() * m_msh.faces_size();
+      const scalar_type error_incr = m_system_solution.norm();
 
-       scalar_type norm_depl = (m_system_rhs.head(nb_faces_dof)).norm();
-       scalar_type norm_lag = (m_system_rhs.tail(m_system_rhs.size() - nb_faces_dof)).norm();
+      scalar_type error_un(0.0);
 
-       if(m_verbose){
-          std::string s_iter = "   " + std::to_string(iter) + "               ";
-          s_iter.resize(9);
+      for (size_t i = 0; i < m_solution_faces.size(); i++) {
+         scalar_type norm = m_solution_faces[i].norm();
+         error_un += norm * norm;
+      }
 
-          if(iter == 0){
-             std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
-             std::cout << "| Iteration |  Residual l2  | Relative error | Maximum error | Residual face  |  Residual BC   |" << std::endl;
-             std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
+      for (size_t i = 0; i < m_solution_lagr.size(); i++) {
+         scalar_type norm = m_solution_lagr[i].norm();
+         error_un += norm * norm;
+      }
 
-          }
-          std::ios::fmtflags f( std::cout.flags() );
-          std::cout.precision(5);
-          std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
-          std::cout << "| " << s_iter << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   "
-          << norm_depl << "  |   " << norm_lag << "  |" << std::endl;
-          std::cout << "------------------------------------------------------------------------------------------------" << std::endl;
-          std::cout.flags( f );
-       }
+      error_un = sqrt(error_un);
 
-       error = std::min(max_error, residual);
+      if(error_un == scalar_type(0.0))
+         error_un = 10E-6;
 
-       if(error <= epsilon ){
-          return true;
-       }
-       else {
-          return false;
-       }
+      scalar_type relative_displ = error_incr/error_un;
+
+      if(iter == 0)
+         relative_displ = 1.0;
+
+      size_t nb_faces_dof = m_bqd.face_basis.size() * m_msh.faces_size();
+
+      scalar_type norm_depl = (m_system_rhs.head(nb_faces_dof)).norm();
+      scalar_type norm_lag = (m_system_rhs.tail(m_system_rhs.size() - nb_faces_dof)).norm();
+
+      if(m_verbose){
+         std::string s_iter = "   " + std::to_string(iter) + "               ";
+         s_iter.resize(9);
+
+         if(iter == 0){
+          std::cout << "--------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+          std::cout << "| Iteration | Norme l2 incr | Relative depl |  Residual l2  | Relative error | Maximum error | Residual face  |  Residual BC   |" << std::endl;
+          std::cout << "--------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+
+         }
+         std::ios::fmtflags f( std::cout.flags() );
+         std::cout.precision(5);
+         std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
+         std::cout << "| " << s_iter << " |   " << error_incr << " |   " << relative_displ << " |   " << residual << " |   " << relative_error << "  |  " << max_error << "  |   "
+         << norm_depl << "  |   " << norm_lag << "  |" << std::endl;
+         std::cout << "--------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+         std::cout.flags( f );
+      }
+
+      error = relative_displ;
+
+      if(error <= epsilon ){
+         return true;
+      }
+      else {
+         return false;
+      }
 
     }
 

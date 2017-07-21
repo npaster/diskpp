@@ -109,6 +109,7 @@ public:
       tc.tic();
 
       bool auricchio = false;
+      scalar_type error;
 
       //initialise the NewtonRaphson_step
       NewtonRaphson_step_hyperelasticity<BQData> newton_step(m_msh, m_bqd, m_elas_param, m_boundary_condition);
@@ -139,7 +140,7 @@ public:
 
           ni.updateAssemblyInfo( assembly_info);
          // test convergence
-         m_convergence = newton_step.test_convergence(epsilon, iter);
+         m_convergence = newton_step.test_convergence(epsilon, iter, error);
 
          if(auricchio){
             size_t nb_negative_ev = newton_step.test_aurrichio();
