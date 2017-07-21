@@ -81,10 +81,14 @@ class hyperelasticity_solver
    ElasticityParameters m_elas_param;
    param_type m_rp;
 
+   BoundaryConditions m_boundary_condition;
+
    size_t total_dof_depl_static;
 
 public:
-   hyperelasticity_solver(const mesh_type& msh, const param_type& rp, const ElasticityParameters elas_param)
+   hyperelasticity_solver(const mesh_type& msh, const param_type& rp, const ElasticityParameters elas_param,
+                         const std::vector<BoundaryType>& boundary_neumann,
+                         const std::vector<BoundaryType>& boundary_dirichlet)
    : m_msh(msh), m_verbose(rp.m_verbose), m_convergence(false), m_elas_param(elas_param), m_rp(rp)
    {
       int l = rp.m_l;
@@ -102,6 +106,9 @@ public:
 
       m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l);
 
+
+      m_boundary_condition = BoundaryConditions(msh, boundary_neumann, boundary_dirichlet);
+
    }
 
    bool    verbose(void) const     { return m_verbose; }
@@ -111,17 +118,15 @@ public:
 
    //template<typename DeplFunction, typename StressFunction>
    void
-   compute_initial_state(const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet )//const DeplFunction& df, const StressFunction& bcf)
+   compute_initial_state()//const DeplFunction& df, const StressFunction& bcf)
    {
       m_solution_data.clear();
       m_solution_cells.clear();
       m_solution_faces.clear();
       m_solution_lagr.clear();
 
-      const size_t nb_faces_dirichlet = m_msh.boundary_faces_size() - number_of_neumann_faces(m_msh, boundary_neumann);
-      const size_t nb_lag_conditions = number_of_lag_conditions(m_msh, boundary_dirichlet, boundary_neumann);
-
-      assert(nb_faces_dirichlet == nb_lag_conditions/m_msh.dimension);
+      const size_t nb_faces_dirichlet = m_boundary_condition.nb_faces_dirichlet();
+      const size_t nb_lag_conditions = m_boundary_condition.nb_lag();
 
       m_solution_data.reserve(m_msh.cells_size());
       m_solution_cells.reserve(m_msh.cells_size());
@@ -131,6 +136,7 @@ public:
 
       const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
       const size_t num_face_dofs = m_bqd.face_basis.size();
+      const size_t num_lagr_dofs = num_face_dofs/DIM;
       const size_t total_dof = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
       const size_t total_lagr = nb_lag_conditions * num_face_dofs/m_msh.dimension;
 
@@ -148,7 +154,9 @@ public:
       }
 
       for(size_t i = 0; i < nb_faces_dirichlet; i++){
-         m_solution_lagr.push_back(vector_dynamic::Zero(num_face_dofs));
+         std::cout << "nb lag" << m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
+         std::cout << "taille " << num_face_dofs << " vs " << num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
+         m_solution_lagr.push_back(vector_dynamic::Zero(num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)));
       }
 
 
@@ -184,15 +192,14 @@ public:
 
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
    SolverInfo
-   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-           const std::vector<BoundaryConditions>& boundary_neumann, const std::vector<BoundaryConditions>& boundary_dirichlet)
+   compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
    {
 
       SolverInfo si;
       timecounter ttot;
       ttot.tic();
 
-      NewtonRaphson_solver_hyperelasticity<bqdata_type> newton_solver(m_msh, m_bqd, m_elas_param);
+      NewtonRaphson_solver_hyperelasticity<bqdata_type> newton_solver(m_msh, m_bqd, m_elas_param, m_boundary_condition);
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);
@@ -241,7 +248,7 @@ public:
             return disk::mm_prod(current_time, g(p));
          };
 
-         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rg, boundary_neumann, boundary_dirichlet);
+         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rg);
          si.updateInfo(newton_info);
 
          if(m_verbose){
@@ -347,7 +354,7 @@ public:
 
        return sqrt(err_dof);
     }
-    
+
     std::array<scalar_type, 3>
     displacement_node(const size_t num_node)
     {
@@ -364,19 +371,19 @@ public:
              auto point_ids = cell_nodes[i];
              if(point_ids == num_node){
                 auto pt = storage->points[point_ids];
-                
+
                 auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
-                
+
                 // plot magnitude at node
                 for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                    for(size_t j=0; j < DIM; j++)
                       depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
-                      
+
                       return depl;
              }
           }
        }
-       
+
        std::cout << "Invalid node number" << std::endl;
        return depl;
     }
@@ -648,9 +655,9 @@ public:
              // Compute local gradient and norm
              auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
              auto FT_iqn = compute_FTensor(GT_iqn);
-             
+
              std::vector<double> J(1, FT_iqn.determinant());
-             
+
              nb_node += 1;
              visu::Node snode = visu::convertPoint(qp.point(), nb_node); //create a node at gauss point
              visu::SubData sdata(J, snode);
@@ -664,19 +671,19 @@ public:
 
        nodedata.saveNodeData(filename, msh); // save the view
     }
-    
-    
+
+
     void
     plot_J(const std::string& filename)
     {
        visu::Gmesh gmsh(DIM);
        auto storage = m_msh.backend_storage();
-       
+
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-       
+
        gradrec_type gradrec(m_bqd);
-       
+
        size_t cell_i(0);
        size_t nb_nodes(0);
        for (auto& cl : m_msh)
@@ -691,33 +698,33 @@ public:
              nb_nodes++;
              auto point_ids = cell_nodes[i];
              auto pt = storage->points[point_ids];
-             
+
              std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-             
+
              visu::init_coor(pt, coor);
              visu::Node tmp_node(coor, nb_nodes, 0);
              new_nodes.push_back(tmp_node);
              gmsh.addNode(tmp_node);
-             
-             
+
+
              auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-             
+
              // Compute local gradient and norm
              auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
              auto FT_iqn = compute_FTensor(GT_iqn);
-             
+
              std::vector<double> J(1, FT_iqn.determinant());
-             
+
              visu::Data datatmp(nb_nodes, J);
              data.push_back(datatmp);
-             
+
           }
           // add new element
           visu::add_element(gmsh, new_nodes);
        }
-       
+
        visu::NodeData nodedata(1, 0.0, "J_node", data, subdata); // create and init a nodedata view
-       
+
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
 

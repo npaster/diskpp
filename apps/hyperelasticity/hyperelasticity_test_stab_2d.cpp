@@ -102,13 +102,15 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<BoundaryConditions> boundary_neumann = {};
+   std::vector<BoundaryType> boundary_neumann = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp.degree, elas_param);
+   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
+      nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
-   nl.compute_initial_state(boundary_neumann);
+   nl.compute_initial_state();
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, rp.n_time_step);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    error_type error;
    error.h = average_diameter(msh);

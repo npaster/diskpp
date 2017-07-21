@@ -164,40 +164,51 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = 0.0;
+      T fy = -0.01;
 
       return result_type{fx,fy};
    };
-   
-   BoundaryConditions N1;
-   N1.id = 11;//4
+
+   BoundaryType N1;
+   N1.id = 1;//4,11
    N1.boundary_type = FREE;
-   
-   
-   BoundaryConditions N2;
-   N2.id = 14;
+
+
+   BoundaryType N2;
+   N2.id = 2;//14
    N2.boundary_type = FREE;
 
-   std::vector<BoundaryConditions> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
+
+   BoundaryType N4;
+   N4.id = 4;//14
+   N4.boundary_type = NEUMANN;
+
+   std::vector<BoundaryType> boundary_neumann = {N1, N2, N4}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
-   BoundaryConditions d3;
+   BoundaryType d3;
    d3.id = 3;
    d3.boundary_type = CLAMPED;
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
 
-   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> > nl(msh, rp, elas_param);
+   BoundaryType d1;
+   d1.id = 1;
+   d1.boundary_type = DX;
+
+   std::vector<BoundaryType> boundary_dirichlet = { d3};
+
+   hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
+      nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
@@ -315,19 +326,20 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       return result_type{fx,fy,fz};
    };
 
-   std::vector<BoundaryConditions> boundary_neumann = {};
+   std::vector<BoundaryType> boundary_neumann = {};
 
-   std::vector<BoundaryConditions> boundary_dirichlet = {};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
-   hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> > nl(msh, rp, elas_param);
+   hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> >
+      nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
-   nl.compute_initial_state(boundary_neumann, boundary_dirichlet);
+   nl.compute_initial_state();
 
    if(nl.verbose()){
       std::cout << "Solving the problem ..." << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann, boundary_neumann, boundary_dirichlet);
+   SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
