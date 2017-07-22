@@ -91,20 +91,34 @@ public:
                          const std::vector<BoundaryType>& boundary_dirichlet)
    : m_msh(msh), m_verbose(rp.m_verbose), m_convergence(false), m_elas_param(elas_param), m_rp(rp)
    {
-      int l = rp.m_l;
-      if( l < -1 or l > 1)
-      {
-         std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-         l = 0;
-      }
-      int face_degree = rp.m_degree;
+      size_t face_degree = rp.m_face_degree;
       if(face_degree <= 0)
       {
          std::cout << "'face_degree' should be > 0. Reverting to 1." << std::endl;
-         face_degree = 0;
+         face_degree = 1;
       }
 
-      m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l);
+      m_rp.m_face_degree = face_degree;
+
+      size_t cell_degree = rp.m_face_degree + rp.m_l;
+      if(face_degree-1  < cell_degree or cell_degree > face_degree +1 )
+      {
+         std::cout << "'cell_degree' should be 'face_degree + 1' => 'cell_degree' => 'face_degree -1'. Reverting to 'face_degree'." << std::endl;
+         cell_degree = face_degree;
+      }
+
+      m_rp.m_cell_degree = cell_degree;
+
+      size_t grad_degree = rp.m_grad_degree;
+      if(grad_degree  < cell_degree)
+      {
+         std::cout << "'grad_degree' should be > 'cell_degree'. Reverting to 'cell_degree'." << std::endl;
+         grad_degree = cell_degree;
+      }
+
+      m_rp.m_grad_degree = grad_degree;
+
+      m_bqd = bqdata_type(face_degree, cell_degree, grad_degree);
 
 
       m_boundary_condition = BoundaryConditions(msh, boundary_neumann, boundary_dirichlet);
@@ -199,7 +213,8 @@ public:
       timecounter ttot;
       ttot.tic();
 
-      NewtonRaphson_solver_hyperelasticity<bqdata_type> newton_solver(m_msh, m_bqd, m_elas_param, m_boundary_condition);
+      NewtonRaphson_solver_hyperelasticity<bqdata_type>
+         newton_solver(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
 
       newton_solver.initialize(m_solution_cells, m_solution_faces,
                                  m_solution_lagr, m_solution_data);

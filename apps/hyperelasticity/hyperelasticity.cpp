@@ -164,7 +164,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = -0.01;
+      T fy = -0.1;
 
       return result_type{fx,fy};
    };
@@ -377,7 +377,9 @@ int main(int argc, char **argv)
     char    *mesh_filename  = nullptr;
     char    *plot_filename  = nullptr;
     int     elems_1d        = 8;
-    int degree, n_time_step, l;
+    int face_degree, cell_degree, grad_degree, n_time_step, l;
+
+    face_degree = 0; cell_degree = 0; grad_degree = 0;
 
     ParamRun<RealType> rp;
     rp.m_sublevel = 4;
@@ -393,18 +395,31 @@ int main(int argc, char **argv)
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "k:l:n:p:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "g:k:l:n:p:v")) != -1 )
     {
         switch(ch)
         {
+            case 'g':
+               grad_degree = atoi(optarg);
+               if (grad_degree <= 0)
+               {
+                   std::cout << "'grad degree' must be positive. Falling back to 1." << std::endl;
+                   grad_degree = 1;
+               }
+               rp.m_grad_degree = grad_degree;
+               break;
+
             case 'k':
-                degree = atoi(optarg);
-                if (degree < 0)
+                face_degree = atoi(optarg);
+                if (face_degree <= 0)
                 {
                     std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-                    degree = 1;
+                    face_degree = 1;
                 }
-                rp.m_degree = degree;
+                rp.m_face_degree = face_degree;
+                if(cell_degree == 0) rp.m_cell_degree = face_degree;
+                if(grad_degree == 0) rp.m_grad_degree = face_degree;
+
                 break;
 
             case 'l':
@@ -415,6 +430,7 @@ int main(int argc, char **argv)
                     l = 0;
                 }
                 rp.m_l = l;
+                rp.m_cell_degree = rp.m_face_degree + l;
                 break;
 
             case 'n':

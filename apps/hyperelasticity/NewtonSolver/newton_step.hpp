@@ -36,6 +36,7 @@
 #include "../ElasticityParameters.hpp"
 #include "../BoundaryConditions.hpp"
 #include "../Informations.hpp"
+#include "../Parameters.hpp"
 #include "../hyperelasticity_elementary_computation.hpp"
 
 #include "timecounter.h"
@@ -71,6 +72,7 @@ class NewtonRaphson_step_hyperelasticity
    typedef typename assembler_type::sparse_matrix_type       sparse_matrix_type;
    typedef typename assembler_type::vector_type              vector_type;
 
+   typedef ParamRun<scalar_type>    param_type;
     #ifdef HAVE_INTEL_MKL
         typedef Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver_type;
     #else
@@ -95,15 +97,18 @@ class NewtonRaphson_step_hyperelasticity
     scalar_type m_beta = 1.0;
 
     ElasticityParameters m_elas_param;
+    const param_type& m_rp;
 
     scalar_type initial_residual;
 
     BoundaryConditions m_boundary_condition;
 
 public:
-   NewtonRaphson_step_hyperelasticity(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param,
+   NewtonRaphson_step_hyperelasticity(const mesh_type& msh, const BQData& bqd,
+                                       const param_type& rp,
+                                       const ElasticityParameters elas_param,
                                        const BoundaryConditions& boundary_conditions)
-   : m_msh(msh), m_verbose(false), m_elas_param(elas_param), m_bqd(bqd),
+   : m_msh(msh), m_verbose(false), m_rp(rp), m_elas_param(elas_param), m_bqd(bqd),
      m_boundary_condition(boundary_conditions)
     {
         m_beta = elas_param.tau;
@@ -168,9 +173,11 @@ public:
             ai.m_time_gradrec += tc.to_double();
 
             tc.tic();
+            if(m_rp.m_stab){
 //             deplrec.compute(m_msh, cl);
 //             stab.compute(m_msh, cl, deplrec.oper);
             stab.compute(m_msh, cl, gradrec.oper());
+            }
             tc.toc();
             ai.m_time_stab += tc.to_double();
 
@@ -188,12 +195,16 @@ public:
             /////// NON LINEAIRE /////////
             assert( hyperelasticity.K_int.rows() == stab.data.rows());
             assert( hyperelasticity.K_int.cols() == stab.data.cols());
-            dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
+            dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
+            if(m_rp.m_stab)
+               lhs += m_beta * stab.data;
 
             assert( hyperelasticity.RTF.rows() == (stab.data * m_solution_data.at(i)).rows());
             assert( hyperelasticity.RTF.cols() == (stab.data * m_solution_data.at(i)).cols());
 
-            dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  - m_beta * stab.data * m_solution_data.at(i) ;
+            dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
+            if(m_rp.m_stab)
+               rhs -= m_beta * stab.data * m_solution_data.at(i) ;
 
             tc.toc();
             ai.m_time_elem += tc.to_double();
@@ -361,9 +372,11 @@ std::cout << "final" << '\n';
             pi.m_time_gradrec += tc.to_double();
 
             tc.tic();
+            if(m_rp.m_stab){
 //             deplrec.compute(m_msh, cl);
 //             stab.compute(m_msh, cl, deplrec.oper);
-            stab.compute(m_msh, cl, gradrec.oper());
+               stab.compute(m_msh, cl, gradrec.oper());
+            }
             tc.toc();
             pi.m_time_stab += tc.to_double();
 
@@ -378,9 +391,12 @@ std::cout << "final" << '\n';
                m_beta = m_elas_param.tau;
 
             /////// NON LINEAIRE /////////
-            dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int + m_beta * stab.data;
-
-            dynamic_vector<scalar_type> rhs = hyperelasticity.RTF  -  m_beta * stab.data * m_solution_data.at(i) ;
+            dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
+            if(m_rp.m_stab)
+               lhs += m_beta * stab.data;
+            dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
+            if(m_rp.m_stab)
+               rhs -= m_beta * stab.data * m_solution_data.at(i);
             dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
 
             tc.toc();
@@ -438,7 +454,7 @@ std::cout << "final" << '\n';
         for(size_t i=0; i < m_solution_lagr.size(); i++){
            const size_t pos = lagrange_offset + m_boundary_condition.begin_lag_conditions_faceI(i);
            const size_t size = num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i);
-           m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * fbs, 0, fbs, 1);
+           m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * size, 0, size, 1);
         }
     }
 

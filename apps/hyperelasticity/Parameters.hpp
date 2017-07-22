@@ -21,12 +21,15 @@ template< typename T>
 class ParamRun
 {
 public:
-   size_t  m_degree;        //face degree
-   int     m_l;             //cell_degree = face_degree + l
+   size_t  m_face_degree;     //face degree
+   size_t  m_cell_degree;    //cell_degree = face_degree + l
+   size_t  m_grad_degree;     // grad degree
+   int     m_l;
 
    size_t  m_n_time_step;   //number of time time_step
    size_t  m_sublevel;      //number od sublevel if there are problems
 
+   bool    m_stab;          //stabilization yes or no
    bool    m_adapt_coeff;   //adapts automatically the stabilisation coefficient
    bool    m_adapt_stab;    //use the adpatative stabilization
    bool    m_verbose;       //some printing
@@ -36,7 +39,8 @@ public:
 
 
 
-   ParamRun() : m_degree(1), m_l(0), m_n_time_step(1), m_sublevel(1),
+   ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
+                m_n_time_step(1), m_sublevel(1), m_stab(true),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
                 m_iter_max(10), m_epsilon(T(10E-6)) {}
 };

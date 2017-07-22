@@ -32,6 +32,7 @@
 #include "../ElasticityParameters.hpp"
 #include "../BoundaryConditions.hpp"
 #include "../Informations.hpp"
+#include "../Parameters.hpp"
 
 #include "timecounter.h"
 
@@ -48,6 +49,7 @@ class NewtonRaphson_solver_hyperelasticity
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
+   typedef ParamRun<scalar_type>               param_type;
    const BQData&                               m_bqd;
 
    const mesh_type&                            m_msh;
@@ -62,13 +64,15 @@ class NewtonRaphson_solver_hyperelasticity
 
    ElasticityParameters m_elas_param;
 
-
+   const param_type& m_rp;
 
 public:
-   NewtonRaphson_solver_hyperelasticity(const mesh_type& msh, const BQData& bqd, const ElasticityParameters elas_param,
+   NewtonRaphson_solver_hyperelasticity(const mesh_type& msh, const BQData& bqd,
+                                        const param_type& rp,
+                                        const ElasticityParameters elas_param,
                                         const BoundaryConditions& boundary_conditions)
    : m_msh(msh), m_verbose(false), m_convergence(false), m_elas_param(elas_param), m_bqd(bqd),
-     m_boundary_condition(boundary_conditions)
+     m_rp(rp), m_boundary_condition(boundary_conditions)
    {}
 
    bool    verbose(void) const     { return m_verbose; }
@@ -100,19 +104,20 @@ public:
 
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
-   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
-            const scalar_type epsilon = 5.E-8,
-            const std::size_t iter_max = 10)
+   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g)
    {
       NewtonSolverInfo ni;
       timecounter tc;
       tc.tic();
 
+      const size_t iter_max = m_rp.m_iter_max;
+      const scalar_type epsilon = m_rp.m_epsilon;
       bool auricchio = false;
       scalar_type error;
 
       //initialise the NewtonRaphson_step
-      NewtonRaphson_step_hyperelasticity<BQData> newton_step(m_msh, m_bqd, m_elas_param, m_boundary_condition);
+      NewtonRaphson_step_hyperelasticity<BQData>
+         newton_step(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
 
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
@@ -159,7 +164,7 @@ public:
             std::cout << "post" << '\n';
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
-
+            std::cout << "update" << '\n';
             newton_step.update_solution();
          }
          iter++;
