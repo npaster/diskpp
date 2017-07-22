@@ -426,6 +426,8 @@ public:
       std::array<scalar_type, 2> ret = {0.0, 0.0};
       scalar_type energy_stab(0.0);
 
+      NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
       size_t i = 0;
       for (auto& cl : m_msh)
       {
@@ -441,8 +443,6 @@ public:
 
          const vector_type GT_uTF = gradrec.oper() * m_solution_data.at(i);
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
-
-         NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
          for (auto& qp : grad_quadpoints)
          {

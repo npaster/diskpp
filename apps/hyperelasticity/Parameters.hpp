@@ -49,6 +49,6 @@ public:
                 m_n_time_step(1), m_sublevel(1), m_stab(true),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
                 m_compute_energy(false), m_init(false), m_tinit(0),
-                m_iter_max(10), m_epsilon(T(10E-6)),
+                m_iter_max(10), m_epsilon(T(1E-6)),
                 m_beta_min(T(0)), m_beta_max(T(0)) {}
 };

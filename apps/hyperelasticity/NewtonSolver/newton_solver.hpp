@@ -142,6 +142,13 @@ public:
                 return ni;
           }
 
+          if(m_rp.m_compute_energy and m_verbose){
+             std::array<scalar_type,2> energy = newton_step.compute_energy();
+             std::cout << "Compute elastic energy:" << std::endl;
+             std::cout << " - Elastic energy: " << energy[0]  << std::endl;
+             std::cout << " - Stabilisation energy: " << energy[1]  << std::endl;
+          }
+
           ni.updateAssemblyInfo( assembly_info);
          // test convergence
          m_convergence = newton_step.test_convergence(epsilon, iter, error);
@@ -162,13 +169,6 @@ public:
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
             newton_step.update_solution();
-
-            if(m_rp.m_compute_energy and m_verbose){
-               std::array<scalar_type,2> energy = newton_step.compute_energy();
-               std::cout << "Compute elastic energy:" << std::endl;
-               std::cout << " - Elastic energy: " << energy[0]  << std::endl;
-               std::cout << " - Stabilisation energy: " << energy[1]  << std::endl;
-            }
          }
          iter++;
       }

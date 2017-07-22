@@ -164,7 +164,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = -10.0;
+      T fy = -0.01;
 
       return result_type{fx,fy};
    };
@@ -241,6 +241,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
         nl.plot_displacement_at_gausspoint("depl_gp2D.msh");
         nl.plot_J_at_gausspoint("J_gp2D.msh");
         nl.plot_J("J_dis2d.msh");
+        nl.compute_discontinuous_PK1("PK1_disc2D.msh");
    }
 }
 
