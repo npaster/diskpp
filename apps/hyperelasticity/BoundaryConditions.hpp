@@ -105,21 +105,21 @@ private:
       const size_t DIM = msh.dimension;
       m_nb_lag = 0;
 
-      if(!m_dirichlet_conditions.empty()){
-         size_t face(0);
-         std::array<size_t, 2> info = {0,0};
-         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
-         {
-            if(m_faces_dirichlet[face].first){
-               auto bfc = *itor;
+      size_t face(0);
+      std::array<size_t, 2> info = {0,0};
+      for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+      {
+         if(m_faces_dirichlet[face].first){
+            auto bfc = *itor;
+            
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+            throw std::invalid_argument("This is a bug: face not found");
 
-               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
-               if (!eid.first)
-               throw std::invalid_argument("This is a bug: face not found");
+            auto face_id = eid.second;
+            bool dirichlet_standart = true;
 
-               auto face_id = eid.second;
-               bool dirichlet_standart = true;
-
+            if(!m_dirichlet_conditions.empty()){
                for(auto& elem : m_dirichlet_conditions)
                {
                   if(msh.boundary_id(face_id) == elem.id)
@@ -127,74 +127,74 @@ private:
                      dirichlet_standart = false;
                      switch ( elem.boundary_type ) {
                         case CLAMPED:
-                           info[0] = m_nb_lag; info[1] = DIM;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += DIM;
-                           m_faces_dirichlet[face].second = CLAMPED;
-                           break;
+                        info[0] = m_nb_lag; info[1] = DIM;
+                        m_lagranges_info.push_back(info);
+                        m_nb_lag += DIM;
+                        m_faces_dirichlet[face].second = CLAMPED;
+                        break;
                         case DX:
-                           info[0] = m_nb_lag; info[1] = 1;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += 1;
-                           m_faces_dirichlet[face].second = DX;
-                           break;
+                        info[0] = m_nb_lag; info[1] = 1;
+                        m_lagranges_info.push_back(info);
+                        m_nb_lag += 1;
+                        m_faces_dirichlet[face].second = DX;
+                        break;
                         case DY:
+                        info[0] = m_nb_lag; info[1] = 1;
+                        m_lagranges_info.push_back(info);
+                        m_nb_lag += 1;
+                        m_faces_dirichlet[face].second = DY;
+                        break;
+                        case DZ:
+                        if( DIM != 3){
+                           std::cout << "Invalid condition for face:" << face_id << std::endl;
+                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        }
+                        else{
                            info[0] = m_nb_lag; info[1] = 1;
                            m_lagranges_info.push_back(info);
                            m_nb_lag += 1;
-                           m_faces_dirichlet[face].second = DY;
-                           break;
-                        case DZ:
-                           if( DIM != 3){
-                              std::cout << "Invalid condition for face:" << face_id << std::endl;
-                              throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                           }
-                           else{
-                              info[0] = m_nb_lag; info[1] = 1;
-                              m_lagranges_info.push_back(info);
-                              m_nb_lag += 1;
-                              m_faces_dirichlet[face].second = DZ;
-                           }
-                           break;
+                           m_faces_dirichlet[face].second = DZ;
+                        }
+                        break;
                         case DXDY:
-                           if( DIM != 3){
-                              std::cout << "Invalid condition for face:" << face_id << std::endl;
-                              throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                           }
-                           else{
-                              info[0] = m_nb_lag; info[1] = 2;
-                              m_lagranges_info.push_back(info);
-                              m_nb_lag += 2;
-                              m_faces_dirichlet[face].second = DXDY;
-                           }
-                           break;
+                        if( DIM != 3){
+                           std::cout << "Invalid condition for face:" << face_id << std::endl;
+                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        }
+                        else{
+                           info[0] = m_nb_lag; info[1] = 2;
+                           m_lagranges_info.push_back(info);
+                           m_nb_lag += 2;
+                           m_faces_dirichlet[face].second = DXDY;
+                        }
+                        break;
                         case DXDZ:
-                           if( DIM != 3){
-                              std::cout << "Invalid condition for face:" << face_id << std::endl;
-                              throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                           }
-                           else{
-                              info[0] = m_nb_lag; info[1] = 2;
-                              m_lagranges_info.push_back(info);
-                              m_nb_lag += 2;
-                              m_faces_dirichlet[face].second = DXDZ;
-                           }
-                           break;
+                        if( DIM != 3){
+                           std::cout << "Invalid condition for face:" << face_id << std::endl;
+                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        }
+                        else{
+                           info[0] = m_nb_lag; info[1] = 2;
+                           m_lagranges_info.push_back(info);
+                           m_nb_lag += 2;
+                           m_faces_dirichlet[face].second = DXDZ;
+                        }
+                        break;
                         case DYDZ:
-                           if( DIM != 3){
-                              std::cout << "Invalid condition for face:" << face_id << std::endl;
-                              throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                           }
-                           else{
-                              info[0] = m_nb_lag; info[1] = 2;
-                              m_lagranges_info.push_back(info);
-                              m_nb_lag += 2;
-                              m_faces_dirichlet[face].second = DYDZ;
-                           }
-                           break;
+                        if( DIM != 3){
+                           std::cout << "Invalid condition for face:" << face_id << std::endl;
+                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        }
+                        else{
+                           info[0] = m_nb_lag; info[1] = 2;
+                           m_lagranges_info.push_back(info);
+                           m_nb_lag += 2;
+                           m_faces_dirichlet[face].second = DYDZ;
+                        }
+                        break;
                         default:
-                           std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
-                           break;
+                        std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
+                        break;
                      }
                      break;
                   }
