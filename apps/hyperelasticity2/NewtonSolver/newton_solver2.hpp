@@ -151,7 +151,7 @@ public:
             SolveInfo solve_info = newton_step.solve();
             ni.updateSolveInfo(solve_info);
             // update unknowns
-            PostprocessInfo post_info = newton_step.postprocess(lf, g);
+            PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
 
             newton_step.update_solution();

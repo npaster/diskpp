@@ -157,7 +157,7 @@ public:
             ni.updateSolveInfo(solve_info);
             // update unknowns
             std::cout << "post" << '\n';
-            PostprocessInfo post_info = newton_step.postprocess(lf, g);
+            PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
 
             newton_step.update_solution();

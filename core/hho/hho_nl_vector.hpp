@@ -971,9 +971,11 @@ namespace disk {
       }
 
 
-      template<typename Function>
+      template<typename Function, typename NeumannFunction>
       void
-      impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
+      impose_boundary_conditions(const mesh_type& msh, const Function& bc,
+                                 const NeumannFunction& g,
+                                 const std::vector<vector_type>& sol_faces,
                                  const std::vector<vector_type>& sol_lagr,
                                  const BoundaryConditions& boundary_conditions)
       {
@@ -981,23 +983,23 @@ namespace disk {
          const size_t face_basis_size = m_bqd.face_basis.size();
          size_t face_i = 0;
          size_t face_dir(0);
+
+
+
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
+            auto bfc = *itor;
+
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            auto face_id = eid.second;
+            const size_t face_offset = face_id * face_basis_size;
+
             std::cout << "face "  << face_i << " "<< boundary_conditions.is_boundary_dirichlet(face_i)   << '\n';
             if(boundary_conditions.is_boundary_dirichlet(face_i)){
-               auto bfc = *itor;
 
-               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
-               if (!eid.first)
-                  throw std::invalid_argument("This is a bug: face not found");
-
-               auto face_id = eid.second;
-
-               std::cout << "face_i "  << face_id << '\n';
-               const size_t b_id = msh.boundary_id(face_id);
-
-               //Dirichlet condition
-               auto face_offset = face_id * face_basis_size;
                auto face_offset_lagrange = (msh.faces_size() + face_dir) * face_basis_size;
 
                auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
@@ -1101,6 +1103,27 @@ namespace disk {
                }
                #endif
                face_dir++;
+            }
+            else{
+
+               if(boundary_conditions.boundary_type(face_i) == NEUMANN){
+                  vector_type TF   = vector_type::Zero(face_basis_size);
+
+                  auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, bfc);
+                  for (auto& qp : face_quadpoints)
+                  {
+                     auto fphi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+                     assert(fphi.size() == face_basis_size);
+
+                     for(size_t i=0; i < face_basis_size; i++)
+                        TF(i) += qp.weight() * mm_prod(g(qp.point()) , fphi[i]);
+                  }
+
+                  for (size_t i = 0; i < TF.rows(); i++)
+                  {
+                     rhs(face_offset+i) += TF(i);
+                  }
+               }
             }
             face_i++;
          }

@@ -176,7 +176,7 @@ public:
 
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
+            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
 
             if(m_elas_param.adaptative_stab){
                m_beta = hyperelasticity.beta_adap;
@@ -217,7 +217,7 @@ public:
 std::cout << "final" << '\n';
          assembler.finalize(m_system_matrix, m_system_rhs);
 
-         std::cout << m_system_rhs << '\n';
+      //   std::cout << m_system_rhs << '\n';
 
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
@@ -308,9 +308,9 @@ std::cout << "final" << '\n';
 
 
 
-    template<typename LoadFunction, typename NeumannFunction>
+    template<typename LoadFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf, const NeumannFunction& g)
+    postprocess(const LoadFunction& lf)
     {
         gradrec_type gradrec(m_bqd);
         stab_type stab(m_bqd);
@@ -369,7 +369,7 @@ std::cout << "final" << '\n';
 
             tc.tic();
 
-            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
             if(m_elas_param.adaptative_stab){
                m_beta = m_adpat_stab[i];

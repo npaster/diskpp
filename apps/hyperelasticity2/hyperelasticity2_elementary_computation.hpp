@@ -42,50 +42,6 @@ namespace Hyperelasticity {
 
       const BQData&                               m_bqd;
 
-      template<typename NeumannFunction>
-      void
-      add_NeumannConditions(const mesh_type& msh, const cell_type& cl, const NeumannFunction& g,
-                            const std::vector<BoundaryType>& boundary_neumann)
-      {
-         auto fcs = faces(msh, cl);
-         const size_t face_basis_size = m_bqd.face_basis.size();
-
-         for (auto& fc : fcs)
-         {
-            //Find if this face is a boundary face
-            if(msh.is_boundary(fc)){
-
-               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-               if (!eid.first)
-                  throw std::invalid_argument("This is a bug: face not found");
-
-               auto face_id = eid.second;
-               const size_t b_id = msh.boundary_id(face_id);
-
-               //Find if this face is a boundary face with Neumann Condition
-               for(auto& elem : boundary_neumann)
-               {
-                  if(b_id == elem.id)
-                  {
-                     if( elem.boundary_type == NEUMANN ){
-                        auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
-                        for (auto& qp : face_quadpoints)
-                        {
-                           auto fphi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
-                           assert(fphi.size() == face_basis_size);
-
-                           for(size_t i=0; i < face_basis_size; i++)
-                              RTF(i) += qp.weight() * disk::mm_prod(g(qp.point()) , fphi[i]);
-                        }
-                     }
-                     break;
-                  }
-               }
-            }
-         }
-      }
-
-
    public:
       matrix_type     K_int;
       vector_type     RTF;
@@ -94,11 +50,11 @@ namespace Hyperelasticity {
       Hyperelasticity2(const BQData& bqd) : m_bqd(bqd)
       {}
 
-      template<typename Function, typename NeumannFunction>
+      template<typename Function>
       void
-      compute(const mesh_type& msh, const cell_type& cl, const Function& load, const NeumannFunction& neumann,
-              const std::vector<BoundaryType>& boundary_neumann, const matrix_type& GT,
-              const vector_type& uTF, const ElasticityParameters elas_param)
+      compute(const mesh_type& msh, const cell_type& cl, const Function& load,
+              const matrix_type& GT, const vector_type& uTF,
+              const ElasticityParameters elas_param)
       {
          const size_t DIM= msh.dimension;
          const size_t cell_degree = m_bqd.cell_degree();
@@ -176,9 +132,6 @@ namespace Hyperelasticity {
 
          K_int = GT.transpose() * AT * GT;
          RTF -= GT.transpose() * aT;
-
-         //Add Neumann condition
-         add_NeumannConditions(msh, cl, neumann, boundary_neumann);
 
          assert(K_int.rows() == num_total_dofs);
          assert(K_int.cols() == num_total_dofs);

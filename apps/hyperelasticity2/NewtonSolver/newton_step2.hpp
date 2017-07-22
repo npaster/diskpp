@@ -154,7 +154,7 @@ public:
             ai.m_time_gradrec += tc.to_double();
 
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
 
             /////// NON LINEAIRE /////////
@@ -264,9 +264,9 @@ public:
 
 
 
-    template<typename LoadFunction, typename NeumannFunction>
+    template<typename LoadFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf, const NeumannFunction& g)
+    postprocess(const LoadFunction& lf)
     {
         gradrec_type gradrec(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
@@ -313,7 +313,7 @@ public:
 
             tc.tic();
 
-            hyperelasticity.compute(m_msh, cl, lf, g, m_boundary_condition.boundary_neumann(), gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param);
 
             /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
