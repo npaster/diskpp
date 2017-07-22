@@ -416,6 +416,62 @@ public:
     }
 
 
+    std::array<scalar_type, 2>
+    compute_energy()
+    {
+      gradrec_type gradrec(m_bqd);
+      deplrec_type deplrec(m_bqd);
+      stab2_type stab(m_bqd);
+
+      std::array<scalar_type, 2> ret = {0.0, 0.0};
+      scalar_type energy_stab(0.0);
+
+      size_t i = 0;
+      for (auto& cl : m_msh)
+      {
+         gradrec.compute(m_msh, cl, false);
+
+         // Energie in the stabilisation
+         if(m_rp.m_stab){
+            deplrec.compute(m_msh, cl);
+            stab.compute(m_msh, cl, deplrec.oper);
+            energy_stab = m_beta *  m_solution_data.at(i).dot(stab.data * m_solution_data.at(i));
+         //stab.compute(m_msh, cl, gradrec.oper());
+         }
+
+         const vector_type GT_uTF = gradrec.oper() * m_solution_data.at(i);
+         auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
+
+         NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
+         for (auto& qp : grad_quadpoints)
+         {
+            auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
+
+            // Compute local gradient and norm
+            auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
+            auto FT_iqn = compute_FTensor(GT_iqn);
+
+            const scalar_type energy = law.compute_energy(FT_iqn);
+
+            //Elastic energy
+            ret[0] += qp.weight() * energy;
+
+            // Energie in the stabilisation
+            if(m_rp.m_stab){
+               ret[1] += qp.weight() * energy_stab;
+            //stab.compute(m_msh, cl, gradrec.oper());
+            }
+         }
+
+
+         i++;
+      }
+
+      return ret;
+   }
+
+
 
     void
     update_solution()

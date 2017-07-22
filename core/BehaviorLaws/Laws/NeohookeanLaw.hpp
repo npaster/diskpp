@@ -72,6 +72,28 @@ class NeoHookeanLaw
    const size_t maxtype = 6;
 
    scalar_type
+   compute_U(scalar_type J)
+   {
+      if(m_type == 1)
+         return log(J);
+      else if(m_type == 2)
+         return ( J - 1.0);
+      else if(m_type == 3)
+         return log10(J);
+      else if(m_type == 4)
+         return 1.0/(1.0-J);
+      else if(m_type == 5){
+         scalar_type J2 = J *J;
+         return (J2 -1.0);
+      }
+      else if(m_type == 6)
+         return sqrt( ( J*J -1.0 - 2.0 *log(J)) /2.0);
+      else
+         throw std::invalid_argument("NeoHookeanLaw: m_type have to be <= 6");
+   }
+
+
+   scalar_type
    compute_T1(scalar_type J)
    {
       if(m_type == 1)
@@ -169,6 +191,20 @@ public:
 
 
    template< int DIM>
+   scalar_type
+   compute_energy(const static_matrix<scalar_type, DIM, DIM>& F)
+   {
+      scalar_type J = F.determinant();
+      if(J <=0.0)
+         throw std::invalid_argument("J <= 0");
+
+      scalar_type Wiso = m_mu/2.0 * ((F.transpose() * F).trace() - DIM) - m_mu * log(J);
+      scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J);
+
+      return  Wiso + Wvol;
+   }
+
+   template< int DIM>
    static_matrix<scalar_type, DIM, DIM>
    compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
@@ -192,7 +228,7 @@ public:
       scalar_type J = F.determinant();
       scalar_type T1 = compute_T1(J);
       scalar_type T2 = compute_T2(J);
-      
+
       static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
       static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
       static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);

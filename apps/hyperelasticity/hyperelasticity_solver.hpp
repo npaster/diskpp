@@ -223,14 +223,22 @@ public:
 
       newton_solver.verbose(m_verbose);
 
-      const scalar_type delta_t = 1.0/m_rp.m_n_time_step;
+      const scalar_type delta_t = (1.0 - m_rp.m_tinit)/m_rp.m_n_time_step;
 
       std::list<time_step> list_step;
+
+      if(m_rp.m_init){
+         time_step step1;
+         step1.time = m_rp.m_tinit;
+         step1.level = 1;
+         list_step.push_back(step1);
+      }
+
 
       for (size_t n = 0; n < m_rp.m_n_time_step; n++)
       {
          time_step step;
-         step.time = (n+1) * delta_t;
+         step.time = m_rp.m_tinit + (n+1) * delta_t;
          step.level = 1;
          list_step.push_back(step);
       }

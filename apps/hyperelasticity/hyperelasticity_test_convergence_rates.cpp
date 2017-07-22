@@ -547,6 +547,7 @@ int main(int argc, char **argv)
 
    ParamRun<RealType> rp;
    rp.m_sublevel = 4;
+   rp.m_compute_energy = true;
 
    ElasticityParameters param = ElasticityParameters();
    param.lambda = 1.0;

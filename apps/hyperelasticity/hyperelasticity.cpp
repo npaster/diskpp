@@ -183,7 +183,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    N4.id = 4;//14
    N4.boundary_type = NEUMANN;
 
-   std::vector<BoundaryType> boundary_neumann = {N2, N4}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N1,N2, N4}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -384,6 +384,7 @@ int main(int argc, char **argv)
     ParamRun<RealType> rp;
     rp.m_sublevel = 4;
     rp.m_verbose = true;
+    rp.m_compute_energy = true;
 
     ElasticityParameters param = ElasticityParameters();
 
