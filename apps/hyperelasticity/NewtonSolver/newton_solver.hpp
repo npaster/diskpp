@@ -132,7 +132,6 @@ public:
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
-             std::cout << "assemble" << '\n';
              assembly_info = newton_step.assemble(lf, bf, g);
           }
           catch(const std::invalid_argument& ia){
@@ -157,14 +156,11 @@ public:
 
          if(iter < (iter_max-1) && !m_convergence){
             // solve the global system
-            std::cout << "solve" << '\n';
             SolveInfo solve_info = newton_step.solve();
             ni.updateSolveInfo(solve_info);
             // update unknowns
-            std::cout << "post" << '\n';
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
-            std::cout << "update" << '\n';
             newton_step.update_solution();
          }
          iter++;

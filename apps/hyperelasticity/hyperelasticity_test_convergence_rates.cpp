@@ -128,7 +128,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.m_degree;
+   error.degree = rp.m_face_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
@@ -240,7 +240,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.m_degree;
+   error.degree = rp.m_face_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
@@ -537,7 +537,9 @@ int main(int argc, char **argv)
 
    char    *mesh_filename  = nullptr;
    char    *plot_filename  = nullptr;
-   int     degree          = 1;
+   int     face_degree          = 1;
+   int     cell_degree          = 0;
+   int     grad_degree          = 0;
    int     l               = 0;
    int     n_time_step     = 1;
    int     sublevel        = 1;
@@ -555,7 +557,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "23b:k:l:m:n:s:t:v")) != -1 )
+   while ( (ch = getopt(argc, argv, "23b:g:k:l:m:n:s:t:v:w")) != -1 )
    {
       switch(ch)
       {
@@ -563,25 +565,39 @@ int main(int argc, char **argv)
 
          case '3': three_dimensions = true; break;
 
-         case 'k':
-            degree = atoi(optarg);
-            if (degree < 1)
+         case 'g':
+            grad_degree = atoi(optarg);
+            if (grad_degree <= 0)
             {
-               std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-               degree = 1;
+                std::cout << "'grad degree' must be positive. Falling back to 1." << std::endl;
+                grad_degree = 1;
             }
-            rp.m_degree = degree;
+            rp.m_grad_degree = grad_degree;
             break;
 
+         case 'k':
+             face_degree = atoi(optarg);
+             if (face_degree <= 0)
+             {
+                 std::cout << "Degree must be positive. Falling back to 1." << std::endl;
+                 face_degree = 1;
+             }
+             rp.m_face_degree = face_degree;
+             if(cell_degree == 0) rp.m_cell_degree = face_degree;
+             if(grad_degree == 0) rp.m_grad_degree = face_degree;
+
+             break;
+
          case 'l':
-            l = atoi(optarg);
-            if (l < -1 or l > 1)
-            {
-               std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-               l = 0;
-            }
-            rp.m_l = l;
-            break;
+             l = atoi(optarg);
+             if (l < -1 or l > 1)
+             {
+                 std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
+                 l = 0;
+             }
+             rp.m_l = l;
+             rp.m_cell_degree = rp.m_face_degree + l;
+             break;
 
          case 'm':
             sublevel = atoi(optarg);
@@ -609,8 +625,7 @@ int main(int argc, char **argv)
 
          case 'v': rp.m_verbose = true; break;
 
-         case 'h':
-
+         case 'w': rp.m_stab = false; break;
 
          case '?':
          default:
@@ -626,8 +641,9 @@ int main(int argc, char **argv)
    timecounter tc;
 
    std::cout << " Test convergence rates for: "<< std::endl;
-   std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
-   std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
+   std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
+   std::cout << " ** Cell_Degree  = " << rp.m_cell_degree << std::endl;
+   std::cout << " ** Grad_Degree  = " << rp.m_grad_degree << std::endl;
    std::cout << " ** Stab tau = " << param.tau << std::endl;
    std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;

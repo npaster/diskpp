@@ -164,7 +164,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = -0.1;
+      T fy = -10.0;
 
       return result_type{fx,fy};
    };
@@ -183,7 +183,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    N4.id = 4;//14
    N4.boundary_type = NEUMANN;
 
-   std::vector<BoundaryType> boundary_neumann = {N1, N2, N4}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N2, N4}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -196,7 +196,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    d1.id = 1;
    d1.boundary_type = DX;
 
-   std::vector<BoundaryType> boundary_dirichlet = { d3};
+   std::vector<BoundaryType> boundary_dirichlet = {d3};
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
@@ -388,14 +388,14 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 0.333;
-    param.lambda = 1664000.44 ;
+    param.lambda = 1664.44 ;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "g:k:l:n:p:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "g:k:l:n:p:s:v:w")) != -1 )
     {
         switch(ch)
         {
@@ -448,11 +448,13 @@ int main(int argc, char **argv)
                param.tau = atof(optarg);
                break;
 
+            case 's': rp.m_adapt_stab = true; break;
+
             case 'v':
                 rp.m_verbose = true;
                 break;
 
-            case 'h':
+            case 'w': rp.m_stab = false;
             case '?':
             default:
                 std::cout << "wrong arguments" << std::endl;

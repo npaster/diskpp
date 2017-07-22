@@ -37,10 +37,13 @@ public:
    size_t  m_iter_max;        //maximun nexton iteration
    T       m_epsilon;         //stop criteria
 
+   T       m_beta_min;      // minium of stabilization constant
+   T       m_beta_max;      // maximum of stabilization constant
 
 
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
                 m_n_time_step(1), m_sublevel(1), m_stab(true),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
-                m_iter_max(10), m_epsilon(T(10E-6)) {}
+                m_iter_max(10), m_epsilon(T(10E-6)),
+                m_beta_min(T(0)), m_beta_max(T(0)) {}
 };

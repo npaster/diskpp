@@ -981,6 +981,7 @@ namespace disk {
       {
          const size_t DIM = msh.dimension;
          const size_t face_basis_size = m_bqd.face_basis.size();
+         const size_t lagr_size = face_basis_size / DIM;
          size_t face_i = 0;
          size_t face_dir(0);
 
@@ -997,16 +998,18 @@ namespace disk {
             auto face_id = eid.second;
             const size_t face_offset = face_id * face_basis_size;
 
-            std::cout << "face "  << face_i << " "<< boundary_conditions.is_boundary_dirichlet(face_i)   << '\n';
+            //std::cout << "face "  << face_i << " "<< boundary_conditions.is_boundary_dirichlet(face_i)   << '\n';
             if(boundary_conditions.is_boundary_dirichlet(face_i)){
-
-               auto face_offset_lagrange = (msh.faces_size() + face_dir) * face_basis_size;
+               const size_t nb_lag = boundary_conditions.nb_lag_conditions_faceI(face_dir);
+               const size_t lagr_basis_size = nb_lag * lagr_size;
+               const size_t lag_pos = boundary_conditions.begin_lag_conditions_faceI(face_dir);
+               const size_t face_offset_lagrange = msh.faces_size()  * face_basis_size + lag_pos * lagr_size;
 
                auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
 
                matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
-               vector_type rhs_f   = vector_type::Zero(face_basis_size);
                vector_type rhs_bc   = vector_type::Zero(face_basis_size);
+               vector_type rhs_l   = vector_type::Zero(face_basis_size);
                for (auto& qp : fqd)
                {
                   auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
@@ -1025,14 +1028,53 @@ namespace disk {
                   for(size_t j = 0; j < i; j++)
                      MFF(i,j) = MFF(j,i) ;
 
-                  std::cout << "mat " << MFF.rows() << MFF.cols() << '\n';
-                  std::cout << "vec " << sol_lagr.at(face_dir).rows() << '\n';
-                  vector_type rhs_l = MFF * sol_lagr.at(face_dir);
-               rhs_f -= MFF * sol_faces.at(face_id);
+               // impose displacement
+               vector_type rhs_fc = rhs_bc - MFF * sol_faces.at(face_id);
+               vector_type rhs_f = - MFF * sol_faces.at(face_id);
+
+               vector_type rhs_f2;
+               matrix_type MFF2;
 
                bool dirichlet_standart = true;
                switch ( boundary_conditions.boundary_type(face_i)) {
-                  case CLAMPED: dirichlet_standart = false;  break;
+                  case CLAMPED:
+                  {
+                     dirichlet_standart = false;
+                     rhs_f2 = rhs_f;
+                     MFF2 = MFF;
+                     rhs_l = MFF * sol_lagr.at(face_dir);
+                     break;
+                  }
+                  case DX:
+                  {
+                     dirichlet_standart = false;
+                     rhs_f2.resize(lagr_basis_size, 1);
+                     MFF2.resize(face_basis_size, lagr_basis_size);
+
+                     assert(rhs_f2.rows() == lagr_basis_size);
+                     assert(MFF2.rows() == face_basis_size);
+                     assert(MFF2.cols() == lagr_basis_size);
+
+                     size_t ind(0);
+                     for(size_t i = 0; i < face_basis_size; i += DIM){
+                        MFF2.col(ind) = MFF.col(i);
+                        rhs_f2(ind) = rhs_f(i);
+                        ind++;
+                     }
+
+                     assert(ind == lagr_basis_size);
+
+                     vector_type rhs_l2 = MFF2 * sol_lagr.at(face_dir);
+                     ind = 0;
+                     for(size_t i = 0; i < face_basis_size; i += DIM){
+                        rhs_l(i) = rhs_l2(ind);
+                        ind++;
+                     }
+
+                     assert(ind == lagr_basis_size);
+
+                     break;
+                  }
                   //
                   //                   case DY:
                   //                      nb_lag_conditions -= DIM - 1;
@@ -1076,29 +1118,38 @@ namespace disk {
 
                }
 
-               if(dirichlet_standart)
-                  rhs_f += rhs_bc;
+               if(dirichlet_standart){
+                  rhs_f2 = rhs_fc;
+                  MFF2 = MFF;
+                  rhs_l = MFF * sol_lagr.at(face_dir);
+               }
+
+               assert(MFF2.rows() == face_basis_size);
 
                #ifdef FILL_COLMAJOR
-               for (size_t j = 0; j < MFF.cols(); j++)
+               for (size_t j = 0; j < MFF2.cols(); j++)
                {
-                  for (size_t i = 0; i < MFF.rows(); i++)
+                  for (size_t i = 0; i < MFF2.rows(); i++)
                   {
-                     m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
-                     m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+                     m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF2(i,j)) );
+                     m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF2(i,j)) );
                   }
-                  rhs(face_offset_lagrange+j) = rhs_f(j);
-                  rhs(face_offset+j) -= rhs_l(j);
+                  rhs(face_offset_lagrange+j) = rhs_f2(j);
+
                }
+
+               for (size_t i = 0; i < face_basis_size; i++)
+                  rhs(face_offset+i) -= rhs_l(i);
+
                #else
-               for (size_t i = 0; i < MFF.rows(); i++)
+               for (size_t i = 0; i < MFF2.rows(); i++)
                {
-                  for (size_t j = 0; j < MFF.cols(); j++)
+                  for (size_t j = 0; j < MFF2.cols(); j++)
                   {
-                     m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
-                     m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+                     m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF2(i,j)) );
+                     m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF2(i,j)) );
                   }
-                  rhs(face_offset_lagrange+i) = rhs_f(i);
+                  rhs(face_offset_lagrange+i) = rhs_f2(i);
                   rhs(face_offset+j) -= rhs_l(j);
                }
                #endif

@@ -101,7 +101,7 @@ public:
       m_rp.m_face_degree = face_degree;
 
       size_t cell_degree = rp.m_face_degree + rp.m_l;
-      if(face_degree-1  < cell_degree or cell_degree > face_degree +1 )
+      if(face_degree-1  > cell_degree or cell_degree > face_degree +1 )
       {
          std::cout << "'cell_degree' should be 'face_degree + 1' => 'cell_degree' => 'face_degree -1'. Reverting to 'face_degree'." << std::endl;
          cell_degree = face_degree;
@@ -120,6 +120,8 @@ public:
 
       m_bqd = bqdata_type(face_degree, cell_degree, grad_degree);
 
+      if(m_verbose)
+         m_bqd.info_degree();
 
       m_boundary_condition = BoundaryConditions(msh, boundary_neumann, boundary_dirichlet);
 
@@ -168,8 +170,8 @@ public:
       }
 
       for(size_t i = 0; i < nb_faces_dirichlet; i++){
-         std::cout << "nb lag" << m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
-         std::cout << "taille " << num_face_dofs << " vs " << num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
+         // std::cout << "nb lag" << m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
+         // std::cout << "taille " << num_face_dofs << " vs " << num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
          m_solution_lagr.push_back(vector_dynamic::Zero(num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)));
       }
 

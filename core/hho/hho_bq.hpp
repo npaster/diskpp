@@ -72,7 +72,7 @@ namespace disk {
          init();
       }
 
-      basis_quadrature_data_full(const size_t cell_degree, const size_t face_degree, const size_t grad_degree)
+      basis_quadrature_data_full(const size_t face_degree, const size_t cell_degree, const size_t grad_degree)
       {
          if ( (cell_degree + 1 < face_degree) or (cell_degree > face_degree + 1) )
             throw std::invalid_argument("Invalid cell degree");
@@ -85,6 +85,14 @@ namespace disk {
          m_grad_degree = grad_degree;
 
          init();
+      }
+
+      void info_degree() const
+      {
+         std::cout << "Face degree: "  << m_face_degree  << std::endl;
+         std::cout << "Cell degree: "  << m_cell_degree  << std::endl;
+         std::cout << "Grad degree: "  << m_grad_degree  << std::endl;
+
       }
 
       size_t cell_degree(void) const { return m_cell_degree; }
@@ -122,47 +130,47 @@ namespace disk {
          const size_t cell_degree = m_bqd.cell_degree();
          const size_t face_degree = m_bqd.face_degree();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, cell_degree)).size();
-         const size_t num_face_dofs = (m_bqd.face_basis.range(0, face_degree)).size();
-         const size_t num_grad_dofs = (m_bqd.grad_basis.range(0, grad_degree)).size();
+         const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+         const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
+         const size_t grad_basis_size = (m_bqd.grad_basis.range(0, grad_degree)).size();
 
 
          auto fcs = faces(msh, cl);
          const size_t num_faces = fcs.size();
 
-         assert(num_grad_dofs == DIM * binomial( grad_degree +DIM, grad_degree));
+         assert(grad_basis_size == DIM * binomial( grad_degree +DIM, grad_degree));
 
-         dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
+         dofspace_ranges dsr(cell_basis_size, face_basis_size, num_faces);
 
-         assert(dsr.total_size() == (num_cell_dofs + num_faces * num_face_dofs));
+         assert(dsr.total_size() == (cell_basis_size + num_faces * face_basis_size));
 
-         matrix_type BG = matrix_type::Zero(num_grad_dofs, dsr.total_size());
+         matrix_type BG = matrix_type::Zero(grad_basis_size, dsr.total_size());
 
-         matrix_type MG = matrix_type::Zero(num_grad_dofs, num_grad_dofs);
+         matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
 
 
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
          for (auto& qp : grad_quadpoints)
          {
             auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
-            assert(num_grad_dofs == gphi.size());
+            assert(grad_basis_size == gphi.size());
 
             auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 0, cell_degree);
-            assert(num_cell_dofs == dphi.rows());
+            assert(cell_basis_size == dphi.rows());
             assert(dphi.cols() == DIM);
 
-            for(size_t j = 0; j < num_grad_dofs; j += DIM){
+            for(size_t j = 0; j < grad_basis_size; j += DIM){
                size_t col = j;
                for(size_t k = 0; k < DIM; k++){
-                  for(size_t i = col; i < num_grad_dofs; i += DIM){
+                  for(size_t i = col; i < grad_basis_size; i += DIM){
                      MG(i,col) += qp.weight() * gphi[i](k) * gphi[col](k);
                   }
                   col++;
                }
             }
 
-            for(size_t j = 0; j < num_cell_dofs; j++){
-               for(size_t i = 0; i < num_grad_dofs; i += DIM){
+            for(size_t j = 0; j < cell_basis_size; j++){
+               for(size_t i = 0; i < grad_basis_size; i += DIM){
                   size_t row = i;
                   for(size_t k = 0; k < DIM; k++){
                      BG(row,j) += qp.weight() * gphi[row](k) * dphi(j,k);
@@ -173,8 +181,8 @@ namespace disk {
          }// end qp
 
          // lower part MG
-         for(size_t i = 1; i <  num_grad_dofs; i++)
-            for(size_t j = i; j < num_grad_dofs; j++)
+         for(size_t i = 1; i <  grad_basis_size; i++)
+            for(size_t j = i; j < grad_basis_size; j++)
                MG(i,j) = MG(j,i);
 
          for (size_t face_i = 0; face_i < num_faces; face_i++)
@@ -190,26 +198,26 @@ namespace disk {
                auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
 
                // tau.n
-               matrix_type gphi_n = matrix_type::Zero(num_grad_dofs, 1);
-               for(size_t i = 0; i < num_grad_dofs; i += DIM)
+               matrix_type gphi_n = matrix_type::Zero(grad_basis_size, 1);
+               for(size_t i = 0; i < grad_basis_size; i += DIM)
                   for(size_t k = 0; k < DIM; k++)
                      gphi_n(i + k,0) = gphi[i + k](k) * n(k);
 
                      matrix_type T = qp.weight() * gphi_n * c_phi.transpose();
 
-                     assert(T.rows() == num_grad_dofs);
-                     assert(T.cols() == num_cell_dofs);
+                     assert(T.rows() == grad_basis_size);
+                     assert(T.cols() == cell_basis_size);
 
-                     BG.block(0, 0, num_grad_dofs, num_cell_dofs) -= T;
+                     BG.block(0, 0, grad_basis_size, cell_basis_size) -= T;
 
                      matrix_type f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
                      matrix_type F = qp.weight() * gphi_n * f_phi.transpose();
 
-                     assert(F.rows() == num_grad_dofs);
+                     assert(F.rows() == grad_basis_size);
                      assert(F.cols() == current_face_range.size());
 
                      BG.block(0, current_face_range.min(),
-                     num_grad_dofs, current_face_range.size()) += F;
+                     grad_basis_size, current_face_range.size()) += F;
                   }
                }
 
@@ -217,7 +225,7 @@ namespace disk {
                if(compute_data)
                m_data  = BG.transpose() * m_oper;  // A
 
-               assert(m_oper.rows() == num_grad_dofs);
+               assert(m_oper.rows() == grad_basis_size);
                assert(m_oper.cols() == dsr.total_size());
             }
    };
@@ -253,9 +261,9 @@ namespace disk {
          const size_t cell_degree = m_bqd.cell_degree();
          const size_t face_degree = m_bqd.face_degree();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, cell_degree)).size();
-         const size_t num_face_dofs = (m_bqd.face_basis.range(0, face_degree)).size();
-         const size_t num_grad_dofs = DIM * (m_bqd.grad_basis.range(0, grad_degree)).size();
+         const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+         const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
+         const size_t grad_basis_size = DIM * (m_bqd.grad_basis.range(0, grad_degree)).size();
 
          auto fcs = faces(msh, cl);
          const size_t num_faces = fcs.size();
@@ -263,15 +271,15 @@ namespace disk {
          timecounter tc;
          double t_base(0.0); double t_cons(0.0); double t_inv(0.0);
 
-         assert(num_grad_dofs == DIM * DIM * binomial( grad_degree +DIM, grad_degree));
+         assert(grad_basis_size == DIM * DIM * binomial( grad_degree +DIM, grad_degree));
 
-         dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
+         dofspace_ranges dsr(cell_basis_size, face_basis_size, num_faces);
 
-         assert(dsr.total_size() == (num_cell_dofs + num_faces * num_face_dofs));
+         assert(dsr.total_size() == (cell_basis_size + num_faces * face_basis_size));
 
-         matrix_type BG = matrix_type::Zero(num_grad_dofs, dsr.total_size());
+         matrix_type BG = matrix_type::Zero(grad_basis_size, dsr.total_size());
 
-         matrix_type MG = matrix_type::Zero(num_grad_dofs, num_grad_dofs);
+         matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
 
 
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
@@ -279,20 +287,20 @@ namespace disk {
          {
             tc.tic();
             auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
-            assert(num_grad_dofs == gphi.size());
+            assert(grad_basis_size == gphi.size());
 
             auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
-            assert(num_cell_dofs == dphi.size());
+            assert(cell_basis_size == dphi.size());
             tc.toc();
             t_base += tc.to_double();
 
             tc.tic();
 
             size_t col = 0;
-            for(size_t j = 0; j < num_grad_dofs; j += DIM2 ){
+            for(size_t j = 0; j < grad_basis_size; j += DIM2 ){
                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-                     for(size_t i = col; i < num_grad_dofs; i += DIM2){
+                     for(size_t i = col; i < grad_basis_size; i += DIM2){
                         MG(i,col) += qp.weight() * gphi[i](l,k) * gphi[col](l,k);
                      }
                      col++;
@@ -301,16 +309,16 @@ namespace disk {
             }
 
 // Works but not optimized
-//             for(size_t i = 0; i < num_grad_dofs; i++){
-//                for(size_t j = i; j < num_grad_dofs; j++){
+//             for(size_t i = 0; i < grad_basis_size; i++){
+//                for(size_t j = i; j < grad_basis_size; j++){
 //                  MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
 
 
             size_t row = 0;
-            for(size_t i = 0; i < num_grad_dofs; i += DIM2 ){
+            for(size_t i = 0; i < grad_basis_size; i += DIM2 ){
                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-                     for(size_t j = l; j < num_cell_dofs; j += DIM){
+                     for(size_t j = l; j < cell_basis_size; j += DIM){
                         BG(row,j) += qp.weight() * gphi[row](l,k) * dphi[j](l,k);
                      }
                      row++;
@@ -319,8 +327,8 @@ namespace disk {
             }
 
             // Works but not optimized
-//             for(size_t i = 0; i < num_grad_dofs; i++){
-//                for(size_t j = ; j < num_cell_dofs; j++){
+//             for(size_t i = 0; i < grad_basis_size; i++){
+//                for(size_t j = ; j < cell_basis_size; j++){
 //                   BG(i,j) += qp.weight() * mm_prod(gphi[i], dphi[j]);
 //                }
 //             }
@@ -331,8 +339,8 @@ namespace disk {
 
          tc.tic();
          // lower part MG
-         for(size_t i = 1; i <  num_grad_dofs; i++)
-            for(size_t j = i; j < num_grad_dofs; j++)
+         for(size_t i = 1; i <  grad_basis_size; i++)
+            for(size_t j = i; j < grad_basis_size; j++)
                MG(i,j) = MG(j,i);
 
             tc.toc();
@@ -367,7 +375,7 @@ namespace disk {
 //                      gphi_n.push_back(mm_prod(gphi[i] , n));
 //                   }
 
-                  for(size_t i = 0; i < num_grad_dofs; i += DIM2 ){
+                  for(size_t i = 0; i < grad_basis_size; i += DIM2 ){
                      for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
                         scalar_type val = gphi[i](0,0) * n(k);
                         for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
@@ -378,14 +386,14 @@ namespace disk {
                      }
                   }
 
-                  assert(gphi_n.size() == num_grad_dofs);
+                  assert(gphi_n.size() == grad_basis_size);
 
-                  matrix_type T = matrix_type::Zero(num_grad_dofs, num_cell_dofs);
+                  matrix_type T = matrix_type::Zero(grad_basis_size, cell_basis_size);
 
-                  for(size_t j = 0; j < num_cell_dofs; j += DIM){
+                  for(size_t j = 0; j < cell_basis_size; j += DIM){
                      size_t col = j;
                      for(size_t k = 0; k < DIM; k++){
-                        for(size_t i = 0; i < num_grad_dofs; i++){
+                        for(size_t i = 0; i < grad_basis_size; i++){
                            T(i,col) = qp.weight() * gphi_n[i](k) * c_phi[col](k);
                         }
                         col++;
@@ -393,16 +401,16 @@ namespace disk {
                   }
 
  // Works but not optimized
-//                   for(size_t j = 0; j < num_cell_dofs; j++){
-//                      for(size_t i = 0; i < num_grad_dofs; i++){
+//                   for(size_t j = 0; j < cell_basis_size; j++){
+//                      for(size_t i = 0; i < grad_basis_size; i++){
 //                         T(i,j) = qp.weight() * mm_prod(gphi_n[i], c_phi[j]);
 //                      }
 //                   }
 
-                  assert(T.rows() == num_grad_dofs);
-                  assert(T.cols() == num_cell_dofs);
+                  assert(T.rows() == grad_basis_size);
+                  assert(T.cols() == cell_basis_size);
 
-                  BG.block(0, 0, num_grad_dofs, num_cell_dofs) -= T;
+                  BG.block(0, 0, grad_basis_size, cell_basis_size) -= T;
                   tc.toc();
                   t_cons += tc.to_double();
 
@@ -417,7 +425,7 @@ namespace disk {
                   for(size_t j = 0; j < current_face_range.size(); j += DIM){
                      size_t col = j;
                      for(size_t k = 0; k < DIM; k++){
-                        for(size_t i = 0; i < num_grad_dofs; i++){
+                        for(size_t i = 0; i < grad_basis_size; i++){
                            F(i,col) = qp.weight() * gphi_n[i](k) * f_phi[col](k);
                         }
                         col++;
@@ -426,16 +434,16 @@ namespace disk {
 
                   // Works but not optimized
 //                   for(size_t j = 0; j < current_face_range.size(); j++){
-//                      for(size_t i = 0; i < num_grad_dofs; i++){
+//                      for(size_t i = 0; i < grad_basis_size; i++){
 //                         F(i,j) = qp.weight() * mm_prod(gphi_n[i], f_phi[j]);
 //                      }
 //                   }
 
-                  assert(F.rows() == num_grad_dofs);
+                  assert(F.rows() == grad_basis_size);
                   assert(F.cols() == current_face_range.size());
 
                   BG.block(0, current_face_range.min(),
-                           num_grad_dofs, current_face_range.size()) += F;
+                           grad_basis_size, current_face_range.size()) += F;
                    tc.toc();
                    t_cons += tc.to_double();
                }
@@ -452,8 +460,174 @@ namespace disk {
 //             std::cout << "t_cons = " << t_cons << " sec" << std::endl;
 //             std::cout << "t_inv = " << t_inv << " sec" << std::endl;
 
-            assert(m_oper.rows() == num_grad_dofs);
+            assert(m_oper.rows() == grad_basis_size);
             assert(m_oper.cols() == dsr.total_size());
+      }
+   };
+
+
+   template<typename BQData>
+   class displacement_reconstruction_elas_bq
+   {
+      typedef typename BQData::mesh_type          mesh_type;
+      typedef typename mesh_type::scalar_type     scalar_type;
+      typedef typename mesh_type::cell            cell_type;
+
+      typedef typename BQData::cell_basis_type    cell_basis_type;
+      typedef typename BQData::cell_quad_type     cell_quad_type;
+
+      typedef dynamic_matrix<scalar_type>         matrix_type;
+
+      const BQData&                               m_bqd;
+
+      cell_basis_type     cell_basis;
+      cell_quad_type      cell_quadrature;
+
+   public:
+      matrix_type     oper;
+      matrix_type     data;
+
+      displacement_reconstruction_elas_bq(const BQData& bqd) : m_bqd(bqd)
+      {
+         cell_basis          = cell_basis_type(bqd.cell_degree() + 1);
+         cell_quadrature     = cell_quad_type(2 * (bqd.cell_degree() + 1));
+      }
+
+      void compute(const mesh_type& msh, const cell_type& cl)
+      {
+         const size_t cell_degree = m_bqd.cell_degree();
+         const size_t face_degree = m_bqd.face_degree();
+         const size_t cell_basis_size = (cell_basis.range(0, cell_degree + 1)).size();
+         const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
+
+
+         const size_t DIM= msh.dimension;
+         const size_t dpk1 = DIM * binomial(cell_degree +1 + DIM, cell_degree +1);
+         const size_t dpk0 = DIM * binomial( DIM, 0);
+         const size_t dpk = DIM * binomial(cell_degree  + DIM, cell_degree );
+         const size_t dpkf = DIM * binomial(face_degree  + DIM -1, face_degree );
+
+         matrix_type stiff_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
+
+         auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
+         for (auto& qp : cell_quadpoints)
+         {
+            auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
+            assert(cell_basis_size == dphi.size());
+
+            for(size_t i = 0; i < cell_basis_size; i++){
+               for(size_t j = i; j < cell_basis_size; j++){
+                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi[i], dphi[j]);
+               }
+            }
+         }
+
+         // lower part
+         for(size_t i = 1; i < cell_basis_size; i++)
+            for(size_t j = 0; j < i; j++)
+               stiff_mat(i,j) = stiff_mat(j,i);
+
+         /* LHS: take basis functions derivatives from degree 1 to K+1 */
+         auto MG_rowcol_range = cell_basis.range(1, cell_degree + 1);
+         assert(MG_rowcol_range.from() == dpk0);
+         assert(MG_rowcol_range.size() == (dpk1 - dpk0));
+         matrix_type MG = take(stiff_mat, MG_rowcol_range, MG_rowcol_range);
+
+         /* RHS, volumetric part. */
+         auto BG_row_range = cell_basis.range(1, cell_degree + 1);
+         auto BG_col_range = cell_basis.range(0, cell_degree);
+
+         assert(BG_row_range.from() == (dpk0));
+         assert(BG_col_range.from() == 0) ;
+         assert(BG_row_range.size() == (dpk1 - dpk0));
+         assert(BG_col_range.size() == dpk) ;
+
+         auto fcs = faces(msh, cl);
+         const size_t num_faces = fcs.size();
+
+         const size_t num_cell_dofs = BG_col_range.size();
+
+         assert(num_cell_dofs == dpk);
+
+         dofspace_ranges dsr(num_cell_dofs, face_basis_size, num_faces);
+
+         assert(dsr.total_size() == (num_cell_dofs + num_faces *face_basis_size));
+
+         matrix_type BG = matrix_type::Zero(BG_row_range.size(), dsr.total_size());
+
+         BG.block(0, 0, BG_row_range.size(), BG_col_range.size()) =
+         take(stiff_mat, BG_row_range, BG_col_range);
+
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            auto current_face_range = dsr.face_range(face_i);
+            auto fc = fcs[face_i];
+            auto n = normal(msh, cl, fc);
+
+            auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+
+            auto cell_range = dsr.cell_range();
+
+            assert(cell_range.min() == 0);
+            assert(cell_range.max() == dpk);
+            assert(cell_range.size() == dpk);
+
+            for (auto& qp : face_quadpoints)
+            {
+               auto c_phi = cell_basis.eval_functions(msh, cl, qp.point()); // 0, m_degree);
+               auto c_dphi = cell_basis.eval_gradients(msh, cl, qp.point()); // 1, m_degree+1);
+
+               assert(c_phi.size() == dpk1);
+               assert(c_dphi.size() == dpk1);
+
+               decltype(c_phi) c_dphi_n;
+
+               c_dphi_n.reserve(BG_row_range.to() - BG_row_range.from());
+
+               assert(BG_row_range.from() == dpk0);
+               assert(BG_row_range.to() == dpk1);
+
+               for(size_t i=BG_row_range.from(); i< BG_row_range.to(); i++){
+                  c_dphi_n.push_back(mm_prod(c_dphi[i] , n));
+               }
+
+               assert(c_dphi_n.size() == (dpk1 - dpk0));
+
+               matrix_type  T= matrix_type::Zero(BG.rows(), BG_col_range.size());
+
+               assert(c_dphi_n.size() == BG.rows());
+
+               for(size_t i=0; i< BG.rows(); i++){
+                  for(size_t j=0; j<BG_col_range.size(); j++){
+                     T(i,j) = qp.weight() * mm_prod(c_dphi_n[i], c_phi[j]);
+                  }
+               }
+
+               BG.block(0, 0, BG.rows(), BG_col_range.size()) -= T;
+
+               auto f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+
+               assert(f_phi.size() == dpkf);
+               assert(current_face_range.size() == dpkf);
+
+               matrix_type  F = matrix_type::Zero(BG.rows(), current_face_range.size());
+
+               for(size_t i=0; i< BG.rows(); i++){
+                  for(size_t j=0; j < current_face_range.size(); j++){
+                     F(i,j) = qp.weight() * mm_prod(c_dphi_n[i], f_phi[j]);
+                  }
+               }
+
+               BG.block(0, current_face_range.min(),
+                        BG.rows(), current_face_range.size()) += F;
+            }
+         }
+
+         assert(MG.rows() ==MG.cols());
+         assert(MG.cols() == BG.rows());
+
+         oper  = MG.ldlt().solve(BG);    // GT
+         data  = BG.transpose() * oper;  // A
       }
    };
 
@@ -489,9 +663,9 @@ namespace disk {
       : m_bqd(bqd)
       {
          const size_t face_degree = m_bqd.face_degree();
-         const size_t num_face_dofs = (m_bqd.face_basis.range(0, face_degree)).size();
+         const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
 
-         m_num_unknowns = num_face_dofs * (msh.faces_size() + msh.boundary_faces_size());
+         m_num_unknowns = face_basis_size * (msh.faces_size() + msh.boundary_faces_size());
          matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
          rhs = vector_type::Zero(m_num_unknowns);
       }

@@ -63,8 +63,8 @@ namespace Hyperelasticity {
          const size_t face_degree = m_bqd.face_degree();
          const size_t grad_degree = m_bqd.grad_degree();
          const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
-         const size_t grad_basis_size = DIM * (m_bqd.cell_basis.range(0, grad_degree)).size();
-         const size_t face_basis_size = m_bqd.face_basis.size();
+         const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
+         const size_t grad_basis_size = DIM * (m_bqd.grad_basis.range(0, grad_degree)).size();
 
 
          const size_t cpk = DIM * binomial(cell_degree + DIM, cell_degree);

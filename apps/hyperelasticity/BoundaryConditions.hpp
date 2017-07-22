@@ -111,7 +111,7 @@ private:
       {
          if(m_faces_dirichlet[face].first){
             auto bfc = *itor;
-            
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
             throw std::invalid_argument("This is a bug: face not found");
@@ -124,27 +124,31 @@ private:
                {
                   if(msh.boundary_id(face_id) == elem.id)
                   {
-                     dirichlet_standart = false;
+
                      switch ( elem.boundary_type ) {
                         case CLAMPED:
+                        dirichlet_standart = false;
                         info[0] = m_nb_lag; info[1] = DIM;
                         m_lagranges_info.push_back(info);
                         m_nb_lag += DIM;
                         m_faces_dirichlet[face].second = CLAMPED;
                         break;
                         case DX:
+                        dirichlet_standart = false;
                         info[0] = m_nb_lag; info[1] = 1;
                         m_lagranges_info.push_back(info);
                         m_nb_lag += 1;
                         m_faces_dirichlet[face].second = DX;
                         break;
                         case DY:
+                        dirichlet_standart = false;
                         info[0] = m_nb_lag; info[1] = 1;
                         m_lagranges_info.push_back(info);
                         m_nb_lag += 1;
                         m_faces_dirichlet[face].second = DY;
                         break;
                         case DZ:
+                        dirichlet_standart = false;
                         if( DIM != 3){
                            std::cout << "Invalid condition for face:" << face_id << std::endl;
                            throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
@@ -157,6 +161,7 @@ private:
                         }
                         break;
                         case DXDY:
+                        dirichlet_standart = false;
                         if( DIM != 3){
                            std::cout << "Invalid condition for face:" << face_id << std::endl;
                            throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
@@ -169,6 +174,7 @@ private:
                         }
                         break;
                         case DXDZ:
+                        dirichlet_standart = false;
                         if( DIM != 3){
                            std::cout << "Invalid condition for face:" << face_id << std::endl;
                            throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
@@ -181,6 +187,7 @@ private:
                         }
                         break;
                         case DYDZ:
+                        dirichlet_standart = false;
                         if( DIM != 3){
                            std::cout << "Invalid condition for face:" << face_id << std::endl;
                            throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
@@ -193,21 +200,22 @@ private:
                         }
                         break;
                         default:
-                        std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
+                        std::cout << "Unknown Dirichlet Conditions" << std::endl;
+                        throw std::invalid_argument(" Unknown Dirichlet Conditions");
                         break;
                      }
                      break;
                   }
                }
-
-               if(dirichlet_standart){
-                  info[0] = m_nb_lag; info[1] = DIM;
-                  m_lagranges_info.push_back(info);
-                  m_nb_lag += DIM;
-               }
             }
-            face++;
+
+            if(dirichlet_standart){
+               info[0] = m_nb_lag; info[1] = DIM;
+               m_lagranges_info.push_back(info);
+               m_nb_lag += DIM;
+            }
          }
+         face++;
       }
    }
 
@@ -226,11 +234,6 @@ public:
    {
       find_neumann_faces(msh);
       number_of_lag_conditions(msh);
-
-      std::cout << "face: "  << m_nb_faces_boundary << '\n';
-      std::cout << "dir: "  << m_nb_faces_dirichlet << '\n';
-      std::cout << "neu: "  << m_nb_faces_neumann << '\n';
-      std::cout << "lag: "  << m_nb_lag << '\n';
    }
 
    size_t nb_faces_boundary() const {return m_nb_faces_boundary;}
@@ -261,5 +264,13 @@ public:
    size_t begin_lag_conditions_faceI(const size_t face_i) const
    {
       return m_lagranges_info[face_i][0];
+   }
+
+   void boundary_info() const {
+      std::cout << "Number of boundary faces: "  << m_nb_faces_boundary << std::endl;
+      std::cout << "including: " << std::endl;
+      std::cout << " - Number of Dirichlet faces: "  << m_nb_faces_dirichlet << std::endl;
+      std::cout << " - Number of Neumann faces: "  << m_nb_faces_neumann << std::endl;
+      std::cout << " - Number of Lagrangian conditions: "  << m_nb_lag << std::endl;
    }
 };

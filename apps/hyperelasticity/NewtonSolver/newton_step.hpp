@@ -58,7 +58,7 @@ class NewtonRaphson_step_hyperelasticity
 
    typedef disk::gradient_reconstruction_elas_full_bq<BQData>               gradrec_type;
 
-   typedef disk::gradient_reconstruction_elas_bq<BQData>                    deplrec_type;
+   typedef disk::displacement_reconstruction_elas_bq<BQData>                deplrec_type;
 
    typedef Hyperelasticity::Hyperelasticity<BQData>                         hyperelasticity_type;
 
@@ -149,10 +149,10 @@ public:
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
     {
         gradrec_type gradrec(m_bqd);
-        stab_type stab(m_bqd);
+        //stab_type stab(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
-//         deplrec_type deplrec(m_bqd);
-//         stab2_type stab(m_bqd);
+        deplrec_type deplrec(m_bqd);
+        stab2_type stab(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -174,13 +174,12 @@ public:
 
             tc.tic();
             if(m_rp.m_stab){
-//             deplrec.compute(m_msh, cl);
-//             stab.compute(m_msh, cl, deplrec.oper);
-            stab.compute(m_msh, cl, gradrec.oper());
+               deplrec.compute(m_msh, cl);
+               stab.compute(m_msh, cl, deplrec.oper);
+               //stab.compute(m_msh, cl, gradrec.oper());
             }
             tc.toc();
             ai.m_time_stab += tc.to_double();
-
 
             tc.tic();
             hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
@@ -220,15 +219,11 @@ public:
             i++;
         }
 
-
-        std::cout << "bnd" << '\n';
          assembler.impose_boundary_conditions(m_msh, bcf, g, m_solution_faces, m_solution_lagr, m_boundary_condition);
 
-;
-std::cout << "final" << '\n';
          assembler.finalize(m_system_matrix, m_system_rhs);
 
-      //   std::cout << m_system_rhs << '\n';
+         //std::cout << m_system_rhs << '\n';
 
          ttot.toc();
          ai.m_time_assembly = ttot.to_double();
@@ -324,10 +319,10 @@ std::cout << "final" << '\n';
     postprocess(const LoadFunction& lf)
     {
         gradrec_type gradrec(m_bqd);
-        stab_type stab(m_bqd);
+        //stab_type stab(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
-//         deplrec_type deplrec(m_bqd);
-//         stab2_type stab(m_bqd);
+        deplrec_type deplrec(m_bqd);
+        stab2_type stab(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -373,9 +368,9 @@ std::cout << "final" << '\n';
 
             tc.tic();
             if(m_rp.m_stab){
-//             deplrec.compute(m_msh, cl);
-//             stab.compute(m_msh, cl, deplrec.oper);
-               stab.compute(m_msh, cl, gradrec.oper());
+               deplrec.compute(m_msh, cl);
+               stab.compute(m_msh, cl, deplrec.oper);
+               //stab.compute(m_msh, cl, gradrec.oper());
             }
             tc.toc();
             pi.m_time_stab += tc.to_double();
