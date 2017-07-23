@@ -46,7 +46,7 @@ namespace Hyperelasticity {
       matrix_type     K_int;
       vector_type     RTF;
       double time_law, time_adapt_stab;
-      scalar_type beta_adap;
+      //scalar_type beta_adap;
 
       Hyperelasticity(const BQData& bqd) : m_bqd(bqd)
       {}
@@ -95,7 +95,7 @@ namespace Hyperelasticity {
 
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
 
-         beta_adap = elas_param.tau;
+         //beta_adap = elas_param.tau;
 
          for (auto& qp : grad_quadpoints)
          {
@@ -113,17 +113,17 @@ namespace Hyperelasticity {
             tc.toc();
             time_law += tc.to_double();
 
-            if(adapt_stab)
-            {
-               tc.tic();
-               Eigen::SelfAdjointEigenSolver<decltype(tensor_behavior.second)> es;
-               decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
-               es.compute(Arow);
-               scalar_type ev_min = es.eigenvalues().minCoeff();
-               //std::cout << ev_min << std::endl;
-               beta_adap = std::max(elas_param.tau, std::max( beta_adap, std::abs(ev_min)));
-               time_adapt_stab += tc.to_double();
-            }
+            // if(adapt_stab)
+            // {
+            //    tc.tic();
+            //    Eigen::SelfAdjointEigenSolver<decltype(tensor_behavior.second)> es;
+            //    decltype(tensor_behavior.second) Arow = changeFormatRowTensor(tensor_behavior.second);
+            //    es.compute(Arow);
+            //    scalar_type ev_min = es.eigenvalues().minCoeff();
+            //    //std::cout << ev_min << std::endl;
+            //    beta_adap = std::max(elas_param.tau, std::max( beta_adap, std::abs(ev_min)));
+            //    time_adapt_stab += tc.to_double();
+            // }
 
 
             for(std::size_t i = 0; i < grad_basis_size; i++) {

@@ -389,9 +389,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 0.333;
-    param.lambda = 1664.0 ;
-    param.tau = 10.0;
-    param.adaptative_stab = false;
+    param.lambda = 16.640 ;
     param.type_law = 1;
 
     int ch;
@@ -435,11 +433,13 @@ int main(int argc, char **argv)
                 break;
 
             case 'p':
-               param.tau = atof(optarg);
+               rp.m_beta_init = atof(optarg);
                break;
 
             case 'r':
-               rp.readParameters(optarg);
+               if(!rp.readParameters(optarg))
+               exit(1);
+
                break;
 
             case 's': rp.m_adapt_stab = true; break;

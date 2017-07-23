@@ -120,8 +120,10 @@ public:
 
       m_bqd = bqdata_type(face_degree, cell_degree, grad_degree);
 
-      if(m_verbose)
+      if(m_verbose){
          m_bqd.info_degree();
+         m_rp.infos();
+      }
 
       m_boundary_condition = BoundaryConditions(msh, boundary_neumann, boundary_dirichlet);
 

@@ -62,9 +62,9 @@ class NewtonRaphson_step_hyperelasticity
 
    typedef Hyperelasticity::Hyperelasticity<BQData>                         hyperelasticity_type;
 
-   typedef disk::elas_like_stabilization_l2_bq<BQData>                      stab_type;
-
-   typedef disk::elas_like_stabilization_bq<BQData>                         stab2_type;
+   typedef disk::elas_like_stabilization_PIKF_bq<BQData>                    stab_PIKF_type;
+   typedef disk::elas_like_stabilization_L2_bq<BQData>                      stab_L2_type;
+   typedef disk::elas_like_stabilization_bq<BQData>                         stab_HHO_type;
    typedef disk::diffusion_like_static_condensation_bq<BQData>              statcond_type;
    typedef disk::assembler_nl_vector_bq<BQData>                             assembler_type;
 
@@ -90,11 +90,12 @@ class NewtonRaphson_step_hyperelasticity
 
     std::vector<vector_dynamic>        m_postprocess_data, m_solution_data;
     std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
-    std::vector<scalar_type>           m_adpat_stab;
+    //std::vector<scalar_type>           m_adpat_stab;
 
     bool m_verbose;
 
     scalar_type m_beta = 1.0;
+    size_t m_stab = L2;
 
     ElasticityParameters m_elas_param;
     const param_type& m_rp;
@@ -111,13 +112,22 @@ public:
    : m_msh(msh), m_verbose(false), m_rp(rp), m_elas_param(elas_param), m_bqd(bqd),
      m_boundary_condition(boundary_conditions)
     {
-        m_beta = elas_param.tau;
+        //m_beta = elas_param.tau;
+        //Stabilisation ?
+       if(m_rp.m_stab){
+          m_stab = m_rp.m_stab_init;
+          m_beta = m_rp.m_beta_init;
+       }
+       else
+         m_stab = NOTHING;
     }
 
     bool    verbose(void) const     { return m_verbose; }
     void    verbose(bool v)         { m_verbose = v; }
 
-
+    void    setBeta(const scalar_type beta) { m_beta = beta;}
+    void    setStabilization(const size_t stab) { m_stab = stab;}
+    size_t  printStabilization() {return m_stab;}
 
     void
     initialize( const std::vector<vector_dynamic>& initial_solution_cells,
@@ -140,8 +150,8 @@ public:
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
 
-      if(m_elas_param.adaptative_stab)
-         m_adpat_stab.resize(m_msh.cells_size());
+      // if(m_elas_param.adaptative_stab)
+      //    m_adpat_stab.resize(m_msh.cells_size());
     }
 
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
@@ -149,10 +159,11 @@ public:
     assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
     {
         gradrec_type gradrec(m_bqd);
-        //stab_type stab(m_bqd);
+        stab_HHO_type stab_HHO(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
         deplrec_type deplrec(m_bqd);
-        stab2_type stab(m_bqd);
+        stab_PIKF_type stab_PIKF(m_bqd);
+        stab_L2_type stab_L2(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -167,48 +178,86 @@ public:
 
         for (auto& cl : m_msh)
         {
+           /////// Gradient Reconstruction /////////
             tc.tic();
             gradrec.compute(m_msh, cl, false);
             tc.toc();
             ai.m_time_gradrec += tc.to_double();
 
+            /////// Elementary Computation /////////
             tc.tic();
-            if(m_rp.m_stab){
-               deplrec.compute(m_msh, cl);
-               stab.compute(m_msh, cl, deplrec.oper);
-               //stab.compute(m_msh, cl, gradrec.oper());
-            }
-            tc.toc();
-            ai.m_time_stab += tc.to_double();
-
-            tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param, m_elas_param.adaptative_stab);
-
-            if(m_elas_param.adaptative_stab){
-               m_beta = hyperelasticity.beta_adap;
-               m_adpat_stab[i] = m_beta;
-            }
-            else
-               m_beta = m_elas_param.tau;
-
-            /////// NON LINEAIRE /////////
-            assert( hyperelasticity.K_int.rows() == stab.data.rows());
-            assert( hyperelasticity.K_int.cols() == stab.data.cols());
+            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param, false);
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
-            if(m_rp.m_stab)
-               lhs += m_beta * stab.data;
-
-            assert( hyperelasticity.RTF.rows() == (stab.data * m_solution_data.at(i)).rows());
-            assert( hyperelasticity.RTF.cols() == (stab.data * m_solution_data.at(i)).cols());
-
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
-            if(m_rp.m_stab)
-               rhs -= m_beta * stab.data * m_solution_data.at(i) ;
 
             tc.toc();
             ai.m_time_elem += tc.to_double();
             ai.m_time_law += hyperelasticity.time_law;
             ai.m_time_adapt_stab += hyperelasticity.time_adapt_stab;
+            // if(m_elas_param.adaptative_stab){
+            //    m_beta = hyperelasticity.beta_adap;
+            //    m_adpat_stab[i] = m_beta;
+            // }
+            // else
+            //    m_beta = m_elas_param.tau;
+
+            /////// Stabilisation /////////
+            tc.tic();
+            if(m_rp.m_stab){
+               switch (m_stab) {
+                  case L2:
+                  {
+                     stab_L2.compute(m_msh, cl);
+
+                     assert( hyperelasticity.K_int.rows() == stab_L2.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_L2.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_L2.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_L2.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_L2.data;
+                     rhs -= m_beta * stab_L2.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case PIKF:
+                  {
+                     stab_PIKF.compute(m_msh, cl);
+
+                     assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_PIKF.data;
+                     rhs -= m_beta * stab_PIKF.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case HHO:
+                  {
+                     deplrec.compute(m_msh, cl);
+                     stab_HHO.compute(m_msh, cl, deplrec.oper);
+
+                     assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_HHO.data;
+                     rhs -= m_beta * stab_HHO.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case NOTHING:
+                  {
+                     break;
+                  }
+                  default:
+                     std::cout << "Unknown Stabilisation " << m_stab << std::endl;
+                     throw std::invalid_argument("Unknown stabilization");
+               }
+            }
+            tc.toc();
+            ai.m_time_stab += tc.to_double();
+
+            /////// Static Condensation /////////
             tc.tic();
             auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
             tc.toc();
@@ -319,10 +368,11 @@ public:
     postprocess(const LoadFunction& lf)
     {
         gradrec_type gradrec(m_bqd);
-        //stab_type stab(m_bqd);
+        stab_PIKF_type stab_PIKF(m_bqd);
         hyperelasticity_type hyperelasticity(m_bqd);
         deplrec_type deplrec(m_bqd);
-        stab2_type stab(m_bqd);
+        stab_HHO_type stab_HHO(m_bqd);
+        stab_L2_type  stab_L2(m_bqd);
 
         statcond_type statcond(m_bqd);
 
@@ -361,44 +411,85 @@ public:
                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
             }
 
+            /////// Gradient Reconstruction //////
             tc.tic();
             gradrec.compute(m_msh, cl, false);
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
 
+            //// Elementary Computation //////
             tc.tic();
-            if(m_rp.m_stab){
-               deplrec.compute(m_msh, cl);
-               stab.compute(m_msh, cl, deplrec.oper);
-               //stab.compute(m_msh, cl, gradrec.oper());
-            }
-            tc.toc();
-            pi.m_time_stab += tc.to_double();
-
-            tc.tic();
-
             hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param);
-
-            if(m_elas_param.adaptative_stab){
-               m_beta = m_adpat_stab[i];
-            }
-            else
-               m_beta = m_elas_param.tau;
-
-            /////// NON LINEAIRE /////////
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
-            if(m_rp.m_stab)
-               lhs += m_beta * stab.data;
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
-            if(m_rp.m_stab)
-               rhs -= m_beta * stab.data * m_solution_data.at(i);
-            dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
 
             tc.toc();
             pi.m_time_elem += tc.to_double();
             pi.m_time_law += hyperelasticity.time_law;
             pi.m_time_adapt_stab += hyperelasticity.time_adapt_stab;
+            // if(m_elas_param.adaptative_stab){
+            //    m_beta = m_adpat_stab[i];
+            // }
+            // else
+            //    m_beta = m_elas_param.tau;
 
+            /////// Stabilisation /////////
+            tc.tic();
+            if(m_rp.m_stab){
+               switch (m_stab) {
+                  case L2:
+                  {
+                     stab_L2.compute(m_msh, cl);
+
+                     assert( hyperelasticity.K_int.rows() == stab_L2.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_L2.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_L2.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_L2.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_L2.data;
+                     rhs -= m_beta * stab_L2.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case PIKF:
+                  {
+                     stab_PIKF.compute(m_msh, cl);
+
+                     assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_PIKF.data;
+                     rhs -= m_beta * stab_PIKF.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case HHO:
+                  {
+                     deplrec.compute(m_msh, cl);
+                     stab_HHO.compute(m_msh, cl, deplrec.oper);
+
+                     assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
+                     assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
+                     assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
+                     assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
+
+                     lhs += m_beta * stab_HHO.data;
+                     rhs -= m_beta * stab_HHO.data * m_solution_data.at(i);
+                     break;
+                  }
+                  case NOTHING:
+                  {
+                     break;
+                  }
+                  default:
+                     throw std::invalid_argument("Unknown stabilization");
+               }
+            }
+            tc.toc();
+            pi.m_time_stab += tc.to_double();
+
+            /////// Static Condensation /////////
+            dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
             tc.tic();
             dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
             tc.toc();
@@ -421,7 +512,9 @@ public:
     {
       gradrec_type gradrec(m_bqd);
       deplrec_type deplrec(m_bqd);
-      stab2_type stab(m_bqd);
+      stab_HHO_type stab_HHO(m_bqd);
+      stab_L2_type  stab_L2(m_bqd);
+      stab_PIKF_type stab_PIKF(m_bqd);
 
       std::array<scalar_type, 2> ret = {0.0, 0.0};
       scalar_type energy_stab(0.0);
@@ -435,10 +528,34 @@ public:
 
          // Energie in the stabilisation
          if(m_rp.m_stab){
-            deplrec.compute(m_msh, cl);
-            stab.compute(m_msh, cl, deplrec.oper);
-            energy_stab = m_beta *  m_solution_data.at(i).dot(stab.data * m_solution_data.at(i));
-         //stab.compute(m_msh, cl, gradrec.oper());
+            switch (m_stab) {
+               case L2:
+               {
+                  stab_L2.compute(m_msh, cl);
+                  energy_stab = m_beta *  m_solution_data.at(i).dot(stab_L2.data * m_solution_data.at(i));
+                  break;
+               }
+               case PIKF:
+               {
+                  stab_PIKF.compute(m_msh, cl);
+                  energy_stab = m_beta *  m_solution_data.at(i).dot(stab_PIKF.data * m_solution_data.at(i));
+                  break;
+               }
+               case HHO:
+               {
+                  deplrec.compute(m_msh, cl);
+                  stab_HHO.compute(m_msh, cl, deplrec.oper);
+                  energy_stab = m_beta *  m_solution_data.at(i).dot(stab_HHO.data * m_solution_data.at(i));
+                  break;
+               }
+               case NOTHING:
+               {
+                  break;
+               }
+               default:
+                  std::cout << "Unknown Stabilisation " << m_stab << std::endl;
+                  throw std::invalid_argument("Unknown stabilization");
+            }
          }
 
          const vector_type GT_uTF = gradrec.oper() * m_solution_data.at(i);

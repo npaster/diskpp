@@ -110,10 +110,14 @@ public:
       timecounter tc;
       tc.tic();
 
-      const size_t iter_max = m_rp.m_iter_max;
       const scalar_type epsilon = m_rp.m_epsilon;
+      scalar_type beta = m_rp.m_beta_init;
+      bool beta_convergence = true;
+      bool stab_convergence = true;
+      const scalar_type epsilon_sqrt = sqrt(epsilon);
+      scalar_type residu_previous(2.0);
+      scalar_type residu(2.0);
       bool auricchio = false;
-      scalar_type error;
 
       //initialise the NewtonRaphson_step
       NewtonRaphson_step_hyperelasticity<BQData>
@@ -121,14 +125,27 @@ public:
 
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
+      newton_step.setBeta(beta);
+      newton_step.setStabilization(m_rp.m_stab_init);
 
       m_convergence = false;
 
       size_t nb_negative_ev_init = 0;
-      // loop
-      std::size_t iter = 0;
-      while (iter < iter_max && !m_convergence) {
 
+      //Stabilisation ?
+      if(m_rp.m_stab){
+         //adaptative stabilisation
+         if(m_rp.m_adapt_stab)
+            stab_convergence = false;
+         //adaptative stabilisation
+         if(m_rp.m_adapt_coeff)
+            beta_convergence = false;
+      }
+
+      // loop
+      for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
+         std::cout << "beta: " << beta << '\n';
+         std::cout << "stab: " << newton_step.printStabilization() << '\n';
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
@@ -150,8 +167,6 @@ public:
           }
 
           ni.updateAssemblyInfo( assembly_info);
-         // test convergence
-         m_convergence = newton_step.test_convergence(epsilon, iter, error);
 
          if(auricchio){
             size_t nb_negative_ev = newton_step.test_aurrichio();
@@ -161,7 +176,7 @@ public:
                std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
          }
 
-         if(iter < (iter_max-1) && !m_convergence){
+         //if(iter < (iter_max-1) && !m_convergence){
             // solve the global system
             SolveInfo solve_info = newton_step.solve();
             ni.updateSolveInfo(solve_info);
@@ -169,12 +184,47 @@ public:
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
             newton_step.update_solution();
-         }
-         iter++;
+
+            // test convergence
+            residu_previous = residu;
+            m_convergence = newton_step.test_convergence(epsilon, iter, residu);
+
+            if(m_rp.m_stab){
+               /// Stabilisation
+               /// Adaptative Stabilization ///
+               if(m_rp.m_adapt_stab and beta_convergence){
+                  if(!stab_convergence and residu < epsilon){
+                     stab_convergence = true;
+                     m_convergence = false;
+                     newton_step.setStabilization(m_rp.m_stab_obj);
+                  }
+               }
+               /// Adaptative Coefficient ///
+               if(m_rp.m_adapt_coeff){
+                  if(residu > residu_previous && residu > epsilon){
+                     beta *= 10;
+                     beta = std::min(beta, m_rp.m_beta_max);
+                  }
+                  else if(residu < epsilon && !beta_convergence ){
+                     beta = m_rp.m_beta_obj;
+                     beta_convergence = true;
+                     m_convergence = false;
+                  }
+                  else if(residu < epsilon_sqrt && !beta_convergence)
+                     beta /= 10;
+
+                  newton_step.setBeta(beta);
+               }
+            }
+
+         //}
+         //test sortie
+         if(m_convergence and beta_convergence and stab_convergence)
+            break;
       }
 
-//       if(!m_convergence)
-//          m_convergence = newton_step.test_convergence(1.E-6, iter_max);
+      if(!m_convergence)
+         m_convergence = newton_step.test_convergence(epsilon, m_rp.m_iter_max, residu);
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);

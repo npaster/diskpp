@@ -46,24 +46,48 @@ public:
    bool    m_verbose;       //some printing
    bool    m_compute_energy; // to compute intere energy
 
-   size_t  m_stab_type;      //type of stabilization
+   size_t  m_stab_init;      //type of stabilization
+   size_t  m_stab_obj;      //type of stabilization
    size_t  m_iter_max;        //maximun nexton iteration
    T       m_epsilon;         //stop criteria
 
-   T       m_beta_min;      // minium of stabilization constant
-   T       m_beta_max;      // maximum of stabilization constant
+   T       m_beta_max;
+   T       m_beta_init;      // minium of stabilization constant
+   T       m_beta_obj;      // maximum of stabilization constant
 
 
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
-                m_sublevel(1), m_stab(true), m_stab_type(HHO),
+                m_sublevel(1), m_stab(true),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
                 m_compute_energy(false),
                 m_iter_max(10), m_epsilon(T(1E-6)),
-                m_beta_min(T(0)), m_beta_max(T(0))
+                m_beta_init(T(1.0)), m_beta_obj(T(1.0)), m_beta_max(T(1)),
+                m_stab_init(L2), m_stab_obj(HHO)
                 {
                    m_time_step.push_back(std::make_pair(1.0, 10));
                 }
 
+   void infos()
+   {
+      std::cout << "Parameters:" << std::endl;
+      std::cout << " - Face degree: "  << m_face_degree << std::endl;
+      std::cout << " - Cell degree: "  << m_cell_degree << std::endl;
+      std::cout << " - Grad degree: "  << m_grad_degree << std::endl;
+      std::cout << " - Sublevel: "  << m_sublevel << std::endl;
+      std::cout << " - Stabilization ?: "  << m_stab << std::endl;
+      std::cout << " - Adapt coefficient: "  << m_adapt_coeff << std::endl;
+      std::cout << "    - Beta init: "  << m_beta_init << std::endl;
+      std::cout << "    - Beta obj: "  << m_beta_obj << std::endl;
+      std::cout << " - Adapt stabilization: "  << m_adapt_stab << std::endl;
+      std::cout << "    - Stab init : "  << m_stab_init << std::endl;
+      std::cout << "    - Stab obj: "  << m_stab_obj << std::endl;
+      std::cout << " - Verbose: "  << m_verbose << std::endl;
+      std::cout << " - Compute Energy: "  << m_compute_energy << std::endl;
+      std::cout << " - IterMax: "  << m_iter_max << std::endl;
+      std::cout << " - Epsilon: "  << m_epsilon << std::endl;
+
+
+   }
 
    bool readParameters(const std::string& filename)
    {
@@ -117,7 +141,7 @@ public:
                m_time_step.push_back(std::make_pair(time, time_step));
             }
          }
-         else if ( keyword == "Stabilisation" )
+         else if ( keyword == "Stabilization" )
          {
             std::string logical;
             ifs >> logical;
@@ -125,22 +149,37 @@ public:
                m_stab = true;
             else{
                m_stab = false;
-               m_stab_type = NOTHING;
+               m_stab_init = NOTHING;
+               m_stab_obj = NOTHING;
             }
          }
-         else if ( keyword == "TypeStabiliszation" )
+         else if ( keyword == "StabInit" )
          {
             std::string type;
             ifs >> type;
 
             if(type == "L2")
-               m_stab_type = L2;
+               m_stab_init = L2;
             else if(type == "PIKF")
-               m_stab_type = PIKF;
+               m_stab_init = PIKF;
             else if(type == "HHO")
-               m_stab_type = HHO;
+               m_stab_init = HHO;
             else if(type == "NOTHING")
-               m_stab_type = NOTHING;
+               m_stab_init = NOTHING;
+         }
+         else if ( keyword == "StabObj" )
+         {
+            std::string type;
+            ifs >> type;
+
+            if(type == "L2")
+               m_stab_obj = L2;
+            else if(type == "PIKF")
+               m_stab_obj = PIKF;
+            else if(type == "HHO")
+               m_stab_obj = HHO;
+            else if(type == "NOTHING")
+               m_stab_obj = NOTHING;
          }
          else if ( keyword == "AdaptativeCoefficient" )
          {
@@ -162,13 +201,17 @@ public:
             else
                m_adapt_stab = false;
          }
+         else if ( keyword == "BetaInit" )
+         {
+            ifs >> m_beta_init;
+         }
          else if ( keyword == "BetaMax" )
          {
             ifs >> m_beta_max;
          }
-         else if ( keyword == "BetaMin" )
+         else if ( keyword == "BetaObj" )
          {
-            ifs >> m_beta_min;
+            ifs >> m_beta_obj;
          }
          else if ( keyword == "Verbose" )
          {
@@ -199,7 +242,7 @@ public:
          }
          else
          {
-            std::cout << "Error parsing Parameters file" << std::endl;
+            std::cout << "Error parsing Parameters file: " << keyword << std::endl;
             return false;
          }
 

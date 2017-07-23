@@ -24,17 +24,9 @@
       {
          double lambda = 1.0;
          double mu = 1.0;
-         double tau = 1.0;
-         bool adaptative_stab = false;
          size_t type_law = 1;
       }
          double lambda;
          double mu;
-         double tau; // stabilisation parameter
-         bool adaptative_stab;
          size_t type_law;
    };
-
-
-
-
