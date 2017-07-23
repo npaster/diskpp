@@ -541,7 +541,6 @@ int main(int argc, char **argv)
    int     cell_degree          = 0;
    int     grad_degree          = 0;
    int     l               = 0;
-   int     n_time_step     = 1;
    int     sublevel        = 1;
    bool three_dimensions = false;
 
@@ -550,7 +549,7 @@ int main(int argc, char **argv)
    rp.m_compute_energy = false;
 
    ElasticityParameters param = ElasticityParameters();
-   param.lambda = 1.0;
+   param.lambda = 1000.0;
    param.mu = 1.0;
    param.tau = 1000.0;
    param.adaptative_stab = false;
@@ -558,7 +557,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "23b:g:k:l:m:n:s:t:v:w")) != -1 )
+   while ( (ch = getopt(argc, argv, "23b:g:k:l:m:n:r:s:t:v:w")) != -1 )
    {
       switch(ch)
       {
@@ -610,16 +609,8 @@ int main(int argc, char **argv)
             rp.m_sublevel = sublevel;
             break;
 
-         case 'n':
-            n_time_step = atoi(optarg);
-            if (n_time_step <= 0)
-            {
-               std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-               n_time_step = 1;
-            }
-            rp.m_n_time_step = n_time_step;
-            break;
-
+         case 'r':
+            rp.readParameters(optarg); break;
          case 's': param.adaptative_stab = true; break;
 
          case 't': param.tau = atof(optarg); break;

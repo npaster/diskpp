@@ -104,7 +104,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 //       return grad;
 //    };
 
-
+//
 // T alpha = 0.3;
 //
 // auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
@@ -164,18 +164,18 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = -0.01;
+      T fy = 0;
 
       return result_type{fx,fy};
    };
 
    BoundaryType N1;
-   N1.id = 1;//4,11
+   N1.id = 11;//4,11
    N1.boundary_type = FREE;
 
 
    BoundaryType N2;
-   N2.id = 2;//14
+   N2.id = 14;//14
    N2.boundary_type = FREE;
 
 
@@ -183,7 +183,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    N4.id = 4;//14
    N4.boundary_type = NEUMANN;
 
-   std::vector<BoundaryType> boundary_neumann = {N1,N2, N4}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -196,7 +196,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    d1.id = 1;
    d1.boundary_type = DX;
 
-   std::vector<BoundaryType> boundary_dirichlet = {d3};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
@@ -377,8 +377,7 @@ int main(int argc, char **argv)
 
     char    *mesh_filename  = nullptr;
     char    *plot_filename  = nullptr;
-    int     elems_1d        = 8;
-    int face_degree, cell_degree, grad_degree, n_time_step, l;
+    int face_degree, cell_degree, grad_degree, l;
 
     face_degree = 0; cell_degree = 0; grad_degree = 0;
 
@@ -390,14 +389,14 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 0.333;
-    param.lambda = 1664.44 ;
+    param.lambda = 1664.0 ;
     param.tau = 10.0;
     param.adaptative_stab = false;
     param.type_law = 1;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "g:k:l:n:p:s:v:w")) != -1 )
+    while ( (ch = getopt(argc, argv, "g:k:l:p:r:s:v:w")) != -1 )
     {
         switch(ch)
         {
@@ -435,19 +434,12 @@ int main(int argc, char **argv)
                 rp.m_cell_degree = rp.m_face_degree + l;
                 break;
 
-            case 'n':
-               n_time_step = atoi(optarg);
-               if (n_time_step == 0)
-                {
-                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-                    n_time_step = 1;
-                }
-                rp.m_n_time_step = n_time_step;
-                break;
-
-
             case 'p':
                param.tau = atof(optarg);
+               break;
+
+            case 'r':
+               rp.readParameters(optarg);
                break;
 
             case 's': rp.m_adapt_stab = true; break;
