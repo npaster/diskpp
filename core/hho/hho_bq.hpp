@@ -515,16 +515,20 @@ namespace disk {
             auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
             assert(cell_basis_size == dphi.size());
 
-            for(size_t i = 0; i < cell_basis_size; i++){
-               for(size_t j = i; j < cell_basis_size; j++){
-                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi[i], dphi[j]);
+            for(size_t j = 0; j < cell_basis_size; j += DIM ){
+               size_t col = j;
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  for(size_t i = col; i < cell_basis_size; i += DIM){
+                     stiff_mat(i,col) += qp.weight() * ((dphi[i].col(k)).cwiseProduct(dphi[col].col(k))).sum();
+                  }
+                  col++;
                }
             }
          }
 
          // lower part
-         for(size_t i = 1; i < cell_basis_size; i++)
-            for(size_t j = 0; j < i; j++)
+         for(size_t i = 0; i < cell_basis_size; i++)
+            for(size_t j = i; j < cell_basis_size; j++)
                stiff_mat(i,j) = stiff_mat(j,i);
 
          /* LHS: take basis functions derivatives from degree 1 to K+1 */
@@ -597,9 +601,13 @@ namespace disk {
 
                assert(c_dphi_n.size() == BG.rows());
 
-               for(size_t i=0; i< BG.rows(); i++){
-                  for(size_t j=0; j<BG_col_range.size(); j++){
-                     T(i,j) = qp.weight() * mm_prod(c_dphi_n[i], c_phi[j]);
+               for(size_t j=0; j<BG_col_range.size(); j += DIM){
+                  size_t col = j;
+                  for(size_t k = 0; k < DIM; k++){
+                     for(size_t i=0; i< BG.rows(); i++){
+                        T(i,col) = qp.weight() * c_dphi_n[i](k) * c_phi[col](k);
+                     }
+                     col++;
                   }
                }
 
@@ -612,9 +620,13 @@ namespace disk {
 
                matrix_type  F = matrix_type::Zero(BG.rows(), current_face_range.size());
 
-               for(size_t i=0; i< BG.rows(); i++){
-                  for(size_t j=0; j < current_face_range.size(); j++){
-                     F(i,j) = qp.weight() * mm_prod(c_dphi_n[i], f_phi[j]);
+               for(size_t j=0; j < current_face_range.size(); j += DIM){
+                  size_t col = j;
+                  for(size_t k = 0; k < DIM; k++){
+                     for(size_t i=0; i< BG.rows(); i++){
+                        F(i,col) = qp.weight() * c_dphi_n[i](k) * f_phi[col](k);
+                     }
+                     col++;
                   }
                }
 
