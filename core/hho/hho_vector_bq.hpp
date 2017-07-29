@@ -450,16 +450,21 @@ namespace disk {
          {
             auto c_phi = cell_basis.eval_functions(msh, cl, qp.point());
             assert(c_phi.size() == dpk1);
-            for(size_t i = 0; i < cell_basis_size; i++){
-               for(size_t j = i; j< cell_basis_size; j++){
-                  mass_mat(i,j) += qp.weight() * mm_prod(c_phi[i], c_phi[j]);
+
+            for(size_t j = 0; j < cell_basis_size; j += DIM ){
+               size_t col = j;
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  for(size_t i = col; i < cell_basis_size; i += DIM){
+                     mass_mat(i,col) += qp.weight() * c_phi[i](k) * c_phi[col](k);
+                  }
+                  col++;
                }
             }
          }
 
          //lower part
-         for (size_t i = 1; i < cell_basis_size; i++)
-            for (size_t j = 0; j < i; j++)
+         for (size_t i = 0; i < cell_basis_size; i++)
+            for (size_t j = i; j < cell_basis_size; j++)
                mass_mat(i,j) = mass_mat(j,i);
 
          auto zero_range         = cell_basis.range(0, cell_degree);
@@ -510,16 +515,15 @@ namespace disk {
                assert(f_phi.size() == face_basis_size);
                assert(c_phi.size() == cell_basis_size);
 
-               for(size_t i = 0; i < face_basis_size; i++){
-                  for(size_t j = i; j < face_basis_size; j++){
-                     face_mass_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], f_phi[j]);
+               for(size_t j = 0; j < face_basis_size; j += DIM ){
+                  size_t col = j;
+                  for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                     for(size_t i = col; i < face_basis_size; i += DIM){
+                        face_mass_matrix(i,col) += qp.weight() * f_phi[i](k) * f_phi[col](k);
+                     }
+                     col++;
                   }
                }
-
-               //lower part
-               for (size_t i = 1; i < face_basis_size; i++)
-                  for (size_t j = 0; j < i; j++)
-                     face_mass_matrix(i,j) = face_mass_matrix(j,i);
 
                   for(size_t i=0; i< face_basis_size; i++){
                      for(size_t j=0; j< cell_basis_size; j++){
@@ -527,6 +531,11 @@ namespace disk {
                      }
                   }
             }
+
+            //lower part
+            for (size_t i = 0; i < face_basis_size; i++)
+               for (size_t j = i; j < face_basis_size; j++)
+                  face_mass_matrix(i,j) = face_mass_matrix(j,i);
 
             Eigen::LLT<matrix_type> piKF;
             piKF.compute(face_mass_matrix);
