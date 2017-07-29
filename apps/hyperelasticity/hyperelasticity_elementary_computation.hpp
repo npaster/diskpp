@@ -42,6 +42,30 @@ namespace Hyperelasticity {
 
       const BQData&                               m_bqd;
 
+
+      template<int DIM>
+      std::vector<static_matrix<scalar_type, DIM, DIM>>
+      compute_Aphi(const static_tensor<scalar_type, DIM>& tens, const std::vector<static_matrix<scalar_type, DIM, DIM>>& gphi )
+      {
+         const size_t grad_basis_size = gphi.size();
+         const size_t DIM2 = DIM * DIM;
+
+         std::vector<static_matrix<scalar_type, DIM, DIM>> Aphi;
+         Aphi.reserve(grad_basis_size);
+
+         for(std::size_t i = 0; i < grad_basis_size; i += DIM2) {
+            size_t row = i;
+            for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+               for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                  Aphi.push_back(tm_prod(tens, gphi[row], l, k));
+                  row++;
+               }
+            }
+         }
+
+         return Aphi;
+      }
+
    public:
       matrix_type     K_int;
       vector_type     RTF;
@@ -59,6 +83,7 @@ namespace Hyperelasticity {
               const bool adapt_stab = false)
       {
          const size_t DIM= msh.dimension;
+         const size_t DIM2 = DIM * DIM;
          const size_t cell_degree = m_bqd.cell_degree();
          const size_t face_degree = m_bqd.face_degree();
          const size_t grad_degree = m_bqd.grad_degree();
@@ -125,26 +150,46 @@ namespace Hyperelasticity {
             //    time_adapt_stab += tc.to_double();
             // }
 
+           auto Agphi = compute_Aphi(tensor_behavior.second, gphi);
+           assert(grad_basis_size == Agphi.size());
 
-            for(std::size_t i = 0; i < grad_basis_size; i++) {
-               auto Agphi_i = tm_prod(tensor_behavior.second, gphi[i]);
-               for(std::size_t j = i; j < grad_basis_size; j++) {
-                  //compute (Gkt v, A(u) : Gkt du)
-                  AT(i,j) += qp.weight() * disk::mm_prod(Agphi_i, gphi[j]);
+           for(size_t j = 0; j < grad_basis_size; j += DIM2 ){
+              size_t col = j;
+              for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                 for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                    for(size_t i = col; i < grad_basis_size; i++){
+                       AT(i,col) += qp.weight() * Agphi[i](l,k) * gphi[col](l,k);
+                    }
+                    col++;
+                 }
+              }
+           }
+
+            for(std::size_t i = 0; i < grad_basis_size; i+= DIM2) {
+               size_t row = i;
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                  // compute (PK1(u), G^k_T v)_T
+                     aT(row) += qp.weight() * tensor_behavior.first(l,k) * gphi[row](l,k);
+                     row++;
+                  }
                }
-               // compute (PK1(u), G^k_T v)_T
-               aT(i) += qp.weight() * disk::mm_prod(tensor_behavior.first, gphi[i]);
             }
 
             //compute (f,v)_T
-            for(std::size_t i = 0; i < cell_basis_size; i++) {
-               RTF(i) += qp.weight() * disk::mm_prod(load(qp.point()) , c_phi[i]);
+            auto load_qp = load(qp.point());
+            for(std::size_t i = 0; i < cell_basis_size; i += DIM) {
+               size_t row = i;
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  RTF(row) += qp.weight() * load_qp(k) * c_phi[row](k);
+                  row++;
+               }
             }
          }
 
          //lower part AT
-         for(std::size_t i = 1; i < grad_basis_size; i++)
-            for(std::size_t j = 0; j < i; j++)
+         for(std::size_t i = 0; i < grad_basis_size; i++)
+            for(std::size_t j = i; j < grad_basis_size; j++)
                AT(i,j) = AT(j,i);
 
          K_int = GT.transpose() * AT * GT;

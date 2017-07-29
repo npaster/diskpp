@@ -164,13 +164,13 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto neumann = [elas_param](const point<T,2>& p) -> result_type {
       T fx = 0.0;
-      T fy = 0;
+      T fy = 0.0;
 
       return result_type{fx,fy};
    };
 
    BoundaryType N1;
-   N1.id = 11;//4,11
+   N1.id = 4;//4,11
    N1.boundary_type = FREE;
 
 
@@ -183,7 +183,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    N4.id = 4;//14
    N4.boundary_type = NEUMANN;
 
-   std::vector<BoundaryType> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N1}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -284,25 +284,27 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 
    T alpha = 0.2;
    T beta = 0.2;
+   T factor = 0.5;
 
-   auto load = [elas_param, alpha,beta](const point<T,3>& p) -> result_type {
+
+   auto load = [elas_param, alpha,beta, factor](const point<T,3>& p) -> result_type {
       T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
-      T fy =0.0;
+      T fy = 0.0;
       T fz = M_PI*M_PI*elas_param.mu*beta * sin(M_PI*p.x());
-      return result_type{fx, fy, fz};
+      return factor*result_type{fx, fy, fz};
    };
 
-   auto solution = [elas_param, alpha, beta](const point<T,3>& p) -> result_type {
+   auto solution = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_type {
       T lambda = elas_param.lambda;
       T gamma = alpha + beta + alpha * beta;
       T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ alpha * sin(M_PI*p.y());
       T fy = (1.0/lambda - gamma/(1.0 + gamma)) * p.y();
       T fz = (1.0/lambda + beta) * p.z() + /* g(X)= */ beta * sin(M_PI*p.x()) + /* h(Y)= */ 0.0;
 
-      return result_type{fx,fy,fz};
+      return factor*result_type{fx,fy,fz};
    };
 
-   auto gradient = [elas_param, alpha, beta](const point<T,3>& p) -> result_grad_type {
+   auto gradient = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       T gamma = alpha + beta + alpha * beta;
       result_grad_type grad = result_grad_type::Zero();
@@ -316,7 +318,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       grad(2,1) = /* h'(Y)= */ 0.0;
       grad(2,2) = (1.0/lambda + beta);
 
-      return grad;
+      return factor*grad;
    };
 
    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
@@ -389,7 +391,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 0.333;
-    param.lambda = 16.640 ;
+    param.lambda = 1.666440 ;
     param.type_law = 1;
 
     int ch;

@@ -161,6 +161,22 @@ tm_prod(const static_tensor<T, DIM>& tens, const static_matrix<T, DIM, DIM>& mat
    return ret;
 }
 
+
+//optimization M(row,col) neq 0, 0 else
+template<typename T, int  DIM>
+static_matrix<T, DIM, DIM>
+tm_prod(const static_tensor<T, DIM>& tens, const static_matrix<T, DIM, DIM>& mat, const size_t row, const size_t col)
+{
+   static_matrix<T, DIM, DIM> ret;
+   ret.setConstant(mat(row,col));
+   
+   for (size_t i = 0; i < DIM; i++)
+      for (size_t j = 0; j < DIM; j++)
+         ret(i,j) *= tens(i*DIM + row, j*DIM + col);
+      
+      return ret;
+}
+
 template<typename T>
 T
 tm_prod(const T& tens, const T& mat)

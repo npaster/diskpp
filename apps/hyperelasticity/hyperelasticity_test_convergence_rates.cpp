@@ -182,25 +182,27 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
 
    T alpha = 0.2;
    T beta = 0.2;
+   T factor = 0.5;
 
-   auto load = [elas_param, alpha,beta](const point<T,3>& p) -> result_type {
+
+   auto load = [elas_param, alpha,beta, factor](const point<T,3>& p) -> result_type {
       T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
-      T fy =0.0;
+      T fy = 0.0;
       T fz = M_PI*M_PI*elas_param.mu*beta * sin(M_PI*p.x());
-      return result_type{fx, fy, fz};
+      return factor*result_type{fx, fy, fz};
    };
 
-   auto solution = [elas_param, alpha, beta](const point<T,3>& p) -> result_type {
+   auto solution = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_type {
       T lambda = elas_param.lambda;
       T gamma = alpha + beta + alpha * beta;
       T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ alpha * sin(M_PI*p.y());
       T fy = (1.0/lambda - gamma/(1.0 + gamma)) * p.y();
       T fz = (1.0/lambda + beta) * p.z() + /* g(X)= */ beta * sin(M_PI*p.x()) + /* h(Y)= */ 0.0;
 
-      return result_type{fx,fy,fz};
+      return factor*result_type{fx,fy,fz};
    };
 
-   auto gradient = [elas_param, alpha, beta](const point<T,3>& p) -> result_grad_type {
+   auto gradient = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_grad_type {
       T lambda = elas_param.lambda;
       T gamma = alpha + beta + alpha * beta;
       result_grad_type grad = result_grad_type::Zero();
@@ -214,7 +216,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
       grad(2,1) = /* h'(Y)= */ 0.0;
       grad(2,2) = (1.0/lambda + beta);
 
-      return grad;
+      return factor*grad;
    };
 
 
@@ -471,9 +473,10 @@ void test_hexahedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& ela
 template< typename T>
 void test_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   size_t runs = 4;
+   size_t runs = 5;
 
    std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet0.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet1.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet2.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet3.mesh");
@@ -549,10 +552,8 @@ int main(int argc, char **argv)
    rp.m_compute_energy = false;
 
    ElasticityParameters param = ElasticityParameters();
-   param.lambda = 1000.0;
+   param.lambda = 10.0;
    param.mu = 1.0;
-   param.tau = 1000.0;
-   param.adaptative_stab = false;
    param.type_law = 1;
 
    int ch;
@@ -611,9 +612,7 @@ int main(int argc, char **argv)
 
          case 'r':
             rp.readParameters(optarg); break;
-         case 's': param.adaptative_stab = true; break;
 
-         case 't': param.tau = atof(optarg); break;
 
          case 'v': rp.m_verbose = true; break;
 
@@ -636,7 +635,6 @@ int main(int argc, char **argv)
    std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
    std::cout << " ** Cell_Degree  = " << rp.m_cell_degree << std::endl;
    std::cout << " ** Grad_Degree  = " << rp.m_grad_degree << std::endl;
-   std::cout << " ** Stab tau = " << param.tau << std::endl;
    std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;
    std::cout << " "<< std::endl;
@@ -644,14 +642,14 @@ int main(int argc, char **argv)
    if(three_dimensions){
       tc.tic();
       std::cout << "-Tetrahedras fvca6:" << std::endl;
-      test_tetrahedra_fvca6<RealType>(rp, param);
+      //test_tetrahedra_fvca6<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
 
       tc.tic();
       std::cout <<  "-Tetrahedras netgen:" << std::endl;
-      //test_tetrahedra_netgen<RealType>(rp, param);
+      test_tetrahedra_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
@@ -665,7 +663,7 @@ int main(int argc, char **argv)
 
       tc.tic();
       std::cout << "-Hexahedras diskpp:"  << std::endl;
-      test_hexahedra_diskpp<RealType>(rp, param);
+      //test_hexahedra_diskpp<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
@@ -703,7 +701,7 @@ int main(int argc, char **argv)
 
       tc.tic();
       std::cout << "-Quadrangles diskpp:"  << std::endl;
-      //test_quads_diskpp<RealType>(rp, param);
+      test_quads_diskpp<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;

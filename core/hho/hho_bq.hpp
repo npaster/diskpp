@@ -181,7 +181,7 @@ namespace disk {
          }// end qp
 
          // lower part MG
-         for(size_t i = 1; i <  grad_basis_size; i++)
+         for(size_t i = 0; i <  grad_basis_size; i++)
             for(size_t j = i; j < grad_basis_size; j++)
                MG(i,j) = MG(j,i);
 
@@ -339,7 +339,7 @@ namespace disk {
 
          tc.tic();
          // lower part MG
-         for(size_t i = 1; i <  grad_basis_size; i++)
+         for(size_t i = 0; i <  grad_basis_size; i++)
             for(size_t j = i; j < grad_basis_size; j++)
                MG(i,j) = MG(j,i);
 

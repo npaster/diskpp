@@ -144,8 +144,10 @@ public:
 
       // loop
       for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
-         std::cout << "beta: " << beta << '\n';
-         std::cout << "stab: " << newton_step.printStabilization() << '\n';
+         if(m_verbose){
+            std::cout << "beta: " << beta << '\n';
+            std::cout << "stab: " << newton_step.printStabilization() << '\n';
+         }
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
@@ -180,6 +182,9 @@ public:
             // solve the global system
             SolveInfo solve_info = newton_step.solve();
             ni.updateSolveInfo(solve_info);
+
+            if(m_verbose)
+               std::cout << " nnz: " << solve_info.m_nonzeros  << std::endl;
             // update unknowns
             PostprocessInfo post_info = newton_step.postprocess(lf);
             ni.updatePostProcessInfo(post_info);
