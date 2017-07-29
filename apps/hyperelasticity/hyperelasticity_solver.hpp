@@ -620,6 +620,81 @@ public:
        nodedata.saveNodeData(filename, gmsh); // save the view
     }
 
+    //compute PK in cylindrical base
+    void
+    compute_discontinuous_Prr(const std::string& filename, const std::string compo = "Prr")
+    {
+       visu::Gmesh gmsh(DIM);
+       auto storage = m_msh.backend_storage();
+
+       gradrec_type gradrec(m_bqd);
+       NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
+
+       std::vector<visu::Data> data; //create data (not used)
+       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
+
+       size_t cell_i(0);
+       size_t nb_nodes(0);
+       for (auto& cl : m_msh)
+       {
+          gradrec.compute(m_msh, cl, false);
+          const vector_dynamic GT_uTF = gradrec.oper() * m_solution_data.at(cell_i);
+
+          auto cell_nodes = visu::cell_nodes(m_msh, cl);
+          std::vector<visu::Node> new_nodes;
+          for (size_t i = 0; i < cell_nodes.size(); i++)
+          {
+             nb_nodes++;
+             auto point_ids = cell_nodes[i];
+             auto pt = storage->points[point_ids];
+
+             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
+
+             auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
+             auto FT_iqn = compute_FTensor(GT_iqn);
+
+             auto PK1= law.compute_PK1(FT_iqn);
+
+             vector_dynamic er;
+             er.resize(2);
+             er(0) = pt.x(); er(1) = pt.y();
+             er /= er.norm();
+             vector_dynamic eO;
+             eO.resize(2);
+             eO(0) = -er(1); eO(1) = er(0);
+
+            std::vector<scalar_type> PK1rr(1,0.0) ;
+            if(compo == "Prr")
+               PK1rr[0] = er.dot(PK1*er);
+            else if(compo == "Poo")
+               PK1rr[0] = eO.dot(PK1*eO);
+            else if(compo == "Pro")
+               PK1rr[0] = er.dot(PK1*eO);
+            else if(compo == "Por")
+               PK1rr[0] = eO.dot(PK1*er);
+
+             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
+
+             visu::init_coor(pt, coor);
+             visu::Node tmp_node(coor, nb_nodes, 0);
+             new_nodes.push_back(tmp_node);
+             gmsh.addNode(tmp_node);
+
+
+               visu::Data datatmp(nb_nodes, PK1rr);
+               data.push_back(datatmp);
+          }
+          // add new element
+          visu::add_element(gmsh, new_nodes);
+          cell_i++;
+       }
+
+       visu::NodeData nodedata(1, 0.0, "PK1", data, subdata); // create and init a nodedata view
+
+       nodedata.saveNodeData(filename, gmsh); // save the view
+    }
+
 
     template<typename AnalyticalSolution>
     void

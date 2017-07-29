@@ -136,7 +136,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 // };
 
 
-   T alpha = 1.5;
+   T r0 = 0.6; T R0 = 0.5;
+   T alpha = (r0 - R0)/R0;
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
@@ -148,8 +149,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
-      T fx = alpha * 2.0 * p.x() - p.x();
-      T fy = alpha * 2.0 * p.y() - p.y();
+      T fx = alpha *  p.x();
+      T fy = alpha *  p.y();
 
       return result_type{fx,fy};
    };
@@ -242,6 +243,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
         nl.plot_J_at_gausspoint("J_gp2D.msh");
         nl.plot_J("J_dis2d.msh");
         nl.compute_discontinuous_PK1("PK1_disc2D.msh");
+        nl.compute_discontinuous_Prr("Prr.msh", "Prr");
+        nl.compute_discontinuous_Prr("Poo.msh", "Poo");
    }
 }
 
