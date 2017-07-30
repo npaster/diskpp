@@ -15,6 +15,8 @@
  */
 
 #include <iostream>
+#include <algorithm>
+#include <vector>
 
 #include <sstream>
 
@@ -49,7 +51,6 @@ struct time_step
    double time;
    size_t level;
 };
-
 
 template<template<typename, size_t , typename> class Mesh,
 typename T, size_t DIM, typename Storage, typename Point>
@@ -354,6 +355,83 @@ public:
     size_t getDofs() {return total_dof_depl_static;}
 
 
+    bool
+    export_solution(const std::string& filename)
+    {
+      std::ofstream ofs(filename, std::ios::out | std::ios::trunc);  // ouverture en
+      ofs.precision(14);
+      std::string     keyword;
+
+      if (!ofs.is_open())
+      {
+          std::cout << "Error opening " << filename << std::endl;
+      }
+
+      //ne sert a rien
+      std::vector<std::array<scalar_type,3>> value;
+
+      value.reserve(m_msh.cells_size() * 4);
+
+       gradrec_type gradrec(m_bqd);
+
+       size_t num_point = 0;
+       size_t i = 0;
+
+       for (auto& cl : m_msh)
+       {
+          auto x = m_solution_data.at(i++);
+          gradrec.compute(m_msh, cl, false);
+          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+
+          auto cell_quadpoints = m_bqd.cell_quadrature.integrate(m_msh, cl);
+
+          auto bar = barycenter(m_msh, cl);
+            // compute grad_quadpoints
+            vector_dynamic depl; depl.resize(2); depl.setConstant(0.0);
+            auto cphi = m_bqd.cell_basis.eval_functions(m_msh, cl, bar);
+            for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k++)
+                  depl += cphi.at(k) * x(k); // a voir
+            auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, bar);
+            auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
+            auto FT_iqn = compute_FTensor(GT_iqn);
+
+            //compute er and eo
+            vector_dynamic er; er.resize(2); er(0) = bar.x(); er(1) = bar.y();
+            const scalar_type R = er.norm();
+            er /= R;
+            vector_dynamic eo; eo.resize(2); eo(0) = -er(1); eo(1) = er(0);
+
+
+            const scalar_type dphi = er.dot(FT_iqn*er);
+            const scalar_type phi = er.dot(depl) + R;
+
+            std::array<scalar_type,3> tmp = {R, phi, dphi};
+
+            value.push_back(tmp);
+
+            num_point++;
+
+       }
+
+       value.resize(num_point);
+       //std::sort(value.begin(), value.end(), sortR);
+
+       std::sort( value.begin( ), value.end( ), [ ]( const std::array<scalar_type,3>& lhs, const std::array<scalar_type,3>& rhs )
+         {
+            return lhs[0] < rhs[0];
+         });
+
+       ofs << "#R" << "\t" << "phi" << "\t" << "dphi" << std::endl;
+       ofs << value.size() << std::endl;
+       for (size_t i = 0; i < value.size(); i++) {
+          ofs << value[i][0] << "\t" << value[i][1] << "\t" << value[i][2] << std::endl;
+       }
+
+       ofs.close();
+       return true;
+    }
+
+
     template<typename AnalyticalSolution>
     scalar_type
     compute_l2_gradient_error(const AnalyticalSolution& grad)
@@ -392,7 +470,9 @@ public:
       }
 
       //ne sert a rien
-      ifs >> keyword >> keyword >> keyword >> keyword >> keyword;
+      ifs >> keyword ;
+      ifs >> keyword ;
+      ifs >> keyword ;
       size_t num(0);
       ifs >> num;
 
@@ -400,9 +480,10 @@ public:
       mat.resize(3, num);
 
       for (size_t i = 0; i < num; i++) {
-         ifs >> mat(0,i) >> mat(1,i) >> mat(2,i) >> keyword >> keyword;
-         //std::cout << mat.col(i) << '\n';
+         ifs >> mat(0,i) >> mat(1,i) >> mat(2,i);
       }
+
+      ifs.close();
 
        gradrec_type gradrec(m_bqd);
 
@@ -430,13 +511,16 @@ public:
             // compute grad_quadpoints
             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
             auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
-
+            auto FT_iqn = compute_FTensor(GT_iqn);
             //compute er and eo
             vector_dynamic er; er.resize(2); er(0) = qp.point().x(); er(1) = qp.point().y();
             const scalar_type R = er.norm();
             er /= R;
             vector_dynamic eo; eo.resize(2); eo(0) = -er(1); eo(1) = er(0);
 
+            const scalar_type dphi = er.dot(FT_iqn*er);
+            const scalar_type phi = R*eo.dot(FT_iqn*eo);
+            const scalar_type cphi = depl.dot(er);
             //
             size_t ind_R(0);
             for (size_t i = 0; i < num; i++) {
@@ -444,7 +528,12 @@ public:
                   ind_R = i;
                   break;
                }
+               if(i == num-1){
+                  ind_R = i;
+               }
             }
+            if(ind_R==0)
+               ind_R=1;
 
             // interpolation lineaire du deplacement
             const scalar_type a = (mat(1,ind_R) - mat(1,ind_R -1)) / (mat(0,ind_R) - mat(0,ind_R -1)) ;
@@ -458,17 +547,15 @@ public:
             const scalar_type d = mat(2,ind_R -1) - c * mat(0,ind_R -1);
             const scalar_type dphi_R = c*R + d;
             matrix_dynamic grad_ref; grad_ref.resize(2,2); grad_ref.setConstant(0.0);
-            grad_ref(0,0)=dphi_R - 1.0; grad_ref(1,1) = phi_R/R - 1.0;
 
             //compute L2 error depl
-            auto depl_ref = depl_R * er;
-            const scalar_type relative_displ = (depl_ref - depl).norm();
+
+            const scalar_type relative_displ = (depl_R- cphi);
 
             error_depl += qp.weight() * relative_displ * relative_displ;
 
             //compute l2 error gradient
-            const scalar_type relative_grad = (grad_ref - GT_iqn).norm();
-            error_grad += qp.weight() * relative_grad * relative_grad;
+            error_grad += qp.weight() * (std::pow(dphi_R - dphi, 2.0) + std::pow(phi_R - phi, 2.0));
           }
           //gradrec.compute(m_msh, cl, false);
           //dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
@@ -477,9 +564,11 @@ public:
           //err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
        }
 
+
+
        std::cout << "ERROR L2 ANNULUS" << '\n';
-       std::cout << "L2 DEPL: " << error_depl << '\n';
-       std::cout << "L2 GRAD: " << error_grad << '\n';
+       std::cout << "L2 DEPL: " << sqrt(error_depl) << '\n';
+       std::cout << "L2 GRAD: " << sqrt(error_grad) << '\n';
 
        return std::make_pair(error_depl,error_grad);
     }
