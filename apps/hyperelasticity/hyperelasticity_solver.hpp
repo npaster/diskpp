@@ -380,6 +380,110 @@ public:
        return sqrt(err_dof);
     }
 
+    std::pair<scalar_type,scalar_type>
+    compute_l2_error_annulus(const std::string& file_error)
+    {
+      std::ifstream   ifs(file_error);
+      std::string     keyword;
+
+      if (!ifs.is_open())
+      {
+          std::cout << "Error opening " << file_error << std::endl;
+      }
+
+      //ne sert a rien
+      ifs >> keyword >> keyword >> keyword >> keyword >> keyword;
+      size_t num(0);
+      ifs >> num;
+
+      matrix_dynamic mat;
+      mat.resize(3, num);
+
+      for (size_t i = 0; i < num; i++) {
+         ifs >> mat(0,i) >> mat(1,i) >> mat(2,i) >> keyword >> keyword;
+         //std::cout << mat.col(i) << '\n';
+      }
+
+       gradrec_type gradrec(m_bqd);
+
+       size_t i = 0;
+      scalar_type error_depl = 0.0;
+      scalar_type error_grad = 0.0;
+
+       for (auto& cl : m_msh)
+       {
+          auto x = m_solution_data.at(i++);
+          gradrec.compute(m_msh, cl, false);
+          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+
+          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
+
+          for (auto& qp : grad_quadpoints)
+          {
+             //compute depl
+             vector_dynamic depl; depl.resize(2); depl.setConstant(0.0);
+             auto c_phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
+             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
+                for(size_t j=0; j < DIM; j++)
+                   depl[j] += c_phi.at(i+j)(j) * x(i+j); // a voir
+
+            // compute grad_quadpoints
+            auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
+            auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
+
+            //compute er and eo
+            vector_dynamic er; er.resize(2); er(0) = qp.point().x(); er(1) = qp.point().y();
+            const scalar_type R = er.norm();
+            er /= R;
+            vector_dynamic eo; eo.resize(2); eo(0) = -er(1); eo(1) = er(0);
+
+            //
+            size_t ind_R(0);
+            for (size_t i = 0; i < num; i++) {
+               if(R < mat(0,i)){
+                  ind_R = i;
+                  break;
+               }
+            }
+
+            // interpolation lineaire du deplacement
+            const scalar_type a = (mat(1,ind_R) - mat(1,ind_R -1)) / (mat(0,ind_R) - mat(0,ind_R -1)) ;
+            const scalar_type b = mat(1,ind_R -1) - a * mat(0,ind_R -1);
+            const scalar_type phi_R = a*R + b;
+            const scalar_type depl_R = phi_R -R;
+
+            // interpolation lineaire du gradient
+
+            const scalar_type c = (mat(2,ind_R) - mat(2,ind_R -1)) / (mat(0,ind_R) - mat(0,ind_R -1)) ;
+            const scalar_type d = mat(2,ind_R -1) - c * mat(0,ind_R -1);
+            const scalar_type dphi_R = c*R + d;
+            matrix_dynamic grad_ref; grad_ref.resize(2,2); grad_ref.setConstant(0.0);
+            grad_ref(0,0)=dphi_R - 1.0; grad_ref(1,1) = phi_R/R - 1.0;
+
+            //compute L2 error depl
+            auto depl_ref = depl_R * er;
+            const scalar_type relative_displ = (depl_ref - depl).norm();
+
+            error_depl += qp.weight() * relative_displ * relative_displ;
+
+            //compute l2 error gradient
+            const scalar_type relative_grad = (grad_ref - GT_iqn).norm();
+            error_grad += qp.weight() * relative_grad * relative_grad;
+          }
+          //gradrec.compute(m_msh, cl, false);
+          //dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+          //dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
+          //dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+          //err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
+       }
+
+       std::cout << "ERROR L2 ANNULUS" << '\n';
+       std::cout << "L2 DEPL: " << error_depl << '\n';
+       std::cout << "L2 GRAD: " << error_grad << '\n';
+
+       return std::make_pair(error_depl,error_grad);
+    }
+
     std::array<scalar_type, 3>
     displacement_node(const size_t num_node)
     {

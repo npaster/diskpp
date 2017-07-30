@@ -80,7 +80,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
-   T r0 = 0.6; T R0 = 0.5;
+   T r0 = 0.5; T R0 = 0.5;
    T alpha = (r0 - R0)/R0;
 
    auto load = [](const point<T,2>& p) -> result_type {
@@ -125,7 +125,9 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    error.error_grad = 10E6;
 
    if(nl.test_convergence()){
-      //error.error_depl = nl.compute_l2_error_annulus(file_error);
+      auto error_annulus = nl.compute_l2_error_annulus(file_error);
+      error.error_depl = error_annulus.first;
+      error.error_grad = error_annulus.second;
       std::cout << "Post-processing: " << std::endl;
       std::string name = "Result_annulus_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
                         + "_m" + std::to_string(n) + "_" + std::to_string(elas_param.lambda) + "_";
