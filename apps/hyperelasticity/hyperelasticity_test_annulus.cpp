@@ -80,7 +80,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
-   T r0 = 0.6; T R0 = 0.5;
+   T r0 = 0.8; T R0 = 0.5;
    T alpha = (r0 - R0)/R0;
 
    auto load = [](const point<T,2>& p) -> result_type {
@@ -140,7 +140,6 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       nl.compute_discontinuous_PK1(name +"PK1_disc2D.msh");
       nl.compute_discontinuous_Prr(name +"Prr.msh", "Prr");
       nl.compute_discontinuous_Prr(name +"Poo.msh", "Poo");
-      nl.export_solution(name+"sol.dat");
    }
 
    return error;
