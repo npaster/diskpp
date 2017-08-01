@@ -32,6 +32,18 @@ def f(y, R, params):
     derivs = [f1, f2]      # list of dy/dt=f functions
     return derivs
 
+
+def Df(y, R, params):
+    y1, y2 = y      # unpack current values of y
+    mu, lamba = params  # unpack parameters
+    g1 = [0,1]
+    t1 = (-y2 * (lamba *(-R*lamba*(R*y2 - y1)*(log(y1*y2/R)-1) + mu *(R*R*y2 +R*y1*y2*y2-R*y1-y1*y1*y2)) + (lamba*(log(y1*y2/R)-1) - mu*(y2*y2+1)) *(-R*R *lamba*y2*(log(y1*y2/R)-1)) +R*lamba*(R*y2*y2-y1) +mu*y2*(R*R + y1*y1)))/np.power(R*y1*(lamba*(log(y1*y2/R)-1)-mu*(y2*y2+1)),2)
+    t2 = (R*(lamba*(log(y1*y2/R)-1) - mu *(y2*y2+1)) * (-lamba*y1*(log(y1*y2/R)-1) -lamba*(R*y2-y1) - mu*y1*(y2*y2+1)) -(R *lamba*(R*y2-y1)*(-log(y1*y2/R)+1) + mu *(R*R*y2 +R*y1*y2*y2-R*y1-y1*y1*y2)) *(-2*lamba*(log(y1*y2/R)-1) + lamba + 2*mu) )/np.power(R*(lamba*(log(y1*y2/R)-1)-mu*(y2*y2+1)),2)/y1
+    f2 =  (lamba * np.log(y1*y2/R)*(1/y1 - 1/(R*y2)) + mu * (y1/(R*R) - 1/y1 + 1/(R*y2) - y2/R) -lamba*(1/y1 - 1/(R*y2)) )/t1
+    g2 = [t1,t2]
+    gradient = [g1, g2]
+    return gradient
+
 def Poo(y, R, params):
     y1, y2 = y      # unpack current values of y
     mu, lamba = params  # unpack parameters
@@ -63,32 +75,23 @@ params = [mu, lamba]
 
 
 # Make time array for solution
-nb_point = 100
+nb_point = 10001
 R = np.linspace(R0, R1, num=nb_point)
 RInc = (R1 - R0)/nb_point
 
-tole = 1E-12
+tole = 1E-13
 a = 0.1
 b = 1.1 # b = 0.2 pour r0 = 1.5,  b = 0.7 for r0 = 0.6
 
-# Bundle initial conditions for ODE solver
-y0 = [r0, y20]
-# Call the ODE solver
-psoln = odeint(f, y0, R, args=(params,), rtol = (1E-13), atol= 1E-13, hmin =1E-16, hmax = 1E-11, ixpr=(True),)
-
-print("y1(R1)")
-print(psoln[-1,0])
-print("y2(R1)")
-print(psoln[-1,1])
-
 m = 0
+P = 1
 #dichotomie to find an appropriate value such that Prr(R1) = 0
-while np.abs(Prr(psoln[-1,:], R1, params)) >= tole:
+while np.abs(P) >= tole:
     m = (a+b)/2
     # Bundle initial conditions for ODE solver
     y0 = [r0, m]
     # Call the ODE solver
-    psoln = odeint(f, y0, R, args=(params,))
+    psoln = odeint(f, y0, R, args=(params,), Dfun=Df, rtol = (1E-12), atol= 1E-12,)
     #compute
     P = Prr(psoln[-1,:], R1, params)
     if(P > 0):
@@ -139,34 +142,34 @@ for y in psoln:
 fichier.close()
 
 
-#Plot results
-fig = plt.figure(1, figsize=(8,8))
-fig2 = plt.figure(2, figsize=(8,8))
-
-# Plot phi as a function of R
-ax1 = fig.add_subplot(311)
-ax1.plot(R, psoln[:,0])
-ax1.set_xlabel('R')
-ax1.set_ylabel('phi')
-
-## Plot dphi as a function of R
-ax2 = fig.add_subplot(312)
-ax2.plot(R, psoln[:,1])
-ax2.set_xlabel('R')
-ax2.set_ylabel('dphi')
-
-# Plot PRR as a function of time
-ax3 = fig2.add_subplot(311)
-ax3.plot(R, Prr_sol)
-ax3.set_xlabel('R')
-ax3.set_ylabel('Prr')
+##Plot results
+#fig = plt.figure(1, figsize=(8,8))
+#fig2 = plt.figure(2, figsize=(8,8))
 #
-# Plot Poo as a function of time
-ax4 = fig2.add_subplot(312)
-ax4.plot(R, Poo_sol)
-ax4.set_xlabel('R')
-ax4.set_ylabel('Poo')
-
-
-plt.tight_layout()
-plt.show()
+## Plot phi as a function of R
+#ax1 = fig.add_subplot(311)
+#ax1.plot(R, psoln[:,0])
+#ax1.set_xlabel('R')
+#ax1.set_ylabel('phi')
+#
+### Plot dphi as a function of R
+#ax2 = fig.add_subplot(312)
+#ax2.plot(R, psoln[:,1])
+#ax2.set_xlabel('R')
+#ax2.set_ylabel('dphi')
+#
+## Plot PRR as a function of time
+#ax3 = fig2.add_subplot(311)
+#ax3.plot(R, Prr_sol)
+#ax3.set_xlabel('R')
+#ax3.set_ylabel('Prr')
+##
+## Plot Poo as a function of time
+#ax4 = fig2.add_subplot(312)
+#ax4.plot(R, Poo_sol)
+#ax4.set_xlabel('R')
+#ax4.set_ylabel('Poo')
+#
+#
+#plt.tight_layout()
+#plt.show()
