@@ -1,14 +1,14 @@
- #add_executable(hyperelasticity hyperelasticity.cpp)
- #target_link_libraries(hyperelasticity ${LINK_LIBS})
- #install(TARGETS hyperelasticity RUNTIME DESTINATION bin)
+ add_executable(hyperelasticity hyperelasticity.cpp)
+ target_link_libraries(hyperelasticity ${LINK_LIBS})
+ install(TARGETS hyperelasticity RUNTIME DESTINATION bin)
 
 #add_executable(hyperelasticity_test_aurrichio hyperelasticity_test_aurrichio.cpp)
 #target_link_libraries(hyperelasticity_test_aurrichio ${LINK_LIBS})
 # install(TARGETS hyperelasticity_test_aurrichio RUNTIME DESTINATION bin)
 
-#add_executable(hyperelasticity_test_convergence_rates hyperelasticity_test_convergence_rates.cpp)
-#target_link_libraries(hyperelasticity_test_convergence_rates ${LINK_LIBS})
-#install(TARGETS hyperelasticity_test_convergence_rates RUNTIME DESTINATION bin)
+add_executable(hyperelasticity_test_convergence_rates hyperelasticity_test_convergence_rates.cpp)
+target_link_libraries(hyperelasticity_test_convergence_rates ${LINK_LIBS})
+install(TARGETS hyperelasticity_test_convergence_rates RUNTIME DESTINATION bin)
 
 
 #add_executable(hyperelasticity_test_locking_2d hyperelasticity_test_locking_2d.cpp)
@@ -23,3 +23,7 @@
 add_executable(hyperelasticity_test_annulus hyperelasticity_test_annulus.cpp)
 target_link_libraries(hyperelasticity_test_annulus${LINK_LIBS})
 install(TARGETS hyperelasticity_test_annulus RUNTIME DESTINATION bin)
+
+add_executable(hyperelasticity_test_block hyperelasticity_test_block.cpp)
+target_link_libraries(hyperelasticity_test_block ${LINK_LIBS})
+install(TARGETS hyperelasticity_test_block RUNTIME DESTINATION bin)
