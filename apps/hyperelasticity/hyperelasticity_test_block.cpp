@@ -186,16 +186,16 @@ printResults(const std::vector<error_type>& error)
 // void test_annulus(const ParamRun<T>& rp, const ElasticityParameters& elas_param, const std::string& file_error)
 // {
 //    size_t runs = 5;
-// 
+//
 //    std::vector<std::string> paths;
 //    paths.push_back("../meshes/Anneau/anneau_1.medit2d");
 //    paths.push_back("../meshes/Anneau/anneau_2.medit2d");
 //    paths.push_back("../meshes/Anneau/anneau_3.medit2d");
 //    paths.push_back("../meshes/Anneau/anneau_4.medit2d");
 //    paths.push_back("../meshes/Anneau/anneau_5.medit2d");
-// 
+//
 //    std::vector<error_type> error_sumup;
-// 
+//
 //    for(size_t i = 0; i < runs; i++){
 //       auto msh = disk::load_medit_2d_mesh<T>(paths[i].c_str());
 //       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param, i+1));

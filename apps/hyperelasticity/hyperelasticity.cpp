@@ -288,58 +288,58 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //    T alpha = 0.2;
 //    T beta = 0.2;
 //    T factor = 0.5;
-// 
-// 
+//
+//
 //    auto load = [elas_param, alpha,beta, factor](const point<T,3>& p) -> result_type {
 //       T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
 //       T fy = 0.0;
 //       T fz = M_PI*M_PI*elas_param.mu*beta * sin(M_PI*p.x());
 //       return factor*result_type{fx, fy, fz};
 //    };
-// 
+//
 //    auto solution = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T gamma = alpha + beta + alpha * beta;
 //       T fx = (1.0/lambda + alpha) * p.x() + /* f(Y)= */ alpha * sin(M_PI*p.y());
 //       T fy = (1.0/lambda - gamma/(1.0 + gamma)) * p.y();
 //       T fz = (1.0/lambda + beta) * p.z() + /* g(X)= */ beta * sin(M_PI*p.x()) + /* h(Y)= */ 0.0;
-// 
+//
 //       return factor*result_type{fx,fy,fz};
 //    };
-// 
+//
 //    auto gradient = [elas_param, alpha, beta, factor](const point<T,3>& p) -> result_grad_type {
 //       T lambda = elas_param.lambda;
 //       T gamma = alpha + beta + alpha * beta;
 //       result_grad_type grad = result_grad_type::Zero();
-// 
+//
 //       grad(0,0) = (1.0/lambda + alpha);
 //       grad(0,1) = /* f'(Y)= */ M_PI*alpha * cos(M_PI*p.y());
-// 
+//
 //       grad(1,1) = (1.0/lambda - gamma/(1.0 + gamma));
-// 
+//
 //       grad(2,0) = /* g'(X)= */ M_PI*beta* cos(M_PI*p.x());
 //       grad(2,1) = /* h'(Y)= */ 0.0;
 //       grad(2,2) = (1.0/lambda + beta);
-// 
+//
 //       return factor*grad;
 //    };
-   
-   
+
+
    auto load = [](const point<T,3>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
       T fz = 0.0;
       return result_type{fx, fy, fz};
    };
-   
+
    auto solution = [](const point<T,3>& p) -> result_type {
       T fx = -1.5;
       T fy = 0.0;
       T fz = -1.5;
-      
+
       return result_type{fx,fy,fz};
    };
-   
+
 
    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
       T fx = 0.0;
@@ -352,13 +352,13 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    BoundaryType N1;
    N1.id = 4;
    N1.boundary_type = FREE;
-   
+
    BoundaryType N2;
    N2.id = 11;
    N2.boundary_type = FREE;
-   
+
    std::vector<BoundaryType> boundary_neumann = {N1, N2};
-   
+
    BoundaryType D1;
    D1.id = 18;
    D1.boundary_type = CLAMPED;
@@ -402,7 +402,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
         //nl.compute_discontinuous_solution("sol_disc3D.msh");
         //nl.compute_deformed("def3D.msh");
    }
-   
+
    std::cout << "Post-processing: " << std::endl;
    std::string name = "Result_cyl_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
    + "_b" + std::to_string(rp.m_beta_init) + "_s" + std::to_string(rp.m_stab_init) + "_";

@@ -93,6 +93,7 @@ public:
    {
       std::ifstream   ifs(filename);
       std::string     keyword;
+      size_t line(0);
 
       if (!ifs.is_open())
       {
@@ -101,36 +102,43 @@ public:
       }
 
       ifs >> keyword;
+      line++;
       if ( keyword != "BeginParameters" )
       {
-         std::cout << "Expected keyword \"BeginParameters\"" << std::endl;
+         std::cout << "Expected keyword \"BeginParameters\" line: " << line << std::endl;
          return false;
       }
 
 
       ifs >> keyword;
+      line++;
       while( keyword != "EndParameters")
       {
          if ( keyword == "FaceDegree" )
          {
             ifs >> m_face_degree;
+            line++;
          }
          else if ( keyword == "CellDegree" )
          {
             ifs >> m_cell_degree;
+            line++;
          }
          else if ( keyword == "GradDegree" )
          {
             ifs >> m_grad_degree;
+            line++;
          }
          else if ( keyword == "Sublevel" )
          {
             ifs >> m_sublevel;
+            line++;
          }
          else if ( keyword == "TimeStep" )
          {
             size_t n_time_step(0);
             ifs >> n_time_step;
+            line++;
 
             m_time_step.clear();
             m_time_step.reserve(n_time_step);
@@ -139,12 +147,14 @@ public:
                size_t   time_step(0);
                ifs >> time >> time_step;
                m_time_step.push_back(std::make_pair(time, time_step));
+               line++;
             }
          }
          else if ( keyword == "Stabilization" )
          {
             std::string logical;
             ifs >> logical;
+            line++;
             if(logical == "true")
                m_stab = true;
             else{
@@ -157,6 +167,7 @@ public:
          {
             std::string type;
             ifs >> type;
+            line++;
 
             if(type == "L2")
                m_stab_init = L2;
@@ -171,6 +182,7 @@ public:
          {
             std::string type;
             ifs >> type;
+            line++;
 
             if(type == "L2")
                m_stab_obj = L2;
@@ -185,6 +197,7 @@ public:
          {
             std::string logical;
             ifs >> logical;
+            line++;
 
             if(logical == "true")
                m_adapt_coeff = true;
@@ -195,6 +208,7 @@ public:
          {
             std::string logical;
             ifs >> logical;
+            line++;
 
             if(logical == "true")
                m_adapt_stab = true;
@@ -204,19 +218,23 @@ public:
          else if ( keyword == "BetaInit" )
          {
             ifs >> m_beta_init;
+            line++;
          }
          else if ( keyword == "BetaMax" )
          {
             ifs >> m_beta_max;
+            line++;
          }
          else if ( keyword == "BetaObj" )
          {
             ifs >> m_beta_obj;
+            line++;
          }
          else if ( keyword == "Verbose" )
          {
             std::string logical;
             ifs >> logical;
+            line++;
             if(logical == "true")
                m_verbose = true;
             else
@@ -226,6 +244,7 @@ public:
          {
             std::string logical;
             ifs >> logical;
+            line++;
 
             if(logical == "true")
                m_compute_energy = true;
@@ -235,18 +254,21 @@ public:
          else if ( keyword == "IterMax" )
          {
             ifs >> m_iter_max;
+            line++;
          }
          else if ( keyword == "Epsilon" )
          {
             ifs >> m_epsilon;
+            line++;
          }
          else
          {
-            std::cout << "Error parsing Parameters file: " << keyword << std::endl;
+            std::cout << "Error parsing Parameters file:" << keyword << " line: "  << line << std::endl;
             return false;
          }
 
          ifs >> keyword;
+         line++;
       }
 
       ifs.close();
