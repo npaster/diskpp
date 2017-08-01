@@ -140,6 +140,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       nl.compute_discontinuous_PK1(name +"PK1_disc2D.msh");
       nl.compute_discontinuous_Prr(name +"Prr.msh", "Prr");
       nl.compute_discontinuous_Prr(name +"Poo.msh", "Poo");
+      nl.compute_discontinuous_VMIS(name +"VM.msh");
    }
 
    return error;
@@ -188,18 +189,41 @@ printResults(const std::vector<error_type>& error)
 template< typename T>
 void test_annulus(const ParamRun<T>& rp, const ElasticityParameters& elas_param, const std::string& file_error)
 {
-   size_t runs = 3;
+   size_t runs = 5;
 
    std::vector<std::string> paths;
    paths.push_back("../meshes/Anneau/anneau_1.medit2d");
    paths.push_back("../meshes/Anneau/anneau_2.medit2d");
    paths.push_back("../meshes/Anneau/anneau_3.medit2d");
+   paths.push_back("../meshes/Anneau/anneau_4.medit2d");
+   paths.push_back("../meshes/Anneau/anneau_5.medit2d");
 
    std::vector<error_type> error_sumup;
 
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_medit_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param, file_error, i+1));
+   }
+   printResults(error_sumup);
+}
+
+
+template< typename T>
+void test_annulus_locking(const ParamRun<T>& rp,  ElasticityParameters& elas_param, const std::string& file_error)
+{
+   size_t runs = 6;
+   
+   std::vector<std::string> paths;
+   paths.push_back("../meshes/Anneau/anneau_3.medit2d");
+   
+   std::array<T,5> lambda_test = {1.66644, 16.6644, 166.644, 1666.44, 16664.4, 166644.0}; 
+   
+   std::vector<error_type> error_sumup;
+   
+   for(size_t i = 0; i < runs; i++){
+      elas_param.lambda = lambda_test[i];
+      auto msh = disk::load_medit_2d_mesh<T>(paths[0].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param, file_error, 3));
    }
    printResults(error_sumup);
 }
@@ -226,7 +250,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "ce:l:n:r:")) != -1 )
+   while ( (ch = getopt(argc, argv, "ce:l:n:r")) != -1 )
    {
       switch(ch)
       {

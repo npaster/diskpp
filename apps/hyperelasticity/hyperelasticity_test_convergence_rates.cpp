@@ -493,6 +493,29 @@ void test_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& e
 
 
 template< typename T>
+void test2_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
+{
+   size_t runs = 5;
+   
+   std::vector<std::string> paths;
+   paths.push_back("../diskpp/meshes/cube/cube1.mesh");
+   paths.push_back("../diskpp/meshes/cube/cube2.mesh");
+   paths.push_back("../diskpp/meshes/cube/cube3.mesh");
+   paths.push_back("../diskpp/meshes/cube/cube4.mesh");
+   paths.push_back("../diskpp/meshes/cube/cube5.mesh");
+   
+   std::vector<error_type> error_sumup;
+   
+   for(int i = 0; i < runs; i++){
+      auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
+      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
+   }
+   
+   printResults(error_sumup);
+}
+
+
+template< typename T>
 void test_polyhedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 3;
@@ -649,7 +672,14 @@ int main(int argc, char **argv)
 
       tc.tic();
       std::cout <<  "-Tetrahedras netgen:" << std::endl;
-      test_tetrahedra_netgen<RealType>(rp, param);
+      //test_tetrahedra_netgen<RealType>(rp, param);
+      tc.toc();
+      std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+      std::cout << " "<< std::endl;
+      
+      tc.tic();
+      std::cout <<  "-Tetrahedras netgen 2: " << std::endl;
+      test2_tetrahedra_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
