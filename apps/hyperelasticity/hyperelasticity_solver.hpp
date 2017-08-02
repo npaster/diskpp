@@ -71,8 +71,8 @@ class hyperelasticity_solver
    typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
 
    bqdata_type     m_bqd;
-   
-   std::vector<matrix_dynamic>  m_gradient_precomputed; 
+
+   std::vector<matrix_dynamic>  m_gradient_precomputed;
 
    const mesh_type& m_msh;
 
@@ -87,23 +87,23 @@ class hyperelasticity_solver
    BoundaryConditions m_boundary_condition;
 
    size_t total_dof_depl_static;
-   
-   
+
+
    void
    pre_computation()
    {
       gradrec_type gradrec(m_bqd);
-      
+
       m_gradient_precomputed.clear();
       m_gradient_precomputed.reserve(m_msh.cells_size());
-      
+
       for (auto& cl : m_msh)
       {
          /////// Gradient Reconstruction /////////
          gradrec.compute(m_msh, cl, false);
          m_gradient_precomputed.push_back(gradrec.oper());
       }
-      
+
    }
 
 public:
@@ -245,14 +245,14 @@ public:
                                  m_solution_lagr, m_solution_data);
 
       newton_solver.verbose(m_verbose);
-      
+
       if(m_rp.m_precomputation){
          timecounter t1;
          t1.tic();
          this->pre_computation();
          t1.toc();
          std::cout << "-Precomputation: " << t1.to_double() << " sec" << std::endl;
-         
+
       }
 
       std::list<time_step> list_step;
@@ -278,15 +278,22 @@ public:
 
       scalar_type old_time = 0.0;
 
+      //time of saving
+      bool time_saving(false);
+      if(m_rp.m_n_time_save > 0){
+         time_saving = true;
+      }
+
+
       while(!list_step.empty())
       {
          current_step += 1;
          time_step step = list_step.front();
          const scalar_type current_time = step.time;
          if(m_verbose){
-            std::cout << "--------------------------------------------------------------" << std::endl;
-            std::cout << "*************** Time : " << current_time << " sec (step: " << current_step
-            << "/" << total_step << ") *****************|" << std::endl;
+            std::cout << "---------------------------------------------------------------------------------------------------------------------" << std::endl;
+            std::cout << "****************************** Time : " << current_time << " sec (step: " << current_step
+            << "/" << total_step << ", sublevel: " << step.level << " ) *******************************|" << std::endl;
          }
 
          auto rlf = [&lf, &current_time](const Point& p) -> auto {
@@ -346,6 +353,27 @@ public:
          else{
             old_time = current_time;
             list_step.pop_front();
+            newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+
+            if(time_saving){
+               if(m_rp.m_time_save.front()< old_time + 1E-5){
+                  std::cout << "** Save results" << std::endl;
+                  std::string name = "result_k" +  std::to_string(m_rp.m_cell_degree) + "_l" + std::to_string(m_rp.m_face_degree)
+                  + "_g" + std::to_string(m_rp.m_grad_degree) + "_t" + std::to_string(old_time) + "_";
+                  this->compute_discontinuous_solution(name + "sol_disc2D.msh");
+                  this->compute_conforme_solution(name +"sol_conf2D.msh");
+                  this->compute_deformed(name +"def2D.msh");
+                  this->plot_displacement_at_gausspoint(name +"depl_gp2D.msh");
+                  this->plot_J_at_gausspoint(name +"J_gp2D.msh");
+                  this->plot_J(name +"J_dis2d.msh");
+                  this->compute_discontinuous_Prr(name +"Prr.msh", "Prr");
+                  this->compute_discontinuous_Prr(name +"Poo.msh", "Poo");
+                  this->compute_discontinuous_VMIS(name +"VM.msh");
+
+                  m_rp.m_time_save.pop_front();
+                  if(m_rp.m_time_save.empty())  time_saving = false;
+               }
+            }
          }
       }
 

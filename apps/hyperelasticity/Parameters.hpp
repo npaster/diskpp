@@ -56,6 +56,9 @@ public:
    T       m_beta_init;      // minium of stabilization constant
    T       m_beta_obj;      // maximum of stabilization constant
 
+   size_t  m_n_time_save;  // number of saving
+   std::list<T>   m_time_save; //list of time where we save result;
+
 
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
                 m_sublevel(1), m_stab(true),
@@ -63,7 +66,8 @@ public:
                 m_compute_energy(false), m_precomputation(false),
                 m_iter_max(10), m_epsilon(T(1E-6)),
                 m_beta_init(T(1.0)), m_beta_obj(T(1.0)), m_beta_max(T(1)),
-                m_stab_init(L2), m_stab_obj(HHO)
+                m_stab_init(L2), m_stab_obj(HHO),
+                m_n_time_save(0)
                 {
                    m_time_step.push_back(std::make_pair(1.0, 10));
                 }
@@ -147,6 +151,19 @@ public:
                size_t   time_step(0);
                ifs >> time >> time_step;
                m_time_step.push_back(std::make_pair(time, time_step));
+               line++;
+            }
+         }
+         else if ( keyword == "TimeSave" )
+         {
+            ifs >> m_n_time_save;
+            line++;
+
+            m_time_save.clear();
+            for (size_t i = 0; i < m_n_time_save; i++) {
+               T  time(0.0);
+               ifs >> time;
+               m_time_save.push_back(time);
                line++;
             }
          }
