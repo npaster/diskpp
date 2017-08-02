@@ -134,16 +134,16 @@ run_cook_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const Ela
    resultat_type resultat;
    resultat.name = name;
    resultat.h = average_diameter(msh);
-   resultat.degree = rp.m_degree;
+   resultat.degree = rp.m_cell_degree;
    resultat.nb_dof = nl.getDofs();
    resultat.ux = 0.0;
    resultat.uy = 0.0;
 
    if(nl.test_convergence()){
         std::cout << "Post-processing: " << std::endl;
-        nl.compute_discontinuous_solution(name + "_k_" + std::to_string(rp.m_degree) + "_sol_disc2D.msh");
-        nl.compute_conforme_solution(name + "_k_" + std::to_string(rp.m_degree) + "_sol_conf2D.msh");
-        nl.plot_J_at_gausspoint(name + "_k_" + std::to_string(rp.m_degree) + "_J_gp2D.msh");
+        nl.compute_discontinuous_solution(name + "_k_" + std::to_string(rp.m_cell_degree) + "_l_" + std::to_string(rp.m_grad_degree) + "_sol_disc2D.msh");
+        nl.compute_conforme_solution(name + "_k_" + std::to_string(rp.m_cell_degree) + "_l_" + std::to_string(rp.m_grad_degree) + "_sol_conf2D.msh");
+        nl.plot_J_at_gausspoint(name + "_k_" + std::to_string(rp.m_cell_degree) + "_l_" + std::to_string(rp.m_grad_degree) + "_J_gp2D.msh");
 
         auto depl = nl.displacement_node(2);
 
@@ -241,17 +241,13 @@ int main(int argc, char **argv)
     param.mu = 0.4225;
     param.lambda = 915.4;
     param.type_law = 6;
-    param.tau = 100.0;
-    param.adaptative_stab = false;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "e:i:k:l:n:p:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "k:r:v")) != -1 )
     {
         switch(ch)
         {
-            case 'e': rp.m_epsilon = atof(optarg); break;
-            case 'i': rp.m_iter_max = atoi(optarg); break;
             case 'k':
                 degree = atoi(optarg);
                 if (degree < 0)
@@ -259,39 +255,20 @@ int main(int argc, char **argv)
                     std::cout << "Degree must be positive. Falling back to 1." << std::endl;
                     degree = 1;
                 }
-                rp.m_degree = degree;
+                rp.m_cell_degree = degree;
+                rp.m_face_degree = degree;
+                rp.m_grad_degree = degree;
                 break;
 
-            case 'l':
-                l = atoi(optarg);
-                if (l < -1 or l > 1)
-                {
-                    std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-                    l = 0;
-                }
-                rp.m_l = l;
-                break;
+            case 'r':
+                   if(!rp.readParameters(optarg))
+                   exit(1);
 
-            case 'n':
-               n_time_step = atoi(optarg);
-               if (n_time_step == 0)
-                {
-                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-                    n_time_step = 1;
-                }
-                rp.m_n_time_step = n_time_step;
-                break;
-
+                   break;
 
             case 'v':
                 rp.m_verbose = true;
                 break;
-
-
-            case 'p':
-               param.tau = atof(optarg);
-               break;
-
 
             case '?':
             default:

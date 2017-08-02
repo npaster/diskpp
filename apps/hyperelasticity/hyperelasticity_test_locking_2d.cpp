@@ -118,7 +118,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.m_degree;
+   error.degree = rp.m_cell_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
@@ -313,9 +313,6 @@ int main(int argc, char **argv)
    char    *mesh_filename  = nullptr;
    char    *plot_filename  = nullptr;
    int     degree          = 1;
-   int     l               = 0;
-   int     n_time_step     = 1;
-   int     elems_1d        = 8;
 
    ParamRun<RealType> rp;
    rp.m_sublevel = 4;
@@ -323,60 +320,40 @@ int main(int argc, char **argv)
    ElasticityParameters param = ElasticityParameters();
    param.lambda = 1.0;
    param.mu = 1.0;
-   param.tau = 10.0;
-   param.adaptative_stab = false;
    param.type_law = 1;
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "k:l:n:p:v:t")) != -1 )
+   while ( (ch = getopt(argc, argv, "k:r:v")) != -1 )
    {
       switch(ch)
       {
-         case 'k':
-            degree = atoi(optarg);
-            if (degree < 0)
-            {
-               std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-               degree = 1;
-            }
-            rp.m_degree = degree;
-            break;
+           case 'k':
+               degree = atoi(optarg);
+               if (degree < 0)
+               {
+                   std::cout << "Degree must be positive. Falling back to 1." << std::endl;
+                   degree = 1;
+               }
+               rp.m_cell_degree = degree;
+               rp.m_face_degree = degree;
+               rp.m_grad_degree = degree;
+               break;
 
-         case 'l':
-            l = atoi(optarg);
-            if (l < -1 or l > 1)
-            {
-               std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-               l = 0;
-            }
-            rp.m_l = l;
-            break;
+           case 'r':
+                  if(!rp.readParameters(optarg))
+                  exit(1);
 
-         case 'n':
-            n_time_step = atoi(optarg);
-            if (n_time_step == 0)
-            {
-               std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-               n_time_step = 1;
-            }
-            rp.m_n_time_step = n_time_step;
-            break;
+                  break;
 
+           case 'v':
+               rp.m_verbose = true;
+               break;
 
-         case 'p':
-            param.tau = atof(optarg);
-            break;
-
-         case 'v':
-            rp.m_verbose = true;
-            break;
-
-         case 'h':
-         case '?':
-         default:
-            std::cout << "wrong arguments" << std::endl;
-            exit(1);
+           case '?':
+           default:
+               std::cout << "wrong arguments" << std::endl;
+               exit(1);
       }
    }
 
@@ -387,9 +364,9 @@ int main(int argc, char **argv)
    timecounter tc;
 
    std::cout << " Test convergence rates in 2D for: "<< std::endl;
-   std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
-   std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
-   std::cout << " ** Stab tau = " << param.tau << std::endl;
+   std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
+   std::cout << " ** Cell_Degree  = " << rp.m_cell_degree << std::endl;
+   std::cout << " ** Grad_Degree  = " << rp.m_grad_degree << std::endl;
    std::cout << " ** mu = " << param.mu << std::endl;
    std::cout << " ** lambda = " << param.lambda << std::endl;
    std::cout << " "<< std::endl;

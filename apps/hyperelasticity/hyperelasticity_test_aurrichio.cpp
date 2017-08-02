@@ -69,10 +69,9 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
-   std::cout << "Degree k= " << rp.m_degree << std::endl;
+   std::cout << "Degree k= " << rp.m_face_degree << std::endl;
    std::cout << "mu= " << elas_param.mu << std::endl;
    std::cout << "lambda= " << elas_param.lambda << std::endl;
-   std::cout << "tau= " << elas_param.tau << std::endl;
    std::cout << "gamma= " << gamma << std::endl;
    std::cout << "gamma_normalise= " << gamma/elas_param.mu << std::endl;
    std::cout << "law= " << elas_param.type_law << std::endl;
@@ -145,86 +144,52 @@ int main(int argc, char **argv)
     char    *mesh_filename  = nullptr;
     char    *plot_filename  = nullptr;
     int     degree          = 1;
-    int     l               = 0;
-    int     n_time_step     = 1;
-    int     sublevel        = 1;
 
     ParamRun<RealType> rp;
-    rp.m_sublevel = 4;
-    rp.m_verbose = false;
 
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 40.0;
     param.lambda = param.mu * 1E5;
-    param.tau = 10.0;
-    param.adaptative_stab = false;
     param.type_law = 3;
 
     RealType gamma = 1.0;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "g:k:l:m:n:o:s:t:v")) != -1 )
-    {
-       switch(ch)
-       {
-          case 'g': gamma = atof(optarg); break;
-          case 'k':
-             degree = atoi(optarg);
-             if (degree < 1)
-             {
-                std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-                degree = 1;
-             }
-             rp.m_degree = degree;
-             break;
+    while ( (ch = getopt(argc, argv, "g:k:r:v")) != -1 )
+   {
+      switch(ch)
+      {
+           case 'g': gamma = atof(optarg); break;
+           case 'k':
+               degree = atoi(optarg);
+               if (degree < 0)
+               {
+                   std::cout << "Degree must be positive. Falling back to 1." << std::endl;
+                   degree = 1;
+               }
+               rp.m_cell_degree = degree;
+               rp.m_face_degree = degree;
+               rp.m_grad_degree = degree;
+               break;
 
-          case 'l':
-             l = atoi(optarg);
-             if (l < -1 or l > 1)
-             {
-                std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-                l = 0;
-             }
-             rp.m_l = l;
-             break;
+           case 'r':
+                  if(!rp.readParameters(optarg))
+                  exit(1);
 
-          case 'm':
-             sublevel = atoi(optarg);
-             if (sublevel <= 0)
-             {
-                std::cout << "Number of sublevel time step must be positive. Falling back to 1." << std::endl;
-                sublevel = 1;
-             }
-             rp.m_sublevel = sublevel;
-             break;
+                  break;
 
-          case 'n':
-             n_time_step = atoi(optarg);
-             if (n_time_step <= 0)
-             {
-                std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-                n_time_step = 1;
-             }
-             rp.m_n_time_step = n_time_step;
-             break;
+           case 'v':
+               rp.m_verbose = true;
+               break;
 
-          case 'o': param.type_law = atoi(optarg); break;
-          case 's': param.adaptative_stab = true; break;
-
-          case 't': param.tau = atof(optarg); break;
-
-          case 'v': rp.m_verbose = true; break;
-
-          case 'h':
-          case '?':
-          default:
-             std::cout << "wrong arguments" << std::endl;
-             usage(argv[0]);
-             exit(1);
-       }
-    }
+           case '?':
+           default:
+               std::cout << "wrong arguments" << std::endl;
+               exit(1);
+      }
+   }
 
     argc -= optind;
     argv += optind;

@@ -137,7 +137,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
 
    T r0 = 0.6; T R0 = 0.5;
-   T alpha = (r0 - R0)/R0;
+   T alpha = 1.0;// (r0 - R0)/R0;
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
       T lambda = elas_param.lambda;
       T mu = elas_param.mu;
@@ -171,12 +171,12 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    BoundaryType N1;
-   N1.id = 4;//4,11
+   N1.id = 7;//4,11
    N1.boundary_type = FREE;
 
 
    BoundaryType N2;
-   N2.id = 14;//14
+   N2.id = 10;//14
    N2.boundary_type = FREE;
 
 
@@ -184,7 +184,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    N4.id = 4;//14
    N4.boundary_type = NEUMANN;
 
-   std::vector<BoundaryType> boundary_neumann = {N1}; //by default 0 is for a dirichlet face
+   std::vector<BoundaryType> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
@@ -245,6 +245,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
         nl.compute_discontinuous_PK1("PK1_disc2D.msh");
         nl.compute_discontinuous_Prr("Prr.msh", "Prr");
         nl.compute_discontinuous_Prr("Poo.msh", "Poo");
+        nl.compute_discontinuous_VMIS("VM.msh");
    }
 }
 
@@ -333,9 +334,9 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    auto solution = [](const point<T,3>& p) -> result_type {
-      T fx = -1.5;
-      T fy = 0.0;
-      T fz = -1.5;
+      T fx = p.x();
+      T fy = p.y();
+      T fz = p.z();
 
       return result_type{fx,fy,fz};
    };
@@ -350,7 +351,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    BoundaryType N1;
-   N1.id = 4;
+   N1.id = 19;//4 cyl
    N1.boundary_type = FREE;
 
    BoundaryType N2;
@@ -363,7 +364,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    D1.id = 18;
    D1.boundary_type = CLAMPED;
 
-   std::vector<BoundaryType> boundary_dirichlet = {D1};
+   std::vector<BoundaryType> boundary_dirichlet = {};
 
    hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
@@ -404,7 +405,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    }
 
    std::cout << "Post-processing: " << std::endl;
-   std::string name = "Result_cyl_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
+   std::string name = "Result_cav_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
    + "_b" + std::to_string(rp.m_beta_init) + "_s" + std::to_string(rp.m_stab_init) + "_";
    nl.compute_discontinuous_solution(name + "sol_disc2D.msh");
    nl.compute_conforme_solution(name +"sol_conf2D.msh");
@@ -429,13 +430,10 @@ int main(int argc, char **argv)
     face_degree = 0; cell_degree = 0; grad_degree = 0;
 
     ParamRun<RealType> rp;
-    rp.m_sublevel = 4;
-    rp.m_verbose = true;
-    rp.m_compute_energy = true;
 
     ElasticityParameters param = ElasticityParameters();
 
-    param.mu = 0.1;
+    param.mu = 1.0;
     param.lambda = 1.0;
     param.type_law = 1;
 
