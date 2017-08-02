@@ -40,15 +40,15 @@ Fichier pour gérer les lois de comportements
 
 /* Material: Neo-nookean
  * Energy :  W(F) = Wiso(F) + Wvol(F)
- *   - Wiso(F) =    mu / 2 *[tr(F^T * F) - d] - mu * ln(J)
- *   - Wvol(F) =  lambda/2 * U(J)**2
+ *   - Wiso(F) =    mu / 2 *[tr(F^T * F) - d]
+ *   - Wvol(F) =  lambda/2 * U(J)**2 - mu * ln(J)
  * ** We set T1(J) = J * U(J) * U'(J) and T2(J) =  U(J) * J *( U''(J) * J + U'(J)) + ( J * U'(J))^2
  * Stress :  PK1(F) = Piso(F) + Pvol(F)
- *   - Piso(F) = mu * ( F - F^{-T})
- *   - Pvol(F) = lambda * T1(J) * F^{-T}
+ *   - Piso(F) = mu * F
+ *   - Pvol(F) = (lambda * T1(J) - mu) * F^{-T}
  * Module :  A(F) = PK1(F) = Aiso(F) + Avol(F)
- *   - Aiso(F) = mu * ( I4 + F^{-T} \time_inf F^{-1})
- *   - Avol(F) = -lambda * T1(J) * F^{-T} \time_inf F^{-1}
+ *   - Aiso(F) = mu *  I4
+ *   - Avol(F) = (mu -lambda * T1(J)) * F^{-T} \time_inf F^{-1}
  *                  + lambda * T2(J) * F^{-T} \kronecker F^{-T}
  */
 
@@ -194,12 +194,12 @@ public:
    scalar_type
    compute_energy(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      scalar_type J = F.determinant();
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      scalar_type Wiso = m_mu/2.0 * ((F.transpose() * F).trace() - DIM) - m_mu * log(J);
-      scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J);
+      const scalar_type Wiso = m_mu/2.0 * ((F.transpose() * F).trace() - DIM);
+      const scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J) - m_mu * log(J);
 
       return  Wiso + Wvol;
    }
@@ -208,12 +208,12 @@ public:
    static_matrix<scalar_type, DIM, DIM>
    compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
+
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const scalar_type T1 = compute_T1(J);
 
       return  m_mu * F + ( m_lambda * T1 - m_mu) * invF.transpose();
    }
@@ -223,18 +223,19 @@ public:
    static_tensor<scalar_type, DIM>
    compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-      scalar_type T2 = compute_T2(J);
-
-      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
-      static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
-      static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
-
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
+
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
+
+      const scalar_type T1 = compute_T1(J);
+      const scalar_type T2 = compute_T2(J);
+
+      const static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      const static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
+      const static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
 
       return m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
    }
@@ -244,26 +245,23 @@ public:
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
    compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
-
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-      scalar_type T2 = compute_T2(J);
-
-
-      if(J <=0.0){
-         std::cout << "J = " << J << std::endl;
+      const scalar_type J = F.determinant();
+      if(J <=0.0)
          throw std::invalid_argument("J <= 0");
-      }
 
-      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
-      static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
-      static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
 
-      auto PK1 = m_mu * F + ( m_lambda * T1 - m_mu) * invFt;
+      const scalar_type T1 = compute_T1(J);
+      const scalar_type T2 = compute_T2(J);
 
-      auto A = m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
+      const static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      const static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
+      const static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
+
+      const auto PK1 = m_mu * F + ( m_lambda * T1 - m_mu) * invFt;
+
+      const auto A = m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
 
       return std::make_pair(PK1, A);
    }

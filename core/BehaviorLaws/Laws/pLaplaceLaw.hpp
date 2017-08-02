@@ -41,22 +41,18 @@ Fichier pour gérer les lois de comportements
  * Module :  A(G) = d lambda / dG \times G  + lambda(G) * I_4
  */
 
-
-
 template<typename scalar_type>
 class pLaplaceLaw
 {
    size_t m_p;
 
-
-
    template< int DIM>
    static_matrix<scalar_type, DIM, DIM>
    compute_A(const static_vector<scalar_type, DIM>& G)
    {
-      scalar_type norm_G = G.norm();
-      scalar_type norm_G2 = std::pow(norm_G, m_p-2.0);
-      scalar_type norm_G4 = std::pow(norm_G, m_p-4.0);
+      const scalar_type norm_G = G.norm();
+      const scalar_type norm_G2 = std::pow(norm_G, m_p-2.0);
+      const scalar_type norm_G4 = std::pow(norm_G, m_p-4.0);
 
       return norm_G2 * static_matrix<scalar_type, DIM, DIM>::Identity() + (m_p-2.0) * norm_G4 * G * G.transpose();
 
@@ -102,8 +98,8 @@ public:
    std::pair<static_vector<scalar_type, DIM>, static_matrix<scalar_type, DIM, DIM> >
    compute_whole(const static_vector<scalar_type, DIM>& G)
    {
-      auto P = compute_P(G);
-      auto A = compute_tangent_moduli(G);
+      const auto P = compute_P(G);
+      const auto A = compute_tangent_moduli(G);
 
       return std::make_pair(P, A);
    }

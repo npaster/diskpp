@@ -40,15 +40,15 @@ Fichier pour gérer les lois de comportements
 
 /* Material: Neo-nookean for cavitation
  * Energy :  W(F) = Wiso(F) + Wvol(F)
- *   - Wiso(F) =    mu / 2 *[tr(F^T * F)]^{5/4} - mu * ln(J)
- *   - Wvol(F) =  lambda/2 * U(J)**2
+ *   - Wiso(F) =    2*mu/3^{5/4}  *[tr(F^T * F)]^{3/4}
+ *   - Wvol(F) =  lambda/2 * U(J)**2 - mu * ln(J)
  * ** We set T1(J) = J * U(J) * U'(J) and T2(J) =  U(J) * J *( U''(J) * J + U'(J)) + ( J * U'(J))^2
  * Stress :  PK1(F) = Piso(F) + Pvol(F)
- *   - Piso(F) = mu * ( F - F^{-T})
- *   - Pvol(F) = lambda * T1(J) * F^{-T}
+ *   - Piso(F) =  mu * (3*[tr(F^T * F)])^{-1/4}
+ *   - Pvol(F) = (lambda * T1(J) -mu) * F^{-T}
  * Module :  A(F) = PK1(F) = Aiso(F) + Avol(F)
- *   - Aiso(F) = mu * ( I4 + F^{-T} \time_inf F^{-1})
- *   - Avol(F) = -lambda * T1(J) * F^{-T} \time_inf F^{-1}
+ *   - Aiso(F) = mu * 3^{-1/4} * ( [tr(F^T * F)])^{-1/4} * I4 -1/4 * [tr(F^T * F)])^{-5/4} F \kronecker F)
+ *   - Avol(F) = (mu-lambda * T1(J)) * F^{-T} \time_inf F^{-1}
  *                  + lambda * T2(J) * F^{-T} \kronecker F^{-T}
  */
 
@@ -194,12 +194,14 @@ public:
    scalar_type
    compute_energy(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      scalar_type J = F.determinant();
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      scalar_type Wiso = m_mu/2.0 * std::power(((F.transpose() * F).trace()),5/4) - m_mu * log(J);
-      scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J);
+      const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
+
+      const scalar_type Wiso = 2.0*m_mu/ std::pow(3.0,5.0/4.0) * std::pow(C.trace(), 3.0/4.0);
+      const scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J) - m_mu * log(J);
 
       return  Wiso + Wvol;
    }
@@ -208,14 +210,18 @@ public:
    static_matrix<scalar_type, DIM, DIM>
    compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      return  m_mu * F + ( m_lambda * T1 - m_mu) * invF.transpose();
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const scalar_type T1 = compute_T1(J);
+      const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
+
+      const auto Piso = m_mu* std::pow(3.0*C.trace(), -1.0/4.0) * F;
+      const auto Pvol = ( m_lambda * T1 - m_mu) * invF.transpose();
+
+      return  Piso + Pvol;
    }
 
 
@@ -223,20 +229,28 @@ public:
    static_tensor<scalar_type, DIM>
    compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-      scalar_type T2 = compute_T2(J);
-
-      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
-      static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
-      static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
-
+      const scalar_type J = F.determinant();
       if(J <=0.0)
          throw std::invalid_argument("J <= 0");
 
-      return m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
+      const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
+
+      const scalar_type trace_C = C.trace();
+      const scalar_type J = F.determinant();
+      const scalar_type T1 = compute_T1(J);
+      const scalar_type T2 = compute_T2(J);
+
+      const static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      const static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
+      const static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
+      const static_tensor<scalar_type, DIM> F_F = computeKroneckerProduct(F, F);
+
+      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.25 * std::pow(trace_C, -5.0/4.0) * F_F);
+      const auto Avol = m_lambda * T2 * invFt_invFt + (m_mu - m_lambda * T1) * invFt_invF;
+
+      return Aiso + Avol;
    }
 
 
@@ -244,28 +258,31 @@ public:
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
    compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
-      static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
-
-      scalar_type J = F.determinant();
-      scalar_type T1 = compute_T1(J);
-      scalar_type T2 = compute_T2(J);
-
-
-      if(J <=0.0){
-         std::cout << "J = " << J << std::endl;
+      const scalar_type J = F.determinant();
+      if(J <=0.0)
          throw std::invalid_argument("J <= 0");
-      }
 
-      static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
-      static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
-      static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
+      const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
+      const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
+      const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
 
-      auto PK1 = m_mu * F + ( m_lambda * T1 - m_mu) * invFt;
+      const scalar_type trace_C = C.trace();
+      const scalar_type J = F.determinant();
+      const scalar_type T1 = compute_T1(J);
+      const scalar_type T2 = compute_T2(J);
 
-      auto A = m_mu * (I4 + invFt_invF) + m_lambda *( T2 * invFt_invFt - T1 * invFt_invF);
+      const static_tensor<scalar_type, DIM> I4 = compute_IdentityTensor<scalar_type,DIM>();
+      const static_tensor<scalar_type, DIM> invFt_invF = computeProductInf(invFt, invF);
+      const static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
+      const static_tensor<scalar_type, DIM> F_F = computeKroneckerProduct(F, F);
 
-      return std::make_pair(PK1, A);
+      const auto Piso = m_mu* std::pow(3.0*trace_C, -1.0/4.0) * F;
+      const auto Pvol = ( m_lambda * T1 - m_mu) * invF.transpose();
+
+      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.25 * std::pow(trace_C, -5.0/4.0) * F_F);
+      const auto Avol = m_lambda * T2 * invFt_invFt + (m_mu - m_lambda * T1) * invFt_invF;
+
+      return std::make_pair(Piso + Pvol, Aiso + Avol);
    }
 
 };

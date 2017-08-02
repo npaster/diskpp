@@ -73,7 +73,7 @@ public:
    static_matrix<scalar_type, DIM, DIM>
    compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> Id = static_matrix<scalar_type, DIM , DIM>::Identity();
+      const static_matrix<scalar_type, DIM, DIM> Id = static_matrix<scalar_type, DIM , DIM>::Identity();
 
       return m_lambda * (F- Id);
    }
@@ -89,8 +89,8 @@ public:
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
    compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
    {
-      static_matrix<scalar_type, DIM, DIM> PK1 = compute_PK1(F);
-      static_tensor<scalar_type, DIM> A = compute_tangent_moduli(F);
+      const static_matrix<scalar_type, DIM, DIM> PK1 = compute_PK1(F);
+      const static_tensor<scalar_type, DIM> A = compute_tangent_moduli(F);
 
       return std::make_pair(PK1, A);
    }
