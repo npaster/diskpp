@@ -238,7 +238,6 @@ public:
       const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
 
       const scalar_type trace_C = C.trace();
-      const scalar_type J = F.determinant();
       const scalar_type T1 = compute_T1(J);
       const scalar_type T2 = compute_T2(J);
 
@@ -267,7 +266,6 @@ public:
       const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
 
       const scalar_type trace_C = C.trace();
-      const scalar_type J = F.determinant();
       const scalar_type T1 = compute_T1(J);
       const scalar_type T2 = compute_T2(J);
 
