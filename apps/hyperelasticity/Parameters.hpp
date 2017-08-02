@@ -45,6 +45,7 @@ public:
    bool    m_adapt_stab;    //use the adpatative stabilization
    bool    m_verbose;       //some printing
    bool    m_compute_energy; // to compute intere energy
+   bool    m_precomputation; // to compute the gradient before (it's memory consuption)
 
    size_t  m_stab_init;      //type of stabilization
    size_t  m_stab_obj;      //type of stabilization
@@ -59,7 +60,7 @@ public:
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
                 m_sublevel(1), m_stab(true),
                 m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
-                m_compute_energy(false),
+                m_compute_energy(false), m_precomputation(false),
                 m_iter_max(10), m_epsilon(T(1E-6)),
                 m_beta_init(T(1.0)), m_beta_obj(T(1.0)), m_beta_max(T(1)),
                 m_stab_init(L2), m_stab_obj(HHO)
@@ -85,8 +86,7 @@ public:
       std::cout << " - Compute Energy: "  << m_compute_energy << std::endl;
       std::cout << " - IterMax: "  << m_iter_max << std::endl;
       std::cout << " - Epsilon: "  << m_epsilon << std::endl;
-
-
+      std::cout << " - Precomputation: "  << m_precomputation << std::endl;
    }
 
    bool readParameters(const std::string& filename)
@@ -260,6 +260,16 @@ public:
          {
             ifs >> m_epsilon;
             line++;
+         }
+         else if ( keyword == "Precomputation" )
+         {
+            std::string logical;
+            ifs >> logical;
+            line++;
+            if(logical == "true")
+               m_precomputation = true;
+            else
+               m_precomputation = false;
          }
          else
          {

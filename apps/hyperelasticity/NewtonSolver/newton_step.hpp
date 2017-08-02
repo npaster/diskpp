@@ -156,7 +156,8 @@ public:
 
     template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
     AssemblyInfo
-    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
+    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
+             const std::vector<matrix_dynamic>& gradient_precomputed)
     {
         gradrec_type gradrec(m_bqd);
         stab_HHO_type stab_HHO(m_bqd);
@@ -178,15 +179,22 @@ public:
 
         for (auto& cl : m_msh)
         {
-           /////// Gradient Reconstruction /////////
-            tc.tic();
-            gradrec.compute(m_msh, cl, false);
-            tc.toc();
-            ai.m_time_gradrec += tc.to_double();
+           /////// Gradient Reconstruction //////
+           matrix_dynamic GT;
+           tc.tic();
+           if(m_rp.m_precomputation){
+              GT = gradient_precomputed[i];
+           }   
+           else{
+              gradrec.compute(m_msh, cl, false);
+              GT = gradrec.oper();
+           }
+           tc.toc();
+           ai.m_time_gradrec += tc.to_double();
 
             /////// Elementary Computation /////////
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param, false);
+            hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(i), m_elas_param, false);
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
 
@@ -365,7 +373,7 @@ public:
 
     template<typename LoadFunction>
     PostprocessInfo
-    postprocess(const LoadFunction& lf)
+    postprocess(const LoadFunction& lf, const std::vector<matrix_dynamic>& gradient_precomputed)
     {
         gradrec_type gradrec(m_bqd);
         stab_PIKF_type stab_PIKF(m_bqd);
@@ -412,14 +420,21 @@ public:
             }
 
             /////// Gradient Reconstruction //////
+            matrix_dynamic GT;
             tc.tic();
-            gradrec.compute(m_msh, cl, false);
+            if(m_rp.m_precomputation){
+               GT = gradient_precomputed[i];
+            }   
+            else{
+               gradrec.compute(m_msh, cl, false);
+               GT = gradrec.oper();
+            }
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
 
             //// Elementary Computation //////
             tc.tic();
-            hyperelasticity.compute(m_msh, cl, lf, gradrec.oper(), m_solution_data.at(i), m_elas_param);
+            hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(i), m_elas_param);
             dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
             dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
 

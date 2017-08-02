@@ -71,6 +71,8 @@ class hyperelasticity_solver
    typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
 
    bqdata_type     m_bqd;
+   
+   std::vector<matrix_dynamic>  m_gradient_precomputed; 
 
    const mesh_type& m_msh;
 
@@ -85,6 +87,24 @@ class hyperelasticity_solver
    BoundaryConditions m_boundary_condition;
 
    size_t total_dof_depl_static;
+   
+   
+   void
+   pre_computation()
+   {
+      gradrec_type gradrec(m_bqd);
+      
+      m_gradient_precomputed.clear();
+      m_gradient_precomputed.reserve(m_msh.cells_size());
+      
+      for (auto& cl : m_msh)
+      {
+         /////// Gradient Reconstruction /////////
+         gradrec.compute(m_msh, cl, false);
+         m_gradient_precomputed.push_back(gradrec.oper());
+      }
+      
+   }
 
 public:
    hyperelasticity_solver(const mesh_type& msh, const param_type& rp, const ElasticityParameters elas_param,
@@ -225,6 +245,15 @@ public:
                                  m_solution_lagr, m_solution_data);
 
       newton_solver.verbose(m_verbose);
+      
+      if(m_rp.m_precomputation){
+         timecounter t1;
+         t1.tic();
+         this->pre_computation();
+         t1.toc();
+         std::cout << "-Precomputation: " << t1.to_double() << " sec" << std::endl;
+         
+      }
 
       std::list<time_step> list_step;
 
@@ -274,7 +303,7 @@ public:
             return disk::mm_prod(current_time, g(p));
          };
 
-         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rg);
+         NewtonSolverInfo newton_info = newton_solver.compute(rlf, rbcf, rg, m_gradient_precomputed);
          si.updateInfo(newton_info);
 
          if(m_verbose){
@@ -680,8 +709,8 @@ public:
        auto storage = m_msh.backend_storage();
 
        gradrec_type gradrec(m_bqd);
-       NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-
+       //NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+       CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -738,8 +767,8 @@ public:
        auto storage = m_msh.backend_storage();
 
        gradrec_type gradrec(m_bqd);
-       NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-
+       //NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+       CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -808,8 +837,8 @@ public:
        auto storage = m_msh.backend_storage();
 
        gradrec_type gradrec(m_bqd);
-       NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-
+       //NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+       CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
        std::vector<visu::Data> data; //create data (not used)
        std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point

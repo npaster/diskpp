@@ -104,7 +104,8 @@ public:
 
     template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
     NewtonSolverInfo
-   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g)
+   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
+            const std::vector<matrix_dynamic>& gradient_precomputed)
    {
       NewtonSolverInfo ni;
       timecounter tc;
@@ -151,7 +152,7 @@ public:
           //assemble lhs and rhs
           AssemblyInfo assembly_info;
           try {
-             assembly_info = newton_step.assemble(lf, bf, g);
+             assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed);
           }
           catch(const std::invalid_argument& ia){
                 std::cerr << "Invalid argument: " << ia.what() << std::endl;
@@ -186,7 +187,7 @@ public:
             if(m_verbose)
                std::cout << " nnz: " << solve_info.m_nonzeros  << std::endl;
             // update unknowns
-            PostprocessInfo post_info = newton_step.postprocess(lf);
+            PostprocessInfo post_info = newton_step.postprocess(lf, gradient_precomputed);
             ni.updatePostProcessInfo(post_info);
             newton_step.update_solution();
 
