@@ -366,9 +366,24 @@ public:
                   this->plot_displacement_at_gausspoint(name +"depl_gp2D.msh");
                   this->plot_J_at_gausspoint(name +"J_gp2D.msh");
                   this->plot_J(name +"J_dis2d.msh");
-                  this->compute_discontinuous_Prr(name +"Prr.msh", "Prr");
-                  this->compute_discontinuous_Prr(name +"Poo.msh", "Poo");
-                  this->compute_discontinuous_VMIS(name +"VM.msh");
+                  try {
+                     this->compute_discontinuous_Prr(name +"Prr.msh", "Prr");
+                  }
+                  catch(const std::invalid_argument& ia){
+                        std::cerr << "Invalid argument: " << ia.what() << std::endl;
+                  }
+                  try {
+                     this->compute_discontinuous_Prr(name +"Prr.msh", "Poo");
+                  }
+                  catch(const std::invalid_argument& ia){
+                        std::cerr << "Invalid argument: " << ia.what() << std::endl;
+                  }
+                  try {
+                     this->compute_discontinuous_VMIS(name +"VM.msh");
+                  }
+                  catch(const std::invalid_argument& ia){
+                        std::cerr << "Invalid argument: " << ia.what() << std::endl;
+                  }
 
                   m_rp.m_time_save.pop_front();
                   if(m_rp.m_time_save.empty())  time_saving = false;
