@@ -116,8 +116,8 @@ namespace Hyperelasticity {
 
          const vector_type GT_uTF = GT * uTF;
 
-         //NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
-         CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         //CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
 
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
 

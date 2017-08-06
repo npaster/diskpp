@@ -230,7 +230,7 @@ public:
       }
 
       if(!m_convergence)
-         m_convergence = newton_step.test_convergence(epsilon, m_rp.m_iter_max, residu);
+         m_convergence = newton_step.test_convergence(1E-5, m_rp.m_iter_max, residu);
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
