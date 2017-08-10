@@ -515,13 +515,19 @@ namespace disk {
             auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
             assert(cell_basis_size == dphi.size());
 
-            for(size_t j = 0; j < cell_basis_size; j += DIM ){
-               size_t col = j;
-               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
-                  for(size_t i = col; i < cell_basis_size; i += DIM){
-                     stiff_mat(i,col) += qp.weight() * ((dphi[i].col(k)).cwiseProduct(dphi[col].col(k))).sum();
-                  }
-                  col++;
+            // for(size_t j = 0; j < cell_basis_size; j += DIM ){
+            //    size_t col = j;
+            //    for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+            //       for(size_t i = col; i < cell_basis_size; i += DIM){
+            //          stiff_mat(i,col) += qp.weight() * ((dphi[i].col(k)).cwiseProduct(dphi[col].col(k))).sum();
+            //       }
+            //       col++;
+            //    }
+            // }
+
+            for(size_t j = 0; j < cell_basis_size; j++){
+               for(size_t i = j; i < cell_basis_size; i++){
+                  stiff_mat(i,j) += qp.weight() * mm_prod(dphi[i], dphi[j]);
                }
             }
          }
