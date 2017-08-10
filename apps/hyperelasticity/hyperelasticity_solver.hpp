@@ -69,6 +69,7 @@ class hyperelasticity_solver
 
    typedef disk::gradient_reconstruction_elas_full_bq<bqdata_type>     gradrec_type;
    typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
+   typedef disk::displacement_reconstruction_elas_bq<bqdata_type>           deplrec_type;
 
    bqdata_type     m_bqd;
 
@@ -449,6 +450,34 @@ public:
           dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
           err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
+       }
+
+       return sqrt(err_dof);
+    }
+
+    template<typename AnalyticalSolution>
+    scalar_type
+    compute_l2_gradient_error2(const AnalyticalSolution& grad)
+    {
+       scalar_type err_dof = scalar_type{0.0};
+
+       projector_type projk(m_bqd);
+
+       deplrec_type deplrec(m_bqd);
+
+       size_t i = 0;
+
+       for (auto& cl : m_msh)
+       {
+          auto x = m_solution_data.at(i++);
+          deplrec.compute(m_msh, cl);
+          dynamic_vector<scalar_type> GTu = deplrec.oper*x;
+          std::cout << "GTU" << GTu << '\n';
+          dynamic_vector<scalar_type> true_dof = projk.compute_pot(m_msh, cl, grad);
+          std::cout << "t " << true_dof << '\n';
+          dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
+          dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+          err_dof += diff_dof.dot(projk.pot_mm * diff_dof);
        }
 
        return sqrt(err_dof);

@@ -866,6 +866,7 @@ namespace disk {
       matrix_type cell_mm;
       matrix_type whole_mm;
       matrix_type grad_mm;
+      matrix_type pot_mm;
 
       template<typename Function>
       vector_type
@@ -992,6 +993,42 @@ namespace disk {
          }
 
          grad_mm = mm;
+         return mm.llt().solve(rhs);
+      }
+
+
+      template<typename Function>
+      vector_type
+      compute_pot(const mesh_type& msh, const cell_type& cl, const Function& f)
+      {
+         const size_t cell_degree = m_bqd.cell_degree();
+         const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+
+         matrix_type mm = matrix_type::Zero(cell_basis_size, cell_basis_size);
+         vector_type rhs = vector_type::Zero(cell_basis_size);
+
+         auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
+         for (auto& qp : cell_quadpoints)
+         {
+            auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
+
+            for(size_t i = 0; i < cell_basis_size; i++)
+               for(size_t j = i; j < cell_basis_size; j++)
+                  mm(i,j)  += qp.weight() * mm_prod(dphi[i], dphi[j]);
+
+               //lower part
+               for (size_t i = 1; i < cell_basis_size; i++)
+                  for (size_t j = 0; j < i; j++)
+                     mm(i,j) = mm(j,i);
+
+                  for(size_t i=0; i < cell_basis_size; i++){
+                     rhs(i) += qp.weight() * mm_prod( f(qp.point()) , dphi[i]);
+                  }
+         }
+
+         std::cout << "mm " << mm << '\n';
+         std::cout << "r " << rhs<< '\n';
+         pot_mm = mm;
          return mm.llt().solve(rhs);
       }
 

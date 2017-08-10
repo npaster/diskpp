@@ -135,7 +135,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
 
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
-      error.error_grad = nl.compute_l2_gradient_error(gradient);
+      error.error_grad = nl.compute_l2_gradient_error2(gradient);
    }
 
    return error;
