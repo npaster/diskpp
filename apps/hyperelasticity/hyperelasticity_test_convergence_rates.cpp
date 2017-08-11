@@ -51,6 +51,7 @@ struct error_type
    double h;
    double error_depl;
    double error_grad;
+   double error_energy;
 };
 
 
@@ -132,10 +133,12 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
+   error.error_energy = 10E6;
 
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
-      error.error_grad = nl.compute_l2_gradient_error2(gradient);
+      error.error_grad = nl.compute_l2_gradient_error(gradient);
+      error.error_energy = nl.compute_l2_error_energy(gradient);
    }
 
    return error;
@@ -246,10 +249,12 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
    error.nb_dof = nl.getDofs();
    error.error_depl = 10E6;
    error.error_grad = 10E6;
+   error.error_energy = 10E6;
 
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
       error.error_grad = nl.compute_l2_gradient_error(gradient);
+      error.error_energy = nl.compute_l2_error_energy(gradient);
    }
 
    return error;
@@ -264,29 +269,32 @@ printResults(const std::vector<error_type>& error)
       std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
 
       std::cout << "Convergence test for k = " << error[0].degree << std::endl;
-      std::cout << "-----------------------------------------------------------------------------------" << std::endl;
-      std::cout << "| Size mesh  | Displacement | Convergence |  Gradient  | Convergence |    Total   |" << std::endl;
-      std::cout << "|    h       |   L2 error   |     rate    |  L2 error  |     rate    | faces DOF  |" << std::endl;
-      std::cout << "-----------------------------------------------------------------------------------" << std::endl;
+      std::cout << "--------------------------------------------------------------------------------------------------------------" << std::endl;
+      std::cout << "| Size mesh  | Displacement | Convergence |  Gradient  | Convergence |  Energy    | Convergence |    Total   |" << std::endl;
+      std::cout << "|    h       |   L2 error   |     rate    |  L2 error  |     rate    |  L2 error  |     rate    | faces DOF  |" << std::endl;
+      std::cout << "--------------------------------------------------------------------------------------------------------------" << std::endl;
 
 
       std::string s_dof = " " + std::to_string(error[0].nb_dof) + "                  ";
       s_dof.resize(10);
 
       std::cout << "| " <<  error[0].h << " |  " << error[0].error_depl << "  | " << "     -     " << " | " <<
-      error[0].error_grad <<  " | " << "     -     "  <<  " | " << s_dof  <<  " |" << std::endl;
+      error[0].error_grad <<  " | " << "     -     " << " | " <<
+      error[0].error_energy <<  " | " << "     -     "  <<  " | " << s_dof  <<  " |" << std::endl;
 
       for(size_t i = 1; i < error.size(); i++){
          s_dof = " " + std::to_string(error[i].nb_dof) + "                  ";
          s_dof.resize(10);
          double rate_depl = (log10(error[i-1].error_depl) - log10(error[i].error_depl))/(log10(error[i-1].h) - log10(error[i].h));
          double rate_grad = (log10(error[i-1].error_grad) - log10(error[i].error_grad))/(log10(error[i-1].h) - log10(error[i].h));
-
+         double rate_ener = (log10(error[i-1].error_energy) - log10(error[i].error_energy))/(log10(error[i-1].h) - log10(error[i].h));
+         
          std::cout << "| " <<  error[i].h << " |  " << error[i].error_depl << "  |  " << rate_depl << " | " <<
-         error[i].error_grad <<  " |  " << rate_grad  <<  " | " << s_dof <<  " |" << std::endl;
+         error[i].error_grad <<  " |  " << rate_grad << " | " <<
+         error[i].error_energy <<  " |  " << rate_ener   <<  " | " << s_dof <<  " |" << std::endl;
       }
 
-      std::cout << "-----------------------------------------------------------------------------------" << std::endl;
+      std::cout << "-----------------------------------------------------------------------------------------------------------" << std::endl;
       std::cout << "  " <<std::endl;
       std::cout.flags( f );
    }
@@ -672,14 +680,14 @@ int main(int argc, char **argv)
 
       tc.tic();
       std::cout <<  "-Tetrahedras netgen:" << std::endl;
-      //test_tetrahedra_netgen<RealType>(rp, param);
+      test_tetrahedra_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
 
       tc.tic();
       std::cout <<  "-Tetrahedras netgen 2: " << std::endl;
-      test2_tetrahedra_netgen<RealType>(rp, param);
+      //test2_tetrahedra_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;

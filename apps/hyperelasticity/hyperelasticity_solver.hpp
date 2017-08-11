@@ -214,16 +214,16 @@ public:
       total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
       //provisoire
 
-//       for(size_t i = 0; i < m_msh.cells_size(); i++)
-//       {
-//          m_solution_data[i].setConstant(10.0);
-//          m_solution_cells[i].setConstant(10.0);
-//       }
+      for(size_t i = 0; i < m_msh.cells_size(); i++)
+      {
+         m_solution_data[i].setConstant(.001);
+         m_solution_cells[i].setConstant(0.001);
+      }
 //
-//       for(size_t i = 0; i < m_msh.faces_size(); i++)
-//       {
-//          m_solution_faces[i].setConstant(10.0);
-//       }
+      for(size_t i = 0; i < m_msh.faces_size(); i++)
+      {
+         m_solution_faces[i].setConstant(.001);
+      }
 //
 //       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
 //          m_solution_lagr[i].setConstant(1.0);
@@ -252,7 +252,8 @@ public:
          t1.tic();
          this->pre_computation();
          t1.toc();
-         std::cout << "-Precomputation: " << t1.to_double() << " sec" << std::endl;
+         if(m_verbose)
+            std::cout << "-Precomputation: " << t1.to_double() << " sec" << std::endl;
 
       }
 
@@ -472,15 +473,59 @@ public:
           auto x = m_solution_data.at(i++);
           deplrec.compute(m_msh, cl);
           dynamic_vector<scalar_type> GTu = deplrec.oper*x;
-          std::cout << "GTU" << GTu << '\n';
           dynamic_vector<scalar_type> true_dof = projk.compute_pot(m_msh, cl, grad);
-          std::cout << "t " << true_dof << '\n';
           dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
           err_dof += diff_dof.dot(projk.pot_mm * diff_dof);
        }
 
        return sqrt(err_dof);
+    }
+
+    template<typename AnalyticalSolution>
+    scalar_type
+    compute_l2_error_energy(const AnalyticalSolution& grad)
+    {
+
+       gradrec_type gradrec(m_bqd);
+       projector_type projk(m_bqd);
+       NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
+       size_t i = 0;
+       scalar_type error_energy = 0.0;
+
+       for (auto& cl : m_msh)
+       {
+          auto x = m_solution_data.at(i++);
+          gradrec.compute(m_msh, cl, false);
+          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+          dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
+
+          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
+
+          for (auto& qp : grad_quadpoints)
+          {
+            // compute grad_quadpoints
+             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
+             auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
+             auto FT_iqn = compute_FTensor(GT_iqn);
+             const scalar_type energy_comp = law.compute_energy(FT_iqn);
+
+             auto GT_true = disk::compute_gradient_matrix_pt(true_dof, gphi);
+             auto FT_true = compute_FTensor(GT_true);
+             const scalar_type energy_true = law.compute_energy(FT_true);
+
+             error_energy += qp.weight() * std::pow(energy_true - energy_comp, 2.0);
+
+          }
+       }
+
+       error_energy = sqrt(error_energy);
+
+       std::cout << "ERROR L2 ENERGY" << '\n';
+       std::cout << "L2 Energy: " << error_energy << '\n';
+
+       return error_energy;
     }
 
     std::pair<scalar_type,scalar_type>
