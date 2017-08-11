@@ -20,6 +20,7 @@
 
 #include "Laws/StVenantKirchhoffLaw.hpp"
 #include "Laws/NeohookeanLaw.hpp"
+#include "Laws/MoonleyLaw.hpp"
 #include "Laws/CavitationLaw.hpp"
 #include "Laws/pLaplaceLaw.hpp"
 #include "Laws/LinearElasticityLaw.hpp"
