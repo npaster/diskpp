@@ -638,15 +638,17 @@ namespace disk {
                }
 
                //lower part
-               for (size_t i = 1; i < face_basis_size; i++)
-                  for (size_t j = 0; j < i; j++)
+               for (size_t i = 1; i < face_basis_size; i++){
+                  for (size_t j = 0; j < i; j++){
                      face_mass_matrix(i,j) = face_mass_matrix(j,i);
-
-                  for(size_t i=0; i< face_basis_size; i++){
-                     for(size_t j=0; j< cell_basis_size; j++){
-                        face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], c_phi[j]);
-                     }
                   }
+               }
+
+               for(size_t i=0; i< face_basis_size; i++){
+                  for(size_t j=0; j< cell_basis_size; j++){
+                     face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], c_phi[j]);
+                  }
+               }
             }
 
             Eigen::LLT<matrix_type> piKF;
