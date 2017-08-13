@@ -211,19 +211,19 @@ public:
          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
       }
 
-      total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
-      //provisoire
-
-      for(size_t i = 0; i < m_msh.cells_size(); i++)
-      {
-         m_solution_data[i].setConstant(.001);
-         m_solution_cells[i].setConstant(0.001);
-      }
+//       total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
+//       //provisoire
 //
-      for(size_t i = 0; i < m_msh.faces_size(); i++)
-      {
-         m_solution_faces[i].setConstant(.001);
-      }
+//       for(size_t i = 0; i < m_msh.cells_size(); i++)
+//       {
+//          m_solution_data[i].setConstant(1E-8);
+//          m_solution_cells[i].setConstant(0.01);
+//       }
+// //
+//       for(size_t i = 0; i < m_msh.faces_size(); i++)
+//       {
+//          m_solution_faces[i].setConstant(1E-8);
+//       }
 //
 //       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
 //          m_solution_lagr[i].setConstant(1.0);

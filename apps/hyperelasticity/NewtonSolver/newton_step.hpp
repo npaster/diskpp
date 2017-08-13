@@ -184,7 +184,7 @@ public:
            tc.tic();
            if(m_rp.m_precomputation){
               GT = gradient_precomputed[i];
-           }   
+           }
            else{
               gradrec.compute(m_msh, cl, false);
               GT = gradrec.oper();
@@ -424,7 +424,7 @@ public:
             tc.tic();
             if(m_rp.m_precomputation){
                GT = gradient_precomputed[i];
-            }   
+            }
             else{
                gradrec.compute(m_msh, cl, false);
                GT = gradrec.oper();
@@ -534,7 +534,8 @@ public:
       std::array<scalar_type, 2> ret = {0.0, 0.0};
       scalar_type energy_stab(0.0);
 
-      NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      MoonleyLaw<scalar_type> law(0.01, 0.05, 0.31);
+      //NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t i = 0;
       for (auto& cl : m_msh)
@@ -709,7 +710,7 @@ public:
          std::cout.flags( f );
       }
 
-      error = relative_displ;
+      error = std::min(relative_displ, relative_error);
 
       if(error <= epsilon ){
          return true;
