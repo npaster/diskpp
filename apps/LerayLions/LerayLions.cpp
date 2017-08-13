@@ -231,58 +231,24 @@ int main(int argc, char **argv)
     char    *mesh_filename  = nullptr;
     char    *plot_filename  = nullptr;
     int     elems_1d        = 8;
-    int degree, n_time_step, l;
     RealType leray_param = 2.0;
 
     ParamRun<RealType> rp;
-    rp.m_sublevel = 4;
-    rp.m_verbose = true;
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "i:k:l:n:p:t:v")) != -1 )
+    while ( (ch = getopt(argc, argv, "p:r:v")) != -1 )
     {
         switch(ch)
         {
-            case 'i': rp.m_iter_max = atoi(optarg); break;
-            case 'k':
-                degree = atoi(optarg);
-                if (degree < 0)
-                {
-                    std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-                    degree = 1;
-                }
-                rp.m_degree = degree;
-                break;
-
-            case 'l':
-                l = atoi(optarg);
-                if (l < -1 or l > 1)
-                {
-                    std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-                    l = 0;
-                }
-                rp.m_l = l;
-                break;
-
-            case 'n':
-               n_time_step = atoi(optarg);
-               if (n_time_step == 0)
-                {
-                    std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-                    n_time_step = 1;
-                }
-                rp.m_n_time_step = n_time_step;
-                break;
-
-
             case 'p':
                leray_param = atof(optarg);
                break;
 
-            case 't':
-               rp.m_init = true;
-               rp.m_t_init = atof(optarg);
+            case 'r':
+               if(!rp.readParameters(optarg))
+               exit(1);
+
                break;
 
             case 'v':
@@ -345,7 +311,7 @@ int main(int argc, char **argv)
        run_leraylions_solver(msh, rp, leray_param);
        return 0;
     }
-    
+
     /* Medit 2d*/
     if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
     {

@@ -84,21 +84,39 @@ public:
    leraylions_solver(const mesh_type& msh, const param_type& rp, const scalar_type leray_param)
    : m_msh(msh), m_verbose(rp.m_verbose), m_convergence(false), m_leray_param(leray_param), m_rp(rp)
    {
-      int l = rp.m_l;
-      if( l < -1 or l > 1)
-      {
-         std::cout << "'l' should be -1, 0 or 1. Reverting to 0." << std::endl;
-         l = 0;
-      }
-      int face_degree = rp.m_degree;
+      size_t face_degree = rp.m_face_degree;
       if(face_degree <= 0)
       {
          std::cout << "'face_degree' should be > 0. Reverting to 1." << std::endl;
-         face_degree = 0;
+         face_degree = 1;
       }
 
-      m_bqd = bqdata_type(face_degree + l, face_degree, face_degree + l + 1);
+      m_rp.m_face_degree = face_degree;
 
+      size_t cell_degree = rp.m_cell_degree;
+      if(face_degree-1  > cell_degree or cell_degree > face_degree +1 )
+      {
+         std::cout << "'cell_degree' should be 'face_degree + 1' => 'cell_degree' => 'face_degree -1'. Reverting to 'face_degree'." << std::endl;
+         cell_degree = face_degree;
+      }
+
+      m_rp.m_cell_degree = cell_degree;
+
+      size_t grad_degree = rp.m_grad_degree;
+      if(grad_degree  < cell_degree)
+      {
+         std::cout << "'grad_degree' should be > 'cell_degree'. Reverting to 'cell_degree'." << std::endl;
+         grad_degree = cell_degree;
+      }
+
+      m_rp.m_grad_degree = grad_degree;
+
+      m_bqd = bqdata_type(face_degree, cell_degree, grad_degree);
+
+      if(m_verbose){
+         m_bqd.info_degree();
+         m_rp.infos();
+      }
    }
 
    bool    verbose(void) const     { return m_verbose; }
@@ -184,26 +202,26 @@ public:
       ttot.tic();
 
       //time step
-      scalar_type delta_t = (1.0 - m_rp.m_t_init)/m_rp.m_n_time_step;
       std::list<time_step> list_step;
 
-      if(m_rp.m_init){
-         time_step step1;
-         step1.time = m_rp.m_t_init;
-         step1.level = 1;
-         list_step.push_back(step1);
-      }
-
-      for (size_t n = 0; n < m_rp.m_n_time_step; n++)
+      scalar_type time1 = 0.0;
+      scalar_type time2 = 0.0;
+      for (size_t n = 0; n < m_rp.m_time_step.size(); n++)
       {
-         time_step step;
-         step.time = (n+1) * delta_t;
-         step.level = 1;
-         list_step.push_back(step);
+         auto time_info = m_rp.m_time_step[n];
+         time2 = time_info.first;
+         const scalar_type delta_t = (time2 - time1)/time_info.second;
+         for (size_t i = 0; i < time_info.second; i++) {
+            time_step step;
+            step.time = time1 + (i+1) * delta_t;
+            step.level = 1;
+            list_step.push_back(step);
+         }
+         time1 = time2;
       }
 
       size_t current_step = 0;
-      size_t total_step = m_rp.m_n_time_step;
+      size_t total_step = list_step.size();
 
       scalar_type old_time = 0.0;
 
@@ -222,12 +240,10 @@ public:
          current_step += 1;
          time_step step = list_step.front();
          const scalar_type current_time = step.time;
-         delta_t = current_time - old_time;
-
          if(m_verbose){
-            std::cout << "--------------------------------------------------------------" << std::endl;
-            std::cout << "*************** Time : " << current_time << " sec (step: " << current_step
-            << "/" << total_step << ") *****************|" << std::endl;
+            std::cout << "---------------------------------------------------------------------------------------------------------------------" << std::endl;
+            std::cout << "****************************** Time : " << current_time << " sec (step: " << current_step
+            << "/" << total_step << ", sublevel: " << step.level << " ) *******************************|" << std::endl;
          }
 
          auto rlf = [&lf, &current_time](const Point& p) -> auto {
@@ -273,7 +289,7 @@ public:
                total_step += 1;
                current_step -= 1;
                time_step new_step;
-               new_step.time = old_time + delta_t/2.0;
+               new_step.time = old_time + (current_time - old_time)/2.0;
                new_step.level = step.level + 1;
                list_step.push_front(new_step);
             }
@@ -335,7 +351,7 @@ public:
        for (auto& cl : m_msh)
        {
           auto x = m_solution_data.at(i++);
-          gradrec.compute(m_msh, cl,false);
+          gradrec.compute_optim(m_msh, cl,false);
           dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
           dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
           dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);

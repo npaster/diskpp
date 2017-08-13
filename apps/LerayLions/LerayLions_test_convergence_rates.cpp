@@ -57,10 +57,7 @@ usage(const char *progname)
    printf("Usage: %s <options> <filename>\n\n", progname);
    printf("    -2: test 2D mesh (default)\n");
    printf("    -3: test 3D mesh\n");
-   printf("    -k: face degree (>0)\n");
-   printf("    -l: difference beetween cell and face degree (-1 <= l <= 1) \n");
-   printf("    -n: number of time step (>0)\n");
-   printf("    -m: number of sublevel time step (>0)\n");
+   printf("    -r: reads parameters from an file\n");
    printf("    -p: Leray-Lions parameter (>=2)\n");
    printf("    -v: verbose\n");
 }
@@ -115,7 +112,7 @@ run_leraylions_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, con
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.m_degree;
+   error.degree = rp.m_grad_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = nl.compute_l2_error(solution);
    error.error_grad = nl.compute_l2_gradient_error(gradient);
@@ -167,7 +164,7 @@ run_leraylions_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, con
 
    error_type error;
    error.h = average_diameter(msh);
-   error.degree = rp.m_degree;
+   error.degree = rp.m_grad_degree;
    error.nb_dof = nl.getDofs();
    error.error_depl = nl.compute_l2_error(solution);
    error.error_grad = nl.compute_l2_gradient_error(gradient);
@@ -474,7 +471,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "23i:k:l:m:n:p:t:v")) != -1 )
+   while ( (ch = getopt(argc, argv, "23p:r:v")) != -1 )
    {
       switch(ch)
       {
@@ -482,57 +479,19 @@ int main(int argc, char **argv)
 
          case '3': three_dimensions = true; break;
 
-         case 'i': rp.m_iter_max = atoi(optarg); break;
-
-         case 'k':
-            degree = atoi(optarg);
-            if (degree < 1)
-            {
-               std::cout << "Degree must be positive. Falling back to 1." << std::endl;
-               degree = 1;
-            }
-            rp.m_degree = degree;
+         case 'p':
+            leray_param = atof(optarg);
             break;
 
-         case 'l':
-            l = atoi(optarg);
-            if (l < -1 or l > 1)
-            {
-               std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
-               l = 0;
-            }
-            rp.m_l = l;
+         case 'r':
+            if(!rp.readParameters(optarg))
+            exit(1);
+
             break;
 
-         case 'm':
-            sublevel = atoi(optarg);
-            if (sublevel <= 0)
-            {
-               std::cout << "Number of sublevel time step must be positive. Falling back to 1." << std::endl;
-               sublevel = 1;
-            }
-            rp.m_sublevel = sublevel;
-            break;
-
-         case 'n':
-            n_time_step = atoi(optarg);
-            if (n_time_step <= 0)
-            {
-               std::cout << "Number of time step must be positive. Falling back to 1." << std::endl;
-               n_time_step = 1;
-            }
-            rp.m_n_time_step = n_time_step;
-            break;
-
-         case 'p': leray_param = atof(optarg); break;
-
-         case 't':
-            rp.m_init = true;
-            rp.m_t_init = atof(optarg);
-            break;
-
-         case 'v': rp.m_verbose = true; break;
-
+         case 'v':
+             rp.m_verbose = true;
+             break;
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -547,8 +506,9 @@ int main(int argc, char **argv)
    timecounter tc;
 
    std::cout << " Test convergence rates for: "<< std::endl;
-   std::cout << " ** Face_Degree = " << rp.m_degree << std::endl;
-   std::cout << " ** Cell_Degree  = " << rp.m_degree + rp.m_l << std::endl;
+   std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
+   std::cout << " ** Cell_Degree  = " << rp.m_cell_degree << std::endl;
+   std::cout << " ** Grad_Degree  = " << rp.m_grad_degree << std::endl;
    std::cout << " ** Leray Parameters = " << leray_param << std::endl;
    std::cout << " "<< std::endl;
 
