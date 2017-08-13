@@ -118,7 +118,7 @@ public:
       const scalar_type epsilon_sqrt = sqrt(epsilon);
       scalar_type residu_previous(2.0);
       scalar_type residu(2.0);
-      bool auricchio = false;
+      bool auricchio = true;
 
       //initialise the NewtonRaphson_step
       NewtonRaphson_step_hyperelasticity<BQData>
@@ -171,14 +171,6 @@ public:
 
           ni.updateAssemblyInfo( assembly_info);
 
-         if(auricchio){
-            size_t nb_negative_ev = newton_step.test_aurrichio();
-            if(iter == 0)
-               nb_negative_ev_init = nb_negative_ev;
-            else if(nb_negative_ev > nb_negative_ev_init)
-               std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
-         }
-
          //if(iter < (iter_max-1) && !m_convergence){
             // solve the global system
             SolveInfo solve_info = newton_step.solve();
@@ -229,8 +221,15 @@ public:
             break;
       }
 
+      if(auricchio){
+         size_t nb_negative_ev = newton_step.test_aurrichio();
+         std::cout << "nb_lag: " << m_boundary_condition.nb_lag()* m_bqd.face_basis.size()/m_msh.dimension << '\n';
+         if(nb_negative_ev > (m_bqd.face_basis.size() * m_boundary_condition.nb_lag()/m_msh.dimension))
+            std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
+      }
+
       if(!m_convergence)
-         m_convergence = newton_step.test_convergence(1E-5, m_rp.m_iter_max, residu);
+         m_convergence = newton_step.test_convergence(1E-4, m_rp.m_iter_max, residu);
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);

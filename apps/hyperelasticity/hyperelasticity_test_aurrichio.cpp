@@ -68,12 +68,12 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
-
+   const T gamma_normalise = gamma/elas_param.mu;
    std::cout << "Degree k= " << rp.m_face_degree << std::endl;
    std::cout << "mu= " << elas_param.mu << std::endl;
    std::cout << "lambda= " << elas_param.lambda << std::endl;
    std::cout << "gamma= " << gamma << std::endl;
-   std::cout << "gamma_normalise= " << gamma/elas_param.mu << std::endl;
+   std::cout << "gamma_normalise= " << gamma_normalise << std::endl;
    std::cout << "law= " << elas_param.type_law << std::endl;
 
    auto load = [gamma](const point<T,2>& p) -> result_type {
@@ -102,7 +102,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    };
 
    BoundaryType N1;
-   N1.id = 4;//4
+   N1.id = 10;//4 quad; 11 tri
    N1.boundary_type = NEUMANN;
 
    std::vector<BoundaryType> boundary_neumann = {N1}; //by default 0 is for a dirichlet face
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 
     param.mu = 40.0;
     param.lambda = param.mu * 1E5;
-    param.type_law = 3;
+    param.type_law = 1;
 
     RealType gamma = 1.0;
 
@@ -219,5 +219,14 @@ int main(int argc, char **argv)
        auto msh = disk::load_cartesian_2d_mesh2<RealType>(mesh_filename);
        run_hyperelasticity_solver(msh, rp, param, gamma);
        return 0;
+    }
+
+    /* Medit 2d*/
+    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
+    {
+      std::cout << "Guessed mesh format: Medit format" << std::endl;
+      auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+      run_hyperelasticity_solver(msh, rp, param, gamma);
+      return 0;
     }
 }
