@@ -246,7 +246,7 @@ public:
       const static_tensor<scalar_type, DIM> invFt_invFt = computeKroneckerProduct(invFt, invFt);
       const static_tensor<scalar_type, DIM> F_F = computeKroneckerProduct(F, F);
 
-      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.25 * std::pow(trace_C, -5.0/4.0) * F_F);
+      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.5 * std::pow(trace_C, -5.0/4.0) * F_F);
       const auto Avol = m_lambda * T2 * invFt_invFt + (m_mu - m_lambda * T1) * invFt_invF;
 
       return Aiso + Avol;
@@ -277,7 +277,7 @@ public:
       const auto Piso = m_mu* std::pow(3.0*trace_C, -1.0/4.0) * F;
       const auto Pvol = ( m_lambda * T1 - m_mu) * invF.transpose();
 
-      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.25 * std::pow(trace_C, -5.0/4.0) * F_F);
+      const auto Aiso = m_mu * std::pow(3.0, -0.25) * ( std::pow(trace_C, -0.25) * I4 - 0.5 * std::pow(trace_C, -5.0/4.0) * F_F);
       const auto Avol = m_lambda * T2 * invFt_invFt + (m_mu - m_lambda * T1) * invFt_invF;
 
       return std::make_pair(Piso + Pvol, Aiso + Avol);
