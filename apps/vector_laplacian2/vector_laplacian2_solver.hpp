@@ -18,7 +18,7 @@
 
 #include <sstream>
 
-#include "../../config.h"
+#include "config.h"
 
 #ifdef HAVE_SOLVER_WRAPPERS
 #include "agmg/agmg.hpp"
@@ -29,9 +29,6 @@
 #include "hho/hho_vector.hpp"
 #include "hho/hho_vector_bq.hpp"
 
-
-#include "../exemple_visualisation/visualisation/gmshDisk.hpp"
-#include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
 
@@ -84,7 +81,7 @@ class vector_laplacian_solver
 
    typedef
    disk::basis_quadrature_data_full<mesh_type,   disk::scaled_monomial_vector_basis,
-                                             disk::scaled_monomial_matrix_basis,
+   disk::Raviart_Thomas_matrix_basis,
                                              disk::quadrature> bqdata_type;
 
 
@@ -93,7 +90,6 @@ class vector_laplacian_solver
    typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
    typedef disk::assembler_elas<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
    typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
-   typedef disk::displacement_reconstruction_elas_bq<bqdata_type>           deplrec_type;
 
    typename assembler_type::sparse_matrix_type     m_system_matrix;
    typename assembler_type::vector_type            m_system_rhs, m_system_solution;
@@ -136,7 +132,7 @@ public:
       m_dim = msh.dimension;
 
       m_laplacian_parameters.lambda = 1.0;
-      m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree + 1);
+      m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree);
 
    }
 
@@ -192,7 +188,7 @@ public:
       for (auto& cl : m_msh)
       {
          tc.tic();
-         gradrec.compute_optim(m_msh, cl);
+         gradrec.compute(m_msh, cl);
          tc.toc();
          ai.time_gradrec += tc.to_double();
 
@@ -200,7 +196,7 @@ public:
          tc.tic();
          auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
 
-         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * gradrec.data();
+         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * gradrec.data;
          auto scnp = statcond.compute(m_msh, cl, loc, cell_rhs);
          tc.toc();
          ai.time_statcond += tc.to_double();
@@ -293,8 +289,8 @@ public:
             xFs.block(face_i * fbs, 0, fbs, 1) = xF;
          }
 
-         gradrec.compute_optim(m_msh, cl);
-         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * gradrec.data();
+         gradrec.compute(m_msh, cl);
+         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * gradrec.data;
          auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
          dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, cell_rhs, xFs);
          m_solution_data.push_back(x);
@@ -348,7 +344,7 @@ public:
       {
          auto x = m_solution_data.at(i++);
          gradrec.compute(m_msh, cl);
-         dynamic_vector<scalar_type> RTu = gradrec.oper()*x;
+         dynamic_vector<scalar_type> RTu = gradrec.oper*x;
          
          dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
          dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
@@ -359,81 +355,4 @@ public:
       return sqrt(err_dof);
    }
 
-   template<typename AnalyticalSolution>
-   scalar_type
-   compute_l2_gradient_error3(const AnalyticalSolution& grad)
-   {
-      scalar_type err_dof = scalar_type{0.0};
-      
-      projector_type projk(m_bqd);
-
-      deplrec_type deplrec(m_bqd);
-      
-      
-      const size_t DIM = m_msh.dimension;
-      const size_t cell_degree = m_bqd.cell_degree();
-      const size_t grad_degree = m_bqd.grad_degree();
-      cell_basis_type cell_basis       = cell_basis_type(cell_degree + 1);
-      cell_quadrature_type cell_quadrature   = cell_quadrature_type(cell_degree + 1 + grad_degree);
-
-      const size_t dphi_range = cell_basis.range(1, cell_degree + 1).size();
-      size_t i = 0;
-
-      for (auto& cl : m_msh)
-      {
-         auto x = m_solution_data.at(i++);
-         deplrec.compute(m_msh, cl);
-         dynamic_vector<scalar_type> RTu = deplrec.oper*x;
-
-         auto cell_quadpoints = m_bqd.cell_quadrature.integrate(m_msh, cl);
-         
-         for (auto& qp : cell_quadpoints)
-         {
-            auto Gu = grad(qp.point());
-            auto dphi = cell_basis.eval_gradients(m_msh, cl, qp.point());
-            
-            auto Ru = dphi[0]; Ru.setZero();
-            
-            for(size_t i = DIM; i < dphi_range; i++){
-               //std::cout << i << " / " << dphi_range << std::endl;
-               Ru += RTu(i-DIM) * dphi[i];
-            }
-            
-            auto diff = Gu-Ru;
-            auto ecart =diff.cwiseProduct(diff).sum();
-            err_dof += qp.weight() * ecart ;
-         }
-      }
-
-      return sqrt(err_dof);
-   }
-   
-   template<typename AnalyticalSolution>
-   scalar_type
-   compute_l2_gradient_error2(const AnalyticalSolution& grad)
-   {
-      scalar_type err_dof = scalar_type{0.0};
-      
-      projector_type projk(m_bqd);
-      
-      deplrec_type deplrec(m_bqd);
-      
-
-      size_t i = 0;
-      
-      for (auto& cl : m_msh)
-      {
-         auto x = m_solution_data.at(i++);
-         deplrec.compute(m_msh, cl);
-         dynamic_vector<scalar_type> RTu = deplrec.oper*x;
-         
-         dynamic_vector<scalar_type> true_dof = projk.compute_pot(m_msh, cl, grad);
-         dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
-         dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
-         err_dof += diff_dof.dot(projk.pot_mm * diff_dof);
-      }
-      
-      return sqrt(err_dof);
-   }
-   
 };

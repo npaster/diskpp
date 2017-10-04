@@ -24,7 +24,7 @@
 
 #include "colormanip.h"
 
-#include "../../config.h"
+#include "config.h"
 
 #ifdef HAVE_SOLVER_WRAPPERS
 #include "agmg/agmg.hpp"
@@ -63,7 +63,7 @@ usage(const char *progname)
    printf("Usage: %s <options> <filename>\n\n", progname);
    printf("    -2: test 2D mesh (default)\n");
    printf("    -3: test 3D mesh\n");
-   printf("    -k: face degree (>0)\n");
+   printf("    -k: face degree (>=0)\n");
    printf("    -l: difference beetween cell and face degree (-1 <= l <= 1) \n");
 }
 
@@ -498,7 +498,7 @@ int main(int argc, char **argv)
          
          case 'k':
             degree = atoi(optarg);
-            if (degree < 1)
+            if (degree < 0)
             {
                std::cout << "Degree must be positive. Falling back to 1." << std::endl;
                degree = 1;

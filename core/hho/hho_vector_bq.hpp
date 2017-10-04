@@ -254,6 +254,176 @@ namespace disk {
       }
    };
 
+   template<typename BQData>
+      class gradient_reconstruction_elas_full_bq
+      {
+         typedef typename BQData::mesh_type          mesh_type;
+         typedef typename mesh_type::scalar_type     scalar_type;
+         typedef typename mesh_type::cell            cell_type;
+
+         typedef dynamic_matrix<scalar_type>         matrix_type;
+         typedef dynamic_vector<scalar_type>         vector_type;
+
+         const BQData&                               m_bqd;
+
+         matrix_type     m_oper;
+         matrix_type     m_data;
+
+      public:
+
+         matrix_type     oper;
+         matrix_type     data;
+
+         gradient_reconstruction_elas_full_bq(const BQData& bqd) : m_bqd(bqd)
+         {}
+
+         void compute(const mesh_type& msh, const cell_type& cl, const bool compute_data = true)
+         {
+            const size_t DIM = msh.dimension;
+            const size_t DIM2 = DIM * DIM;
+            const size_t cell_degree = m_bqd.cell_degree();
+            const size_t face_degree = m_bqd.face_degree();
+            const size_t grad_degree = m_bqd.grad_degree();
+            const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+            const size_t face_basis_size = (m_bqd.face_basis.range(0, face_degree)).size();
+            const size_t grad_basis_size = m_bqd.grad_basis.size();
+
+            auto fcs = faces(msh, cl);
+            const size_t num_faces = fcs.size();
+
+            timecounter tc;
+            double t_base(0.0); double t_cons(0.0); double t_inv(0.0);
+
+            if(DIM == 2)
+               assert(grad_basis_size == 2*(grad_degree+1) * (grad_degree+3));
+            if(DIM == 3)
+               assert(grad_basis_size == 3*(grad_degree+1) * (grad_degree+2) * (grad_degree+4)/2);
+
+            dofspace_ranges dsr(cell_basis_size, face_basis_size, num_faces);
+
+            assert(dsr.total_size() == (cell_basis_size + num_faces * face_basis_size));
+
+            matrix_type BG = matrix_type::Zero(grad_basis_size, dsr.total_size());
+
+            matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
+
+
+            auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
+            for (auto& qp : grad_quadpoints)
+            {
+               tc.tic();
+               auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+               assert(grad_basis_size == gphi.size());
+
+               auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
+               assert(cell_basis_size == dphi.size());
+               tc.toc();
+               t_base += tc.to_double();
+
+               tc.tic();
+
+               for(size_t i = 0; i < grad_basis_size; i++){
+                  for(size_t j = i; j < grad_basis_size; j++){
+                     MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
+                  }
+               }
+
+               for(size_t i = 0; i < grad_basis_size; i++){
+                  for(size_t j = 0; j < cell_basis_size; j++){
+                     BG(i,j) += qp.weight() * mm_prod(gphi[i], dphi[j]);
+                  }
+               }
+
+               tc.toc();
+               t_cons += tc.to_double();
+            }
+
+            tc.tic();
+            // lower part MG
+            for(size_t i = 0; i <  grad_basis_size; i++)
+               for(size_t j = 0; j < i; j++)
+                  MG(i,j) = MG(j,i);
+
+               tc.toc();
+            t_cons += tc.to_double();
+
+            for (size_t face_i = 0; face_i < num_faces; face_i++)
+            {
+               auto current_face_range = dsr.face_range(face_i);
+               auto fc = fcs[face_i];
+               auto n = normal(msh, cl, fc);
+               auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+
+               for (auto& qp : face_quadpoints)
+               {
+                  tc.tic();
+                  auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+                  auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+                  tc.toc();
+                  t_base += tc.to_double();
+
+                  // tau.n
+                  tc.tic();
+                  decltype(c_phi) gphi_n;
+
+                  gphi_n.reserve(gphi.size());
+
+                  for(size_t i= 0; i < gphi.size(); i++){
+                     gphi_n.push_back(mm_prod(gphi[i] , n));
+                  }
+
+                  assert(gphi_n.size() == grad_basis_size);
+
+                  matrix_type T = matrix_type::Zero(grad_basis_size, cell_basis_size);
+
+                  for(size_t j = 0; j < cell_basis_size; j++){
+                     for(size_t i = 0; i < grad_basis_size; i++){
+                        T(i,j) = qp.weight() * mm_prod(gphi_n[i], c_phi[j]);
+                     }
+                  }
+
+                  assert(T.rows() == grad_basis_size);
+                  assert(T.cols() == cell_basis_size);
+
+                  BG.block(0, 0, grad_basis_size, cell_basis_size) -= T;
+                  tc.toc();
+                  t_cons += tc.to_double();
+
+                  tc.tic();
+                  auto f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+                  tc.toc();
+                  t_base += tc.to_double();
+
+                  tc.tic();
+                  matrix_type F = matrix_type::Zero(BG.rows(), current_face_range.size());
+
+                  for(size_t j = 0; j < current_face_range.size(); j++){
+                     for(size_t i = 0; i < grad_basis_size; i++){
+                        F(i,j) = qp.weight() * mm_prod(gphi_n[i], f_phi[j]);
+                     }
+                  }
+
+                  assert(F.rows() == grad_basis_size);
+                  assert(F.cols() == current_face_range.size());
+
+                  BG.block(0, current_face_range.min(),
+                           grad_basis_size, current_face_range.size()) += F;
+                           tc.toc();
+                           t_cons += tc.to_double();
+               }
+            }
+
+            tc.tic();
+            oper  = MG.llt().solve(BG);    // GT
+            tc.toc();
+            t_inv += tc.to_double();
+            if(compute_data)
+               data  = BG.transpose() * oper;  // A
+
+               assert(oper.rows() == grad_basis_size);
+            assert(oper.cols() == dsr.total_size());
+         }
+      };
 
 
 //    template<typename BQData>
@@ -795,6 +965,205 @@ namespace disk {
          }
       }
    };
+
+
+   template<typename BQData>
+      class projector_elas_bq
+      {
+         typedef typename BQData::mesh_type          mesh_type;
+         typedef typename mesh_type::scalar_type     scalar_type;
+         typedef typename mesh_type::cell            cell_type;
+
+         typedef typename BQData::cell_basis_type    cell_basis_type;
+         typedef typename BQData::cell_quad_type     cell_quad_type;
+
+         typedef dynamic_matrix<scalar_type>         matrix_type;
+         typedef dynamic_vector<scalar_type>         vector_type;
+
+         const BQData&                               m_bqd;
+
+      public:
+
+         projector_elas_bq(const BQData& bqd) : m_bqd(bqd)
+         {}
+
+         matrix_type cell_mm;
+         matrix_type whole_mm;
+         matrix_type grad_mm;
+         matrix_type pot_mm;
+
+         template<typename Function>
+         vector_type
+         compute_cell(const mesh_type& msh, const cell_type& cl, const Function& f)
+         {
+            const size_t cell_degree = m_bqd.cell_degree();
+            const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+
+            matrix_type mm = matrix_type::Zero(cell_basis_size, cell_basis_size);
+            vector_type rhs = vector_type::Zero(cell_basis_size);
+
+            auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
+            for (auto& qp : cell_quadpoints)
+            {
+               auto phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+
+               for(size_t i = 0; i < cell_basis_size; i++)
+                  for(size_t j = i; j < cell_basis_size; j++)
+                     mm(i,j)  += qp.weight() * mm_prod(phi[i], phi[j]);
+
+                  //lower part
+                  for (size_t i = 1; i < cell_basis_size; i++)
+                     for (size_t j = 0; j < i; j++)
+                        mm(i,j) = mm(j,i);
+
+                     for(size_t i=0; i < cell_basis_size; i++){
+                        rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
+                     }
+            }
+
+            cell_mm = mm;
+            return mm.llt().solve(rhs);
+         }
+
+
+         template<typename Function>
+         vector_type
+         compute_whole(const mesh_type& msh, const cell_type& cl, const Function& f)
+         {
+            const size_t cell_degree = m_bqd.cell_degree();
+            const size_t face_degree = m_bqd.face_degree();
+            const size_t cell_basis_size = (m_bqd.cell_basis.range(0, cell_degree)).size();
+            const size_t face_basis_size = m_bqd.face_basis.size();
+            auto fcs = faces(msh, cl);
+
+            compute_cell(msh, cl, f);
+
+            vector_type ret = vector_type::Zero(cell_basis_size + fcs.size()*face_basis_size);
+            whole_mm = matrix_type::Zero(cell_basis_size + fcs.size()*face_basis_size,
+                                         cell_basis_size + fcs.size()*face_basis_size);
+
+            ret.block(0, 0, cell_basis_size, 1) = compute_cell(msh, cl, f);
+            whole_mm.block(0, 0, cell_basis_size, cell_basis_size) = cell_mm;
+
+            size_t face_offset = cell_basis_size;
+            for (auto& fc : fcs)
+            {
+               matrix_type mm = matrix_type::Zero(face_basis_size, face_basis_size);
+               vector_type rhs = vector_type::Zero(face_basis_size);
+
+               auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+               for (auto& qp : face_quadpoints)
+               {
+                  auto phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+                  assert(phi.size() == face_basis_size);
+
+                  for(size_t i=0; i < face_basis_size; i++)
+                     for(size_t j=0; j < face_basis_size; j++)
+                        mm(i,j)  += qp.weight() *mm_prod(phi[i], phi[j]);
+
+                     for(size_t i=0; i < face_basis_size; i++)
+                        rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
+
+               }
+
+               ret.block(face_offset, 0, face_basis_size, 1) = mm.llt().solve(rhs);
+               whole_mm.block(face_offset, face_offset, face_basis_size, face_basis_size) = mm;
+               face_offset += face_basis_size;
+            }
+
+
+            return ret;
+         }
+
+         template<typename Function>
+         vector_type
+         compute_cell_grad(const mesh_type& msh, const cell_type& cl, const Function& f)
+         {
+            const size_t DIM = msh.dimension;
+            const size_t DIM2 = DIM * DIM;
+            const size_t grad_degree = m_bqd.grad_degree();
+            const size_t grad_basis_size = m_bqd.grad_basis.size();
+
+            matrix_type mm = matrix_type::Zero(grad_basis_size, grad_basis_size);
+            vector_type rhs = vector_type::Zero(grad_basis_size);
+
+            auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
+            for (auto& qp : grad_quadpoints)
+            {
+               auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+
+               for(size_t j = 0; j < grad_basis_size; j++){
+                  for(size_t i = j; i < grad_basis_size; i++){
+                     mm(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
+                  }
+               }
+
+               //lower part
+               for (size_t i = 0; i < grad_basis_size; i++)
+                  for (size_t j = i; j < grad_basis_size; j++)
+                     mm(i,j) = mm(j,i);
+
+               for(size_t i=0; i < grad_basis_size; i++){
+                  rhs(i) += qp.weight() * mm_prod( f(qp.point()) , gphi[i]);
+               }
+
+            }
+
+            grad_mm = mm;
+            return mm.llt().solve(rhs);
+         }
+
+
+         template<typename Function>
+         vector_type
+         compute_pot(const mesh_type& msh, const cell_type& cl, const Function& f)
+         {
+            const size_t DIM = msh.dimension;
+            const size_t cell_degree = m_bqd.cell_degree();
+            const size_t cell_basis_size = DIM * binomial(cell_degree +1 +DIM, cell_degree+1);
+
+            cell_basis_type cell_basis        = cell_basis_type(cell_degree + 1);
+            cell_quad_type cell_quadrature     = cell_quad_type(2 * (cell_degree + 1));
+
+            assert(cell_basis.size() == cell_basis_size);
+
+            matrix_type mm = matrix_type::Zero(cell_basis_size, cell_basis_size);
+            vector_type rhs = vector_type::Zero(cell_basis_size);
+
+            auto cell_quadpoints = cell_quadrature.integrate(msh, cl);
+            for (auto& qp : cell_quadpoints)
+            {
+
+               auto dphi = cell_basis.eval_gradients(msh, cl, qp.point());
+               assert(cell_basis_size == dphi.size());
+
+               for(size_t j = 0; j < cell_basis_size; j++){
+                  for(size_t i = j; i < cell_basis_size; i++){
+                     mm(i,j) += qp.weight() * mm_prod(dphi[i],dphi[j]);
+                  }
+               }
+
+               for(size_t i=0; i < cell_basis_size; i++){
+                  rhs(i) += qp.weight() * mm_prod( f(qp.point()) , dphi[i]);
+               }
+            }
+
+            // lower part
+            for(size_t i = 0; i < cell_basis_size; i++)
+               for(size_t j = i; j < cell_basis_size; j++)
+                  mm(i,j) = mm(j,i);
+
+               /* LHS: take basis functions derivatives from degree 1 to K+1 */
+               auto MG_rowcol_range = cell_basis.range(1, cell_degree + 1);
+            pot_mm = take(mm, MG_rowcol_range, MG_rowcol_range);
+
+            //std::cout << "mm " << mm << '\n';
+            //std::cout << "r " << rhs<< '\n';
+            return pot_mm.ldlt().solve(rhs.tail(pot_mm.cols()));
+         }
+
+      };
+
 
 
 } // namespace disk
