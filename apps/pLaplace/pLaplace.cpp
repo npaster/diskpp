@@ -173,7 +173,7 @@ int main(int argc, char **argv)
 
     int ch;
 
-    while ( (ch = getopt(argc, argv, "k:l:n:p:v:t")) != -1 )
+    while ( (ch = getopt(argc, argv, "k:l:n:p:vt:")) != -1 )
     {
         switch(ch)
         {

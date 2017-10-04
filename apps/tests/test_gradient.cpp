@@ -42,7 +42,7 @@
 #include "common/eigen.hpp"
 #include "hho/hho_bq.hpp"
 #include "hho/hho_vector.hpp"
-
+#include "hho/hho_vector_bq.hpp"
 
 
 template< typename mesh_type, typename T>
@@ -103,8 +103,8 @@ test_grad_vector(const mesh_type& msh, const size_t degree, const T epsilon)
       tc.toc();
       tgrad += tc.to_double();
 
-      error_oper += std::pow( (gradrec_opt.oper() - gradrec.oper).norm()   ,2.0);
-      error_data += std::pow( (gradrec_opt.data() - gradrec.data).norm()   ,2.0);
+      error_oper += std::pow( (gradrec_opt.oper - gradrec.oper).norm()   ,2.0);
+      error_data += std::pow( (gradrec_opt.data - gradrec.data).norm()   ,2.0);
 
    }
 
@@ -180,8 +180,8 @@ test_grad_scalar(const mesh_type& msh, const size_t degree, const T epsilon)
       tc.toc();
       tgrad += tc.to_double();
 
-      error_oper += std::pow( (gradrec_opt.oper() - gradrec.oper).norm()   ,2.0);
-      error_data += std::pow( (gradrec_opt.data() - gradrec.data).norm()   ,2.0);
+      error_oper += std::pow( (gradrec_opt.oper - gradrec.oper).norm()   ,2.0);
+      error_data += std::pow( (gradrec_opt.data - gradrec.data).norm()   ,2.0);
 
    }
 
