@@ -18,11 +18,7 @@
 
 #include <sstream>
 
-#include "../../config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
-#include "agmg/agmg.hpp"
-#endif
+#include "config.h"
 
 #include "hho/hho.hpp"
 #include "hho/hho_bq.hpp"
@@ -32,10 +28,12 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
+
+
 struct assembly_info
 {
     size_t  linear_system_size;
-    double  time_gradrec, time_statcond, time_stab, time_assembly;
+    double  time_gradrec, time_statcond, time_stab;
 };
 
 struct solver_info
@@ -47,8 +45,6 @@ struct postprocess_info
 {
     double  time_postprocess;
 };
-
-
 
 template<typename Mesh>
 class diffusion_solver
@@ -67,16 +63,16 @@ class diffusion_solver
     typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    grad_basis_type;
 
     typedef disk::basis_quadrature_data_full<mesh_type,   disk::scaled_monomial_scalar_basis,
-                                             disk::scaled_monomial_vector_basis,
+                                             disk::Raviart_Thomas_vector_basis,
                                              disk::quadrature>          bqdata_type;
 
-
-    typedef disk::gradient_reconstruction_full_bq<bqdata_type>          gradrec_type;
-
+    typedef disk::gradient_reconstruction_full_bq<bqdata_type>               gradrec_type;
     typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
     typedef disk::assembler<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
-    typedef disk::projector_bq<bqdata_type> projk_type;
-    size_t m_cell_degree, m_face_degree;
+    //typedef disk::assembler_homogeneus_dirichlet<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
+    typedef static_matrix<scalar_type, mesh_type::dimension, mesh_type::dimension> tensor_type;
+
+    size_t m_cell_degree, m_face_degree, m_grad_degree;
 
     bqdata_type     m_bqd;
 
@@ -107,14 +103,13 @@ public:
 
         m_cell_degree = degree + l;
         m_face_degree = degree;
+        m_grad_degree = m_cell_degree ;
 
-        m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree + 1);
+        m_bqd = bqdata_type(m_face_degree, m_cell_degree, m_grad_degree);
     }
 
     bool    verbose(void) const     { return m_verbose; }
     void    verbose(bool v)         { m_verbose = v; }
-
-    size_t getDofs() {return m_msh.faces_size() * m_bqd.face_basis.size();}
 
     template<typename LoadFunction, typename BoundaryConditionFunction>
     assembly_info
@@ -122,14 +117,12 @@ public:
     {
         auto gradrec    = gradrec_type(m_bqd);
         auto statcond   = statcond_type(m_bqd);
-        auto assembler  = assembler_type(m_msh, m_cell_degree);
+        auto assembler  = assembler_type(m_msh, m_face_degree);
 
         assembly_info ai;
         bzero(&ai, sizeof(ai));
 
-        timecounter tc, ttot;
-
-        ttot.tic();
+        timecounter tc;
 
         for (auto& cl : m_msh)
         {
@@ -138,10 +131,10 @@ public:
             tc.toc();
             ai.time_gradrec += tc.to_double();
 
-
             tc.tic();
             auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
-            auto scnp = statcond.compute(m_msh, cl, gradrec.data(), cell_rhs);
+            auto scnp = statcond.compute(m_msh, cl, gradrec.data, cell_rhs);
+
             tc.toc();
             ai.time_statcond += tc.to_double();
 
@@ -151,10 +144,6 @@ public:
         assembler.impose_boundary_conditions(m_msh, bcf);
         assembler.finalize(m_system_matrix, m_system_rhs);
 
-        ttot.toc();
-
-        ai.time_assembly = ttot.to_double();
-
         ai.linear_system_size = m_system_matrix.rows();
         return ai;
     }
@@ -162,11 +151,17 @@ public:
     solver_info
     solve(void)
     {
+        auto assembler  = assembler_type(m_msh, m_face_degree);
+
+
+
 #ifdef HAVE_INTEL_MKL
         Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
+        //solver.pardisoParameterArray()[59] = 0; //out-of-core
 #else
         Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
 #endif
+
 
         solver_info si;
 
@@ -180,12 +175,15 @@ public:
             std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
         }
 
-        timecounter tc;
+        timecounter_new tc;
 
         tc.tic();
+
         solver.analyzePattern(m_system_matrix);
         solver.factorize(m_system_matrix);
         m_system_solution = solver.solve(m_system_rhs);
+        //auto sol = solver.solve(m_system_rhs);
+        //m_system_solution = sol;//assembler.expand_solution(m_msh, sol);
         tc.toc();
         si.time_solver = tc.to_double();
 
@@ -207,10 +205,11 @@ public:
 
         timecounter tc;
         tc.tic();
+
         for (auto& cl : m_msh)
         {
             auto fcs = faces(m_msh, cl);
-            const size_t num_faces = fcs.size();
+            size_t num_faces = fcs.size();
 
             dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
 
@@ -229,8 +228,9 @@ public:
             }
 
             gradrec.compute(m_msh, cl);
+            dynamic_matrix<scalar_type> loc = gradrec.data;
             auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
-            dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, gradrec.data(), cell_rhs, xFs);
+            dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, cell_rhs, xFs);
             m_postprocess_data.push_back(x);
         }
         tc.toc();
@@ -246,7 +246,7 @@ public:
     {
         scalar_type err_dof = 0.0;
 
-       auto projk = projk_type(m_bqd);
+        disk::projector_bq<bqdata_type> projk(m_bqd);
 
         size_t i = 0;
         for (auto& cl : m_msh)
@@ -261,58 +261,4 @@ public:
         return sqrt(err_dof);
     }
 
-
-    template<typename AnalyticalSolution>
-    scalar_type
-    compute_l2_gradient_error(const AnalyticalSolution& grad)
-    {
-       scalar_type err_dof = scalar_type{0.0};
-
-       projk_type projk(m_bqd);
-
-       gradrec_type gradrec(m_bqd);
-
-       size_t i = 0;
-
-       for (auto& cl : m_msh)
-       {
-          auto x = m_postprocess_data.at(i++);
-          gradrec.compute(m_msh, cl);
-          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
-          dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
-          dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
-          dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
-          err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
-       }
-
-       return sqrt(err_dof);
-    }
-
-    void
-    plot_solution(const std::string& filename)
-    {
-        std::ofstream ofs(filename);
-
-        size_t cell_i = 0;
-        for (auto& cl : m_msh)
-        {
-            auto x = m_postprocess_data.at(cell_i++);
-            auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
-            for (auto& qp : qps)
-            {
-                auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-
-                scalar_type pot = 0.0;
-                for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_cell_degree).size(); i++)
-                    pot += phi[i] * x(i);
-
-                auto tp = qp.point();
-                for (size_t i = 0; i < mesh_type::dimension; i++)
-                    ofs << tp[i] << " ";
-                ofs << pot << std::endl;
-            }
-        }
-
-        ofs.close();
-    }
 };
