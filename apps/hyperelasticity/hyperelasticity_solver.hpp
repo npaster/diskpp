@@ -102,7 +102,7 @@ class hyperelasticity_solver
       {
          /////// Gradient Reconstruction /////////
          gradrec.compute(m_msh, cl, false);
-         m_gradient_precomputed.push_back(gradrec.oper());
+         m_gradient_precomputed.push_back(gradrec.oper);
       }
 
    }
@@ -446,7 +446,7 @@ public:
        {
           auto x = m_solution_data.at(i++);
           gradrec.compute(m_msh, cl, false);
-          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
           dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
           dynamic_vector<scalar_type> comp_dof = GTu.block(0,0,true_dof.size(), 1);
           dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
@@ -498,7 +498,7 @@ public:
        {
           auto x = m_solution_data.at(i++);
           gradrec.compute(m_msh, cl, false);
-          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
           dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
 
           auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
@@ -564,7 +564,7 @@ public:
        {
           auto x = m_solution_data.at(i++);
           gradrec.compute(m_msh, cl, false);
-          dynamic_vector<scalar_type> GTu = gradrec.oper()*x;
+          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
 
           auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
 
@@ -837,7 +837,7 @@ public:
        for (auto& cl : m_msh)
        {
           gradrec.compute(m_msh, cl, false);
-          const vector_dynamic GT_uTF = gradrec.oper() * m_solution_data.at(cell_i);
+          const vector_dynamic GT_uTF = gradrec.oper * m_solution_data.at(cell_i);
 
           auto cell_nodes = visu::cell_nodes(m_msh, cl);
           std::vector<visu::Node> new_nodes;
@@ -895,7 +895,7 @@ public:
        for (auto& cl : m_msh)
        {
           gradrec.compute(m_msh, cl, false);
-          const vector_dynamic GT_uTF = gradrec.oper() * m_solution_data.at(cell_i);
+          const vector_dynamic GT_uTF = gradrec.oper * m_solution_data.at(cell_i);
 
           auto cell_nodes = visu::cell_nodes(m_msh, cl);
           std::vector<visu::Node> new_nodes;
@@ -965,7 +965,7 @@ public:
        for (auto& cl : m_msh)
        {
           gradrec.compute(m_msh, cl, false);
-          const vector_dynamic GT_uTF = gradrec.oper() * m_solution_data.at(cell_i);
+          const vector_dynamic GT_uTF = gradrec.oper * m_solution_data.at(cell_i);
 
           auto cell_nodes = visu::cell_nodes(m_msh, cl);
           std::vector<visu::Node> new_nodes;
@@ -1129,7 +1129,7 @@ public:
        {
           vector_dynamic x = m_solution_data.at(cell_i++);
           gradrec.compute(m_msh, cl, false);
-          vector_dynamic GTu = gradrec.oper()*x;
+          vector_dynamic GTu = gradrec.oper*x;
 
           auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
           for (auto& qp : qps)
@@ -1175,7 +1175,7 @@ public:
        {
           vector_dynamic x = m_solution_data.at(cell_i++);
           gradrec.compute(m_msh, cl, false);
-          vector_dynamic GTu = gradrec.oper()*x;
+          vector_dynamic GTu = gradrec.oper*x;
           auto cell_nodes = visu::cell_nodes(m_msh, cl);
           std::vector<visu::Node> new_nodes;
           for (size_t i = 0; i < cell_nodes.size(); i++)

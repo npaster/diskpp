@@ -187,7 +187,7 @@ public:
            }
            else{
               gradrec.compute(m_msh, cl, false);
-              GT = gradrec.oper();
+              GT = gradrec.oper;
            }
            tc.toc();
            ai.m_time_gradrec += tc.to_double();
@@ -427,7 +427,7 @@ public:
             }
             else{
                gradrec.compute(m_msh, cl, false);
-               GT = gradrec.oper();
+               GT = gradrec.oper;
             }
             tc.toc();
             pi.m_time_gradrec += tc.to_double();
@@ -574,7 +574,7 @@ public:
             }
          }
 
-         const vector_type GT_uTF = gradrec.oper() * m_solution_data.at(i);
+         const vector_type GT_uTF = gradrec.oper * m_solution_data.at(i);
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
 
          for (auto& qp : grad_quadpoints)
@@ -593,7 +593,7 @@ public:
             // Energie in the stabilisation
             if(m_rp.m_stab){
                ret[1] += qp.weight() * energy_stab;
-            //stab.compute(m_msh, cl, gradrec.oper());
+            //stab.compute(m_msh, cl, gradrec.oper;
             }
          }
 
