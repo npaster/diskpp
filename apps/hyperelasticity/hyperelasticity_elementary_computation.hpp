@@ -58,7 +58,7 @@ namespace Hyperelasticity {
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t poly_space = DIM * DIM * binomial(grad_degree + DIM, grad_degree);
+         const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
          std::vector<static_matrix<scalar_type, DIM, DIM>> Aphi;
@@ -92,7 +92,7 @@ namespace Hyperelasticity {
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t poly_space = DIM * DIM * binomial(grad_degree + DIM, grad_degree);
+         const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
          matrix_type AT = matrix_type::Zero(grad_basis_size, grad_basis_size);
@@ -135,7 +135,7 @@ namespace Hyperelasticity {
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t poly_space = DIM * DIM * binomial(grad_degree + DIM, grad_degree);
+         const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
          vector_type R = vector_type::Zero(grad_basis_size);
