@@ -52,6 +52,9 @@ namespace disk {
       grad_basis_type     grad_basis;
       cell_quad_type      grad_quadrature;
 
+      cell_quad_type      grad_cell_quadrature;
+      face_quad_type      grad_face_quadrature;
+
    private:
       size_t  m_cell_degree, m_face_degree, m_grad_degree;
 
@@ -63,6 +66,8 @@ namespace disk {
          cell_quadrature     = cell_quad_type(2 * m_cell_degree);
          face_quadrature     = face_quad_type(2 * m_face_degree);
          grad_quadrature     = cell_quad_type(2 * m_grad_degree);
+         grad_cell_quadrature     = cell_quad_type(m_grad_degree + m_cell_degree);
+         grad_face_quadrature     = face_quad_type(m_grad_degree + std::max(m_face_degree, m_cell_degree));
       }
 
    public:
@@ -107,15 +112,10 @@ namespace disk {
       typedef typename mesh_type::scalar_type     scalar_type;
       typedef typename mesh_type::cell            cell_type;
 
-      typedef typename BQData::face_quad_type        face_quadrature_type;
-
       typedef dynamic_matrix<scalar_type>         matrix_type;
       typedef dynamic_vector<scalar_type>         vector_type;
 
       const BQData&                               m_bqd;
-
-      face_quadrature_type face_quadrature;
-
 
    public:
 
@@ -123,9 +123,7 @@ namespace disk {
       matrix_type     data;
 
       gradient_reconstruction_full_bq(const BQData& bqd) : m_bqd(bqd)
-      {
-         face_quadrature  = face_quadrature_type(m_bqd.face_degree() + m_bqd.grad_degree());
-      }
+      {}
 
       void compute(const mesh_type& msh, const cell_type& cl, const bool compute_data = true)
       {
@@ -154,15 +152,21 @@ namespace disk {
             const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
             assert(grad_basis_size == gphi.size());
 
-            const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 0, cell_degree);
-            assert(cell_basis_size == dphi.rows());
-            assert(dphi.cols() == DIM);
-
             for(size_t j = 0; j < grad_basis_size; j++){
                for(size_t i = j; i < grad_basis_size; i++){
                   MG(i,j) += qp.weight() * mm_prod(gphi[i], gphi[j]);
                }
             }
+         }
+
+         const auto grad_cell_quadpoints = m_bqd.grad_cell_quadrature.integrate(msh, cl);
+         for (auto& qp : grad_cell_quadpoints)
+         {
+            const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+            const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 0, cell_degree);
+            assert(grad_basis_size == gphi.size());
+            assert(cell_basis_size == dphi.rows());
+            assert(dphi.cols() == DIM);
 
             auto dphi_j(gphi[0]);
             for(size_t j = 0; j < cell_basis_size; j++){
@@ -191,9 +195,9 @@ namespace disk {
             const auto current_face_range = dsr.face_range(face_i);
             const auto fc = fcs[face_i];
             const auto n = normal(msh, cl, fc);
-            const auto face_quadpoints = face_quadrature.integrate(msh, fc);
+            const auto grad_face_quadpoints = m_bqd.grad_face_quadrature.integrate(msh, fc);
 
-            for (auto& qp : face_quadpoints)
+            for (auto& qp : grad_face_quadpoints)
             {
                const matrix_type c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
                const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());

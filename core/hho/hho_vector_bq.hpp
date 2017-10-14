@@ -369,15 +369,22 @@ namespace disk {
                const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
                assert(grad_basis_size == gphi.size());
 
-               const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
-               assert(cell_basis_size == dphi.size());
                tc.toc();
                t_base += tc.to_double();
 
                tc.tic();
 
                MG += qp.weight() * compute_MG(gphi);
+            }
 
+            const auto grad_cell_quadpoints = m_bqd.grad_cell_quadrature.integrate(msh, cl);
+            for (auto& qp : grad_cell_quadpoints)
+            {
+               const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, qp.point());
+               assert(grad_basis_size == gphi.size());
+
+               const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
+               assert(cell_basis_size == dphi.size());
 
                BG.block(0,0, grad_basis_size, cell_basis_size) += qp.weight() * compute_BG(gphi, dphi);
 
@@ -399,9 +406,9 @@ namespace disk {
                const auto current_face_range = dsr.face_range(face_i);
                const auto fc = fcs[face_i];
                const auto n = normal(msh, cl, fc);
-               const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+               const auto grad_face_quadpoints = m_bqd.grad_face_quadrature.integrate(msh, fc);
 
-               for (auto& qp : face_quadpoints)
+               for (auto& qp : grad_face_quadpoints)
                {
                   tc.tic();
                   const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
