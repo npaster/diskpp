@@ -35,8 +35,6 @@ namespace disk {
 std::vector<std::pair<point<double,3>, double>>
 tetrahedron_quadrature(size_t degree)
 {
-    int dimension = 3;
-
 #ifdef USE_ARBQ
     int rule = degree+1;
     if (rule == 0)

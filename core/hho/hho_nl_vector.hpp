@@ -40,7 +40,7 @@ namespace disk {
 
       gradient_value_type ret = gradient_value_type::Zero();
 
-      auto gphi = grad_basis.eval_functions(msh, cl, pt);
+      const auto gphi = grad_basis.eval_functions(msh, cl, pt);
 
       for(size_t i = 0; i < gphi.size(); i++){
          ret += gradrec_coeff(i) * gphi[i];
@@ -77,11 +77,11 @@ namespace disk {
       {
          auto bfc = *itor;
 
-         auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+         const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
          if (!eid.first)
             throw std::invalid_argument("This is a bug: face not found");
 
-         auto face_id = eid.second;
+         const auto face_id = eid.second;
          const size_t b_id = msh.boundary_id(face_id);
 
          //Find if this face is a boundary face with Neumann Condition
@@ -102,8 +102,8 @@ namespace disk {
                                              const std::vector<BoundaryType>& boundary_neumann)
    {
       //By default all boundary faces are dirichlet faces
-      size_t DIM = msh.dimension;
-      size_t nb_lag_conditions = DIM * msh.boundary_faces_size();
+      const size_t DIM = msh.dimension;
+      const size_t nb_lag_conditions = DIM * msh.boundary_faces_size();
 
       // We remove boundary of type neumann;
 
@@ -261,12 +261,12 @@ namespace disk {
       void
       assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
       {
-         auto fcs = faces(msh, cl);
+         const auto fcs = faces(msh, cl);
          std::vector<size_t> l2g(fcs.size() * face_basis.size());
          for (size_t face_i = 0; face_i < fcs.size(); face_i++)
          {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
@@ -702,21 +702,22 @@ namespace disk {
       void
       assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
       {
-         auto fcs = faces(msh, cl);
+         const auto fcs = faces(msh, cl);
          const size_t face_basis_size = m_bqd.face_basis.size();
+         
          std::vector<size_t> l2g(fcs.size() * face_basis_size);
          for (size_t face_i = 0; face_i < fcs.size(); face_i++)
          {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
 
-            auto face_offset = face_id * face_basis_size;
+            const auto face_offset = face_id * face_basis_size;
 
-            auto pos = face_i * face_basis_size;
+            const auto pos = face_i * face_basis_size;
 
             for (size_t i = 0; i < face_basis_size; i++)
                l2g[pos+i] = face_offset+i;
@@ -758,23 +759,23 @@ namespace disk {
          {
             auto bfc = *itor;
 
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
 
-            auto face_offset = face_id * face_basis_size;
-            auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
+            const auto face_offset = face_id * face_basis_size;
+            const auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
 
-            auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
+            const auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
 
             matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
             vector_type rhs_f   = vector_type::Zero(face_basis_size);
 
             for (auto& qp : fqd)
             {
-               auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+               const auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
                assert(f_phi.size() == face_basis_size);
                for(size_t i = 0; i < face_basis_size; i++)
                   for(size_t j = i; j < face_basis_size; j++)
@@ -791,9 +792,9 @@ namespace disk {
                   MFF(i,j) = MFF(j,i) ;
 
 
-               rhs_f -= MFF * sol_faces.at(face_id);
+            rhs_f -= MFF * sol_faces.at(face_id);
 
-            vector_type rhs_l = MFF * sol_lagr.at(face_i);
+            const vector_type rhs_l = MFF * sol_lagr.at(face_i);
 
             #ifdef FILL_COLMAJOR
             for (size_t j = 0; j < MFF.cols(); j++)
@@ -838,11 +839,11 @@ namespace disk {
          {
             auto bfc = *itor;
 
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
             const size_t b_id = msh.boundary_id(face_id);
 
             bool dirichlet_face = true;
@@ -857,17 +858,17 @@ namespace disk {
 
             if(dirichlet_face){
                //Dirichlet condition
-               auto face_offset = face_id * face_basis_size;
-               auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
+               const auto face_offset = face_id * face_basis_size;
+               const auto face_offset_lagrange = (msh.faces_size() + face_i) * face_basis_size;
 
-               auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
+               const auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
 
                matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
                vector_type rhs_f   = vector_type::Zero(face_basis_size);
                vector_type rhs_bc   = vector_type::Zero(face_basis_size);
                for (auto& qp : fqd)
                {
-                  auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+                  const auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
                   assert(f_phi.size() == face_basis_size);
                   for(size_t i = 0; i < face_basis_size; i++)
                      for(size_t j = i; j < face_basis_size; j++)
@@ -991,11 +992,11 @@ namespace disk {
          {
             auto bfc = *itor;
 
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
             const size_t face_offset = face_id * face_basis_size;
 
             //std::cout << "face "  << face_i << " "<< boundary_conditions.is_boundary_dirichlet(face_i)   << '\n';
@@ -1005,14 +1006,14 @@ namespace disk {
                const size_t lag_pos = boundary_conditions.begin_lag_conditions_faceI(face_dir);
                const size_t face_offset_lagrange = msh.faces_size()  * face_basis_size + lag_pos * lagr_size;
 
-               auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
+               const auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
 
                matrix_type MFF     = matrix_type::Zero(face_basis_size, face_basis_size);
                vector_type rhs_bc   = vector_type::Zero(face_basis_size);
                vector_type rhs_l   = vector_type::Zero(face_basis_size);
                for (auto& qp : fqd)
                {
-                  auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+                  const auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
                   assert(f_phi.size() == face_basis_size);
                   for(size_t i = 0; i < face_basis_size; i++)
                      for(size_t j = i; j < face_basis_size; j++)
@@ -1029,8 +1030,8 @@ namespace disk {
                      MFF(i,j) = MFF(j,i) ;
 
                // impose displacement
-               vector_type rhs_fc = rhs_bc - MFF * sol_faces.at(face_id);
-               vector_type rhs_f = - MFF * sol_faces.at(face_id);
+               const vector_type rhs_fc = rhs_bc - MFF * sol_faces.at(face_id);
+               const vector_type rhs_f = - MFF * sol_faces.at(face_id);
 
                vector_type rhs_f2;
                matrix_type MFF2;
@@ -1160,7 +1161,7 @@ namespace disk {
                if(boundary_conditions.boundary_type(face_i) == NEUMANN){
                   vector_type TF   = vector_type::Zero(face_basis_size);
 
-                  auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, bfc);
+                  const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, bfc);
                   for (auto& qp : face_quadpoints)
                   {
                      auto fphi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());

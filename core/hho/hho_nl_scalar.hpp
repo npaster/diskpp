@@ -39,7 +39,7 @@ namespace disk {
 
       gradient_value_type ret = gradient_value_type::Zero(DIM);
 
-      auto gphi = grad_basis.eval_functions(msh, cl, pt);
+      const auto gphi = grad_basis.eval_functions(msh, cl, pt);
 
       for(size_t i = 0; i < gphi.size(); i++){
          ret += gradrec_coeff(i) * gphi.at(i);
@@ -97,20 +97,20 @@ namespace disk {
       void
       assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
       {
-         auto fcs = faces(msh, cl);
+         const auto fcs = faces(msh, cl);
          std::vector<size_t> l2g(fcs.size() * face_basis.size());
          for (size_t face_i = 0; face_i < fcs.size(); face_i++)
          {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
 
-            auto face_offset = face_id * face_basis.size();
+            const auto face_offset = face_id * face_basis.size();
 
-            auto pos = face_i * face_basis.size();
+            const auto pos = face_i * face_basis.size();
 
             for (size_t i = 0; i < face_basis.size(); i++)
                l2g[pos+i] = face_offset+i;
@@ -146,29 +146,29 @@ namespace disk {
       impose_boundary_conditions(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
                                  const std::vector<vector_type>& sol_lagr)
       {
-         size_t fbs = face_basis.size();
+         const size_t fbs = face_basis.size();
          size_t face_i = 0;
          for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
          {
             auto bfc = *itor;
 
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
 
-            auto face_offset = face_id * fbs;
-            auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
+            const auto face_offset = face_id * fbs;
+            const auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
 
-            auto fqd = face_quadrature.integrate(msh, bfc);
+            const auto fqd = face_quadrature.integrate(msh, bfc);
 
             matrix_type MFF     = matrix_type::Zero(fbs, fbs);
             vector_type rhs_f   = vector_type::Zero(fbs);
 
             for (auto& qp : fqd)
             {
-               auto f_phi = face_basis.eval_functions(msh, bfc, qp.point());
+               const auto f_phi = face_basis.eval_functions(msh, bfc, qp.point());
                MFF += qp.weight() * f_phi * f_phi.transpose();
                rhs_f += qp.weight() * f_phi * bc(qp.point());
             }
@@ -176,7 +176,7 @@ namespace disk {
 
             rhs_f -= MFF * sol_faces.at(face_id);
 
-            vector_type rhs_l = MFF * sol_lagr.at(face_i);
+            const vector_type rhs_l = MFF * sol_lagr.at(face_i);
 
             #ifdef FILL_COLMAJOR
             for (size_t j = 0; j < MFF.cols(); j++)
