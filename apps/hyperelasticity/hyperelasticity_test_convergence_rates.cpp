@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #include <iostream>
@@ -44,6 +50,13 @@
 
 #include "hyperelasticity_solver.hpp"
 
+/* TEST CONVERGENCE RATES FOR HYPERELASTICITY PROBLEMS
+* c.f. Article: Hybrid High-Order methods for finite deformations of hyperlastic problems
+* M. Abbas, A. Ern and N. Pignet
+* Computational Mechanics
+* DOI:
+*/
+
 struct error_type
 {
    size_t  degree;
@@ -52,6 +65,7 @@ struct error_type
    double error_depl;
    double error_grad;
    double error_energy;
+   double error_PK1;
 };
 
 
@@ -76,14 +90,13 @@ typename T, typename Storage>
 error_type
 run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
-   T alpha = 0.3;
+   // Load ans solutions
+   const T alpha = 0.3;
 
    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
-      T lambda = elas_param.lambda;
       T mu = elas_param.mu;
 
       T fx = 0.0;
@@ -117,16 +130,18 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy};
    };
 
-   std::vector<BoundaryType> boundary_neumann = {};
-   std::vector<BoundaryType> boundary_dirichlet = {};
+   const std::vector<BoundaryType> boundary_neumann = {};
+   const std::vector<BoundaryType> boundary_dirichlet = {};
 
+   // Solve the problem
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
    nl.compute_initial_state();
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann);
+   const SolverInfo solve_info = nl.compute(load, solution, neumann);
 
+   // Compute errors
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.m_face_degree;
@@ -134,11 +149,31 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp
    error.error_depl = 10E6;
    error.error_grad = 10E6;
    error.error_energy = 10E6;
+   error.error_PK1 = 10E6;
 
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
       error.error_grad = nl.compute_l2_gradient_error(gradient);
       error.error_energy = nl.compute_l2_error_energy(gradient);
+      error.error_PK1 = nl.compute_l2_error_PK1(gradient);
+   }
+
+   if(nl.verbose()){
+      std::cout << " " << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << "Summaring: " << std::endl;
+      std::cout << "Total Newton's iterations: " << solve_info.m_iter << " in " << solve_info.m_time_step << " load increments" << std::endl;
+      std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << std::endl;
+      std::cout << "**** Assembly time: " << solve_info.m_newton_info.m_assembly_info.m_time_assembly << " sec" << std::endl;
+      std::cout << "****** Gradient reconstruction: " << solve_info.m_newton_info.m_assembly_info.m_time_gradrec << " sec" << std::endl;
+      std::cout << "****** Stabilisation: " << solve_info.m_newton_info.m_assembly_info.m_time_stab << " sec" << std::endl;
+      std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
+      std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
+      std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_assembly_info.m_time_postpro << " sec" << std::endl;
+      std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << " " << std::endl;
    }
 
    return error;
@@ -150,43 +185,13 @@ typename T, typename Storage>
 error_type
 run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
    typedef static_matrix<T, 3, 3> result_grad_type;
 
-   // auto load = [](const point<T,3>& p) -> result_type {
-   //  !! A calculer
-   //    return result_type{0.0,0.0,0.0};
-   // };
-   //
-   // auto solution = [](const point<T,3>& p) -> result_type {
-   //    T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-   //    T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-   //    T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
-   //    return result_type{fx,fy,fz};
-   // };
-   //
-   //
-   // auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
-   //    static_matrix<T, 3, 3> g;
-   //    g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-   //    g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-   //    g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
-   //
-   //    g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-   //    g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-   //    g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
-   //
-   //    g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
-   //    g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
-   //    g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
-   //    return g;
-   // };
-
-   T alpha = 0.2;
-   T beta = 0.2;
-   T factor = 0.5;
-
+   // Load and solutions
+   const T alpha = 0.2;
+   const T beta = 0.2;
+   const T factor = 0.5;
 
    auto load = [elas_param, alpha,beta, factor](const point<T,3>& p) -> result_type {
       T fx = M_PI*M_PI*elas_param.mu*alpha * sin(M_PI*p.y());
@@ -231,18 +236,18 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
       return result_type{fx,fy,fz};
    };
 
-   std::vector<BoundaryType> boundary_neumann = {};
-   std::vector<BoundaryType> boundary_dirichlet = {};
+   const std::vector<BoundaryType> boundary_neumann = {};
+   const std::vector<BoundaryType> boundary_dirichlet = {};
 
-
+   // Solve
    hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
    nl.compute_initial_state();
 
+   const SolverInfo solve_info = nl.compute(load, solution, neumann);
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann);
-
+   // Compute errors
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.m_face_degree;
@@ -250,11 +255,31 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
    error.error_depl = 10E6;
    error.error_grad = 10E6;
    error.error_energy = 10E6;
+   error.error_PK1 = 10E6;
 
    if(nl.test_convergence()){
       error.error_depl = nl.compute_l2_error(solution);
       error.error_grad = nl.compute_l2_gradient_error(gradient);
       error.error_energy = nl.compute_l2_error_energy(gradient);
+      error.error_PK1 = nl.compute_l2_error_PK1(gradient);
+   }
+
+   if(nl.verbose()){
+      std::cout << " " << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << "Summaring: " << std::endl;
+      std::cout << "Total Newton's iterations: " << solve_info.m_iter << " in " << solve_info.m_time_step << " load increments" << std::endl;
+      std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << std::endl;
+      std::cout << "**** Assembly time: " << solve_info.m_newton_info.m_assembly_info.m_time_assembly << " sec" << std::endl;
+      std::cout << "****** Gradient reconstruction: " << solve_info.m_newton_info.m_assembly_info.m_time_gradrec << " sec" << std::endl;
+      std::cout << "****** Stabilisation: " << solve_info.m_newton_info.m_assembly_info.m_time_stab << " sec" << std::endl;
+      std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
+      std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
+      std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_assembly_info.m_time_postpro << " sec" << std::endl;
+      std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
+      std::cout << "------------------------------------------------------- " << std::endl;
+      std::cout << " " << std::endl;
    }
 
    return error;
@@ -269,10 +294,10 @@ printResults(const std::vector<error_type>& error)
       std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
 
       std::cout << "Convergence test for k = " << error[0].degree << std::endl;
-      std::cout << "--------------------------------------------------------------------------------------------------------------" << std::endl;
-      std::cout << "| Size mesh  | Displacement | Convergence |  Gradient  | Convergence |  Energy    | Convergence |    Total   |" << std::endl;
-      std::cout << "|    h       |   L2 error   |     rate    |  L2 error  |     rate    |  L2 error  |     rate    | faces DOF  |" << std::endl;
-      std::cout << "--------------------------------------------------------------------------------------------------------------" << std::endl;
+      std::cout << "-----------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      std::cout << "| Size mesh  | Displacement | Convergence |  Gradient  | Convergence |  Energy    | Convergence |     PK1    | Convergence |    Total   |" << std::endl;
+      std::cout << "|    h       |   L2 error   |     rate    |  L2 error  |     rate    |  L2 error  |     rate    |  L2 error  |     rate    | faces DOF  |" << std::endl;
+      std::cout << "-----------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
 
 
       std::string s_dof = " " + std::to_string(error[0].nb_dof) + "                  ";
@@ -280,21 +305,24 @@ printResults(const std::vector<error_type>& error)
 
       std::cout << "| " <<  error[0].h << " |  " << error[0].error_depl << "  | " << "     -     " << " | " <<
       error[0].error_grad <<  " | " << "     -     " << " | " <<
-      error[0].error_energy <<  " | " << "     -     "  <<  " | " << s_dof  <<  " |" << std::endl;
+      error[0].error_energy <<  " | " << "     -     "  <<  " | " <<
+      error[0].error_PK1 <<  " | " << "     -     "  <<  " | "<< s_dof  <<  " |" << std::endl;
 
       for(size_t i = 1; i < error.size(); i++){
          s_dof = " " + std::to_string(error[i].nb_dof) + "                  ";
          s_dof.resize(10);
-         double rate_depl = (log10(error[i-1].error_depl) - log10(error[i].error_depl))/(log10(error[i-1].h) - log10(error[i].h));
-         double rate_grad = (log10(error[i-1].error_grad) - log10(error[i].error_grad))/(log10(error[i-1].h) - log10(error[i].h));
-         double rate_ener = (log10(error[i-1].error_energy) - log10(error[i].error_energy))/(log10(error[i-1].h) - log10(error[i].h));
-         
+         const double rate_depl = (log10(error[i-1].error_depl) - log10(error[i].error_depl))/(log10(error[i-1].h) - log10(error[i].h));
+         const double rate_grad = (log10(error[i-1].error_grad) - log10(error[i].error_grad))/(log10(error[i-1].h) - log10(error[i].h));
+         const double rate_ener = (log10(error[i-1].error_energy) - log10(error[i].error_energy))/(log10(error[i-1].h) - log10(error[i].h));
+         const double rate_PK1 = (log10(error[i-1].error_PK1) - log10(error[i].error_PK1))/(log10(error[i-1].h) - log10(error[i].h));
+
          std::cout << "| " <<  error[i].h << " |  " << error[i].error_depl << "  |  " << rate_depl << " | " <<
          error[i].error_grad <<  " |  " << rate_grad << " | " <<
-         error[i].error_energy <<  " |  " << rate_ener   <<  " | " << s_dof <<  " |" << std::endl;
+         error[i].error_energy <<  " |  " << rate_ener   <<  " | " <<
+         error[i].error_PK1 <<  " |  " << rate_PK1   <<  " | "<< s_dof <<  " |" << std::endl;
       }
 
-      std::cout << "-----------------------------------------------------------------------------------------------------------" << std::endl;
+      std::cout << "-----------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
       std::cout << "  " <<std::endl;
       std::cout.flags( f );
    }
@@ -302,11 +330,11 @@ printResults(const std::vector<error_type>& error)
       std::cout << "The file error is empty" << std::endl;
 }
 
-
+// Mesh loaders
 template< typename T>
 void test_triangles_fvca5(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   size_t runs = 5;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
@@ -328,7 +356,7 @@ void test_triangles_fvca5(const ParamRun<T>& rp, const ElasticityParameters& ela
 template< typename T>
 void test_triangles_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   size_t runs = 5;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
@@ -445,7 +473,7 @@ void test_hexahedra_diskpp(const ParamRun<T>& rp, const ElasticityParameters& el
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-4-4-4.hex");
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-8-8-8.hex");
    paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-16-16-16.hex");
-   //paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-32-32-32.hex");
+   paths.push_back("../diskpp/meshes/3D_hexa/diskpp/testmesh-32-32-32.hex");
 
    std::vector<error_type> error_sumup;
 
@@ -467,7 +495,7 @@ void test_hexahedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& ela
    paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_4x4x4.msh");
    paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_8x8x8.msh");
    paths.push_back("../diskpp/meshes/3D_hexa/fvca6/hexa_16x16x16.msh");
-   //paths.push_back("../../../diskpp/meshes/3D_hexa/fvca6/hexa_32x32x32.hex");
+   paths.push_back("../../../diskpp/meshes/3D_hexa/fvca6/hexa_32x32x32.hex");
 
    std::vector<error_type> error_sumup;
 
@@ -501,29 +529,6 @@ void test_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& e
 
 
 template< typename T>
-void test2_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
-{
-   size_t runs = 5;
-
-   std::vector<std::string> paths;
-   paths.push_back("../diskpp/meshes/cube/cube1.mesh");
-   paths.push_back("../diskpp/meshes/cube/cube2.mesh");
-   paths.push_back("../diskpp/meshes/cube/cube3.mesh");
-   paths.push_back("../diskpp/meshes/cube/cube4.mesh");
-   paths.push_back("../diskpp/meshes/cube/cube5.mesh");
-
-   std::vector<error_type> error_sumup;
-
-   for(int i = 0; i < runs; i++){
-      auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
-      error_sumup.push_back(run_hyperelasticity_solver(msh, rp, elas_param));
-   }
-
-   printResults(error_sumup);
-}
-
-
-template< typename T>
 void test_polyhedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
    size_t runs = 3;
@@ -532,7 +537,7 @@ void test_polyhedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& ela
    paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_10.msh");
    paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_20.msh");
    paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_30.msh");
-   //paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_40.msh");
+   paths.push_back("../diskpp/meshes/3D_general/fvca6/dbls_40.msh");
 
    std::vector<error_type> error_sumup;
 
@@ -564,13 +569,11 @@ void test_tetrahedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& el
    printResults(error_sumup);
 }
 
-
+// Main
 int main(int argc, char **argv)
 {
    using RealType = double;
 
-   char    *mesh_filename  = nullptr;
-   char    *plot_filename  = nullptr;
    int     face_degree          = 1;
    int     cell_degree          = 0;
    int     grad_degree          = 0;
@@ -681,13 +684,6 @@ int main(int argc, char **argv)
       tc.tic();
       std::cout <<  "-Tetrahedras netgen:" << std::endl;
       test_tetrahedra_netgen<RealType>(rp, param);
-      tc.toc();
-      std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-      std::cout << " "<< std::endl;
-
-      tc.tic();
-      std::cout <<  "-Tetrahedras netgen 2: " << std::endl;
-      //test2_tetrahedra_netgen<RealType>(rp, param);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;

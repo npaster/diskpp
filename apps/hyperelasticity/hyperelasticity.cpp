@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #include <iostream>
@@ -51,7 +57,6 @@ template<template<typename, size_t , typename> class Mesh,
 void
 run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
 
@@ -104,62 +109,62 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 //       return grad;
 //    };
 
-//
-// T alpha = 0.3;
-//
-// auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
-//    T lambda = elas_param.lambda;
-//    T mu = elas_param.mu;
-//
-//    T fx = 0.0;
-//    T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
-//    return result_type{fx,fy};
-// };
-//
-// auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
-//    T lambda = elas_param.lambda;
-//    T fx = (1.0/lambda + alpha) * p.x();
-//    T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
-//
-//    return result_type{fx,fy};
-// };
-//
-// auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
-//    T lambda = elas_param.lambda;
-//    result_grad_type grad = result_grad_type::Zero();
-//
-//    grad(0,0) = (1.0/lambda + alpha);
-//    grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
-//    grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
-//
-//    return grad;
-// };
+
+T alpha = 0.3;
+
+auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
+   T lambda = elas_param.lambda;
+   T mu = elas_param.mu;
+
+   T fx = 0.0;
+   T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
+   return result_type{fx,fy};
+};
+
+auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
+   T lambda = elas_param.lambda;
+   T fx = (1.0/lambda + alpha) * p.x();
+   T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
+
+   return result_type{fx,fy};
+};
+
+auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
+   T lambda = elas_param.lambda;
+   result_grad_type grad = result_grad_type::Zero();
+
+   grad(0,0) = (1.0/lambda + alpha);
+   grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
+   grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
+
+   return grad;
+};
 
 
-   T r0 = 0.6; T R0 = 0.5;
-   T alpha = 1.0;// (r0 - R0)/R0;
-   auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
-      T lambda = elas_param.lambda;
-      T mu = elas_param.mu;
-
-      T fx = 0.0;
-      T fy = 0.0;
-      return result_type{fx,fy};
-   };
-
-   auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
-      T lambda = elas_param.lambda;
-      T fx = alpha *  p.x();
-      T fy = alpha *  p.y();
-
-      return result_type{fx,fy};
-   };
-
-   auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
-      T lambda = elas_param.lambda;
-      result_grad_type grad = result_grad_type::Zero();
-      return grad;
-   };
+//    T r0 = 0.6; T R0 = 0.5;
+//    T alpha = 1.0;// (r0 - R0)/R0;
+//    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
+//       T lambda = elas_param.lambda;
+//       T mu = elas_param.mu;
+// 
+//       T fx = 0.0;
+//       T fy = 0.0;
+//       return result_type{fx,fy};
+//    };
+// 
+//    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
+//       T lambda = elas_param.lambda;
+//       T fx = alpha *  p.x();
+//       T fy = alpha *  p.y();
+// 
+//       return result_type{fx,fy};
+//    };
+// 
+//    auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
+//       T lambda = elas_param.lambda;
+//       result_grad_type grad = result_grad_type::Zero();
+//       return grad;
+//    };
 
 
 
@@ -170,35 +175,36 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
       return result_type{fx,fy};
    };
 
-   BoundaryType N1;
-   N1.id = 7;//4,11
-   N1.boundary_type = FREE;
+//    BoundaryType N1;
+//    N1.id = 7;//4,11
+//    N1.boundary_type = FREE;
+// 
+// 
+//    BoundaryType N2;
+//    N2.id = 10;//14
+//    N2.boundary_type = FREE;
+// 
+// 
+//    BoundaryType N4;
+//    N4.id = 4;//14
+//    N4.boundary_type = NEUMANN;
 
-
-   BoundaryType N2;
-   N2.id = 10;//14
-   N2.boundary_type = FREE;
-
-
-   BoundaryType N4;
-   N4.id = 4;//14
-   N4.boundary_type = NEUMANN;
-
-   std::vector<BoundaryType> boundary_neumann = {N1, N2}; //by default 0 is for a dirichlet face
+   const std::vector<BoundaryType> boundary_neumann = {}; //by default 0 is for a dirichlet face
    // 4 for Aurrichio test1
 
 
-   BoundaryType d3;
-   d3.id = 3;
-   d3.boundary_type = CLAMPED;
+//    BoundaryType d3;
+//    d3.id = 3;
+//    d3.boundary_type = CLAMPED;
+// 
+// 
+//    BoundaryType d1;
+//    d1.id = 1;
+//    d1.boundary_type = DX;
 
+   const std::vector<BoundaryType> boundary_dirichlet = {};
 
-   BoundaryType d1;
-   d1.id = 1;
-   d1.boundary_type = DX;
-
-   std::vector<BoundaryType> boundary_dirichlet = {};
-
+   // Solve
    hyperelasticity_solver<Mesh, T, 2, Storage,  point<T, 2> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
@@ -209,27 +215,27 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
       std::cout << "Solving the problem ..."  << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann);
+   const SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
       std::cout << "------------------------------------------------------- " << std::endl;
       std::cout << "Summaring: " << std::endl;
+      std::cout << "Total Newton's iterations: " << solve_info.m_iter << " in " << solve_info.m_time_step << " load increments" << std::endl;
       std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << std::endl;
       std::cout << "**** Assembly time: " << solve_info.m_newton_info.m_assembly_info.m_time_assembly << " sec" << std::endl;
       std::cout << "****** Gradient reconstruction: " << solve_info.m_newton_info.m_assembly_info.m_time_gradrec << " sec" << std::endl;
       std::cout << "****** Stabilisation: " << solve_info.m_newton_info.m_assembly_info.m_time_stab << " sec" << std::endl;
       std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
       std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
-      std::cout << "       *** Adaptative stabilization: " << solve_info.m_newton_info.m_assembly_info.m_time_adapt_stab << " sec" << std::endl;
       std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_assembly_info.m_time_postpro << " sec" << std::endl;
       std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
-      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_postprocess_info.m_time_post << " sec" << std::endl;
       std::cout << "------------------------------------------------------- " << std::endl;
       std::cout << " " << std::endl;
    }
 
-
+   // PostProcessing
    if(nl.test_convergence()){
       std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
       std::cout << "l2 error displacement: " << nl.compute_l2_error(solution) << std::endl;
@@ -254,7 +260,6 @@ template<template<typename, size_t, typename> class Mesh,
 void
 run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, const ElasticityParameters elas_param)
 {
-   typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
    typedef static_matrix<T, 3, 3> result_grad_type;
 
@@ -325,7 +330,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //       return factor*grad;
 //    };
 
-
+   //load and solutions
    auto load = [](const point<T,3>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
@@ -350,6 +355,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       return result_type{fx,fy,fz};
    };
 
+   // Define Boundary Conditions
    BoundaryType N1;
    N1.id = 19;//4 cyl
    N1.boundary_type = FREE;
@@ -358,14 +364,15 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    N2.id = 11;
    N2.boundary_type = FREE;
 
-   std::vector<BoundaryType> boundary_neumann = {N1, N2};
+   const std::vector<BoundaryType> boundary_neumann = {N1, N2};
 
    BoundaryType D1;
    D1.id = 18;
    D1.boundary_type = CLAMPED;
 
-   std::vector<BoundaryType> boundary_dirichlet = {};
+   const std::vector<BoundaryType> boundary_dirichlet = {};
 
+   // Solve
    hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> >
       nl(msh, rp, elas_param, boundary_neumann, boundary_dirichlet);
 
@@ -375,26 +382,27 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       std::cout << "Solving the problem ..." << '\n';
    }
 
-   SolverInfo solve_info = nl.compute(load, solution, neumann);
+   const SolverInfo solve_info = nl.compute(load, solution, neumann);
 
    if(nl.verbose()){
       std::cout << " " << std::endl;
       std::cout << "------------------------------------------------------- " << std::endl;
       std::cout << "Summaring: " << std::endl;
+      std::cout << "Total Newton's iterations: " << solve_info.m_iter << " in " << solve_info.m_time_step << " load increments" << std::endl;
       std::cout << "Total time to solve the problem: " << solve_info.m_time_solver << " sec" << std::endl;
       std::cout << "**** Assembly time: " << solve_info.m_newton_info.m_assembly_info.m_time_assembly << " sec" << std::endl;
       std::cout << "****** Gradient reconstruction: " << solve_info.m_newton_info.m_assembly_info.m_time_gradrec << " sec" << std::endl;
       std::cout << "****** Stabilisation: " << solve_info.m_newton_info.m_assembly_info.m_time_stab << " sec" << std::endl;
       std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
       std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
-      std::cout << "       *** Adaptative stabilization: " << solve_info.m_newton_info.m_assembly_info.m_time_adapt_stab << " sec" << std::endl;
       std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_postprocess_info.m_time_postpro << " sec" << std::endl;
       std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
-      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_postprocess_info.m_time_post << " sec" << std::endl;
       std::cout << "------------------------------------------------------- " << std::endl;
       std::cout << " " << std::endl;
    }
 
+   // PostProcessing
    if(nl.test_convergence()){
       //std::cout << "avrage diameter h: " << average_diameter(msh) << std::endl;
       //std::cout << "l2 error: " << nl.compute_l2_error(solution) << std::endl;
@@ -418,13 +426,12 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    nl.compute_discontinuous_VMIS(name +"VM.msh");
 }
 
-
+//Main
 int main(int argc, char **argv)
 {
     using RealType = double;
 
     char    *mesh_filename  = nullptr;
-    char    *plot_filename  = nullptr;
     int face_degree, cell_degree, grad_degree, l;
 
     face_degree = 0; cell_degree = 0; grad_degree = 0;
@@ -437,6 +444,7 @@ int main(int argc, char **argv)
     param.lambda = 1.0;
     param.type_law = 1;
 
+    //Read Parameters
     int ch;
 
     while ( (ch = getopt(argc, argv, "g:k:l:p:r:s:v:w")) != -1 )

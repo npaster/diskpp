@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #pragma once
@@ -28,14 +34,6 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
-/*
-Fichier pour gérer les lois de comportements
--faire une boite qui prends en entrée eps --> behaviorbox --> stress
--penser aux variables internes pour sauvegarder partie elastique
-- utilise t on des tenseur pour le module tangent
-*/
-
 
 
 /* Material: Neo-nookean
@@ -72,7 +70,7 @@ class NeoHookeanLaw
    const size_t maxtype = 6;
 
    scalar_type
-   compute_U(scalar_type J)
+   compute_U(scalar_type J) const
    {
       if(m_type == 1)
          return log(J);
@@ -94,7 +92,7 @@ class NeoHookeanLaw
 
 
    scalar_type
-   compute_T1(scalar_type J)
+   compute_T1(scalar_type J) const
    {
       if(m_type == 1)
          return log(J);
@@ -115,7 +113,7 @@ class NeoHookeanLaw
    }
 
    scalar_type
-   compute_T2(scalar_type J)
+   compute_T2(scalar_type J) const
    {
       if(m_type == 1)
          return 1.0;
@@ -192,11 +190,12 @@ public:
 
    template< int DIM>
    scalar_type
-   compute_energy(const static_matrix<scalar_type, DIM, DIM>& F)
+   compute_energy(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
+      if(J <= 0.0){
          throw std::invalid_argument("J <= 0");
+      }
 
       const scalar_type Wiso = m_mu/2.0 * ((F.transpose() * F).trace() - DIM);
       const scalar_type Wvol = m_lambda /2.0 * compute_U(J) * compute_U(J) - m_mu * log(J);
@@ -206,11 +205,12 @@ public:
 
    template< int DIM>
    static_matrix<scalar_type, DIM, DIM>
-   compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
+   compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
+      if(J <= 0.0){
          throw std::invalid_argument("J <= 0");
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const scalar_type T1 = compute_T1(J);
@@ -221,11 +221,12 @@ public:
 
    template<int DIM>
    static_tensor<scalar_type, DIM>
-   compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F)
+   compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
+      if(J <= 0.0){
          throw std::invalid_argument("J <= 0");
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
@@ -243,11 +244,12 @@ public:
 
    template<int DIM>
    std::pair<static_matrix<scalar_type, DIM, DIM>, static_tensor<scalar_type, DIM> >
-   compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F)
+   compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
+      if(J <= 0.0){
          throw std::invalid_argument("J <= 0");
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();

@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
  // NewtonRaphson_solver
@@ -79,12 +85,12 @@ public:
    void    verbose(bool v)         { m_verbose = v; }
 
 
-    void
-    initialize( const std::vector<vector_dynamic>& initial_solution_cells,
-                const std::vector<vector_dynamic>& initial_solution_faces,
-                const std::vector<vector_dynamic>& initial_solution_lagr,
-                const std::vector<vector_dynamic>& initial_solution)
-    {
+   void
+   initialize( const std::vector<vector_dynamic>& initial_solution_cells,
+               const std::vector<vector_dynamic>& initial_solution_faces,
+               const std::vector<vector_dynamic>& initial_solution_lagr,
+               const std::vector<vector_dynamic>& initial_solution)
+   {
       m_solution_cells.clear();
       m_solution_cells = initial_solution_cells;
       assert(m_msh.cells_size() == m_solution_cells.size());
@@ -100,10 +106,10 @@ public:
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
 
-    }
+   }
 
-    template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
-    NewtonSolverInfo
+   template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
+   NewtonSolverInfo
    compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
             const std::vector<matrix_dynamic>& gradient_precomputed)
    {
@@ -111,123 +117,81 @@ public:
       timecounter tc;
       tc.tic();
 
-      const scalar_type epsilon = m_rp.m_epsilon;
-      scalar_type beta = m_rp.m_beta_init;
-      bool beta_convergence = true;
-      bool stab_convergence = true;
-      const scalar_type epsilon_sqrt = sqrt(epsilon);
-      scalar_type residu_previous(2.0);
       scalar_type residu(2.0);
-      bool auricchio = true;
-
-      //initialise the NewtonRaphson_step
-      NewtonRaphson_step_hyperelasticity<BQData>
-         newton_step(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
-
-      newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
-      newton_step.verbose(m_verbose);
-      newton_step.setBeta(beta);
-      newton_step.setStabilization(m_rp.m_stab_init);
-
+      bool auricchio(false);
+      bool postpro (false);
       m_convergence = false;
 
       size_t nb_negative_ev_init = 0;
 
-      //Stabilisation ?
-      if(m_rp.m_stab){
-         //adaptative stabilisation
-         if(m_rp.m_adapt_stab)
-            stab_convergence = false;
-         //adaptative stabilisation
-         if(m_rp.m_adapt_coeff)
-            beta_convergence = false;
-      }
+      // Initialise the NewtonRaphson_step
+      NewtonRaphson_step_hyperelasticity<BQData>
+      newton_step(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
 
-      // loop
+      newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+      newton_step.verbose(m_verbose);
+      newton_step.setBeta(m_rp.m_beta_init);
+      newton_step.setStabilization(m_rp.m_stab_init);
+
+      // Newton iteration
       for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
-         // if(m_verbose){
-         //    std::cout << "beta: " << beta << '\n';
-         //    std::cout << "stab: " << newton_step.printStabilization() << '\n';
-         // }
-          //assemble lhs and rhs
-          AssemblyInfo assembly_info;
-          try {
-             assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed);
-          }
-          catch(const std::invalid_argument& ia){
-                std::cerr << "Invalid argument: " << ia.what() << std::endl;
-                m_convergence = false;
-                tc.toc();
-                ni.m_time_newton = tc.to_double();
-                return ni;
-          }
 
-          if(m_rp.m_compute_energy and m_verbose){
-             std::array<scalar_type,2> energy = newton_step.compute_energy();
-             std::cout << "Compute elastic energy:" << std::endl;
-             std::cout << " - Elastic energy: " << energy[0]  << std::endl;
-             std::cout << " - Stabilisation energy: " << energy[1]  << std::endl;
-          }
+         if(iter == 0){
+            postpro = false;
+         }
+         else {
+            postpro = true;
+         }
 
-          ni.updateAssemblyInfo( assembly_info);
+         //Assemble lhs and rhs
+         AssemblyInfo assembly_info;
+         try {
+            assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed, postpro);
+         }
+         catch(const std::invalid_argument& ia){
+            std::cerr << "Invalid argument: " << ia.what() << std::endl;
+            m_convergence = false;
+            tc.toc();
+            ni.m_time_newton = tc.to_double();
+            return ni;
+         }
 
-         //if(iter < (iter_max-1) && !m_convergence){
-            // solve the global system
-            SolveInfo solve_info = newton_step.solve();
-            ni.updateSolveInfo(solve_info);
+         // Update timming
+         ni.updateAssemblyInfo( assembly_info);
 
-            // update unknowns
-            PostprocessInfo post_info = newton_step.postprocess(lf, gradient_precomputed);
-            ni.updatePostProcessInfo(post_info);
-            newton_step.update_solution();
+         // Compute energy
+         if(m_rp.m_compute_energy and m_verbose){
+            std::array<scalar_type,2> energy = newton_step.compute_energy();
+            std::cout << "Compute elastic energy:" << std::endl;
+            std::cout << " - Elastic energy: " << energy[0]  << std::endl;
+            std::cout << " - Stabilisation energy: " << energy[1]  << std::endl;
+         }
 
-            // test convergence
-            residu_previous = residu;
-            m_convergence = newton_step.test_convergence(epsilon, iter, residu);
+         // Test convergence
+         m_convergence = newton_step.test_convergence(m_rp.m_epsilon, iter, residu);
 
-            if(m_rp.m_stab){
-               /// Stabilisation
-               /// Adaptative Stabilization ///
-               if(m_rp.m_adapt_stab and beta_convergence){
-                  if(!stab_convergence and residu < epsilon){
-                     stab_convergence = true;
-                     m_convergence = false;
-                     newton_step.setStabilization(m_rp.m_stab_obj);
-                  }
-               }
-               /// Adaptative Coefficient ///
-               if(m_rp.m_adapt_coeff){
-                  if(residu > residu_previous && residu > epsilon){
-                     beta *= 10;
-                     beta = std::min(beta, m_rp.m_beta_max);
-                  }
-                  else if(residu < epsilon && !beta_convergence ){
-                     beta = m_rp.m_beta_obj;
-                     beta_convergence = true;
-                     m_convergence = false;
-                  }
-                  else if(residu < epsilon_sqrt && !beta_convergence)
-                     beta /= 10;
-
-                  newton_step.setBeta(beta);
-               }
-            }
-
-         //}
-         //test sortie
-         if(m_convergence and beta_convergence and stab_convergence)
+         // Stop if convergence
+         if(m_convergence)
             break;
+
+         // Solve the global system
+         const SolveInfo solve_info = newton_step.solve();
+         ni.updateSolveInfo(solve_info);
+
+         //Update iteration
+         ni.m_iter++;
+
       }
 
-      if(auricchio){
-         size_t nb_negative_ev = newton_step.test_aurrichio();
-         std::cout << "nb_lag: " << m_boundary_condition.nb_lag()* m_bqd.face_basis.size()/m_msh.dimension << '\n';
-         if(nb_negative_ev > (m_bqd.face_basis.size() * m_boundary_condition.nb_lag()/m_msh.dimension))
-            std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
-      }
+      //       if(auricchio){
+      //          size_t nb_negative_ev = newton_step.test_aurrichio();
+      //          std::cout << "nb_lag: " << m_boundary_condition.nb_lag()* m_bqd.face_basis.size()/m_msh.dimension << '\n';
+      //          if(nb_negative_ev > (m_bqd.face_basis.size() * m_boundary_condition.nb_lag()/m_msh.dimension))
+      //             std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
+      //       }
 
-      if(!m_convergence)
-         m_convergence = newton_step.test_convergence(1E-4, m_rp.m_iter_max, residu);
+      //       if(!m_convergence)
+      //          m_convergence = newton_step.test_convergence(1E-4, m_rp.m_iter_max, residu);
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
@@ -240,11 +204,11 @@ public:
    bool test_convergence() const {return m_convergence;}
 
    void
-    save_solutions( std::vector<vector_dynamic>& solution_cells,
-                    std::vector<vector_dynamic>& solution_faces,
-                    std::vector<vector_dynamic>& solution_lagr,
-                    std::vector<vector_dynamic>& solution)
-    {
+   save_solutions( std::vector<vector_dynamic>& solution_cells,
+                   std::vector<vector_dynamic>& solution_faces,
+                   std::vector<vector_dynamic>& solution_lagr,
+                   std::vector<vector_dynamic>& solution) const
+   {
       solution_cells.clear();
       solution_cells = m_solution_cells;
       assert(m_solution_cells.size() == solution_cells.size());
@@ -260,6 +224,6 @@ public:
       solution.clear();
       solution = m_solution_data;
       assert(m_solution_data.size() == solution.size());
-    }
+   }
 
 };
