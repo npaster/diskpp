@@ -2370,8 +2370,10 @@ class Raviart_Thomas_matrix_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>:
    typedef priv::monomial_basis_bones<2,2>           base;
 
    typedef disk::scaled_monomial_scalar_basis<mesh_type, cell_type>    scaled_monomial_scalar_cell_basis_type;
+   typedef disk::scaled_monomial_matrix_basis<mesh_type, cell_type>    scaled_monomial_matrix_cell_basis_type;
 
    scaled_monomial_scalar_cell_basis_type smscb;
+   scaled_monomial_matrix_cell_basis_type smmcb;
 
 public:
    typedef static_matrix<T,2,2>              function_value_type;
@@ -2379,33 +2381,47 @@ public:
    Raviart_Thomas_matrix_basis()
    : base(1)
    {
-      smscb = scaled_monomial_scalar_cell_basis_type(this->degree());
+      smscb = scaled_monomial_scalar_cell_basis_type(this->degree()-1);
+      smmcb = scaled_monomial_matrix_cell_basis_type(this->degree()-1);
    }
 
    Raviart_Thomas_matrix_basis(size_t degree)
    : base(degree)
    {
-      smscb = scaled_monomial_scalar_cell_basis_type(this->degree());
+      smscb = scaled_monomial_scalar_cell_basis_type(this->degree()-1);
+      smmcb = scaled_monomial_matrix_cell_basis_type(this->degree()-1);
    }
 
    //overloaded function
 
    size_t size() const {
-      return 2*(this->degree()+1) * (this->degree()+3);
+      const size_t degree = this->degree() - 1;
+      return 2*(degree+1) * (degree+3);
    }
 
    size_t computed_size() const {
-      return 2*(this->computed_degree()+1) * (this->computed_degree()+3);
+      const size_t computed_degree = this->computed_degree() - 1;
+      return 2*(computed_degree+1) * (computed_degree+3);
    }
 
    dof_range range(const size_t min_degree, const size_t max_degree) const
    {
+      const size_t degree = this->degree() - 1;
       const dof_range vector_range = base::range(min_degree, max_degree);
-
-      if(max_degree == computed_degree())
-         return dof_range(2*vector_range.min(), 2*(vector_range.max() + (max_degree + 1)));
-      else
+      if(max_degree <= degree){
          return dof_range(2*vector_range.min(), 2*vector_range.max());
+      }
+      else if(max_degree == this->degree()){
+         if(min_degree < this->degree()){
+            return dof_range(2*vector_range.min(), 2*(degree+1) * (degree+3));
+         }
+         else{
+            return dof_range(2*(base::size()+1), 2*(degree+1) * (degree+3));
+         }
+      }
+      else{
+         return dof_range(2*vector_range.min(), 2*vector_range.max());
+      }
    }
 
    dof_range range() const {
@@ -2421,37 +2437,20 @@ public:
    std::vector<function_value_type>
    eval_functions(const mesh_type& msh, const cell_type& cl, const point<T,2>& pt) const
    {
-      auto bar = barycenter(msh, cl);
-      auto h = measure(msh, cl);
-
-      auto ep = (pt - bar)/h;
-
       std::vector<function_value_type> ret;
-      ret.reserve( 2*(this->degree()+1) * (this->degree()+3));
-
+      const size_t poly_degree = this->degree()-1;
+      ret.reserve(2*(poly_degree+1) * (poly_degree+3));
 
       // basis functions of P^k_d(T; R^d)
-      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
-      {
-         const auto m = *itor;
-         const auto vx = iexp_pow(ep.x(), m[0]);
-         const auto vy = iexp_pow(ep.y(), m[1]);
-         const auto val = vx * vy;
+      const auto smmcb_phi = smmcb.eval_functions(msh, cl, pt);
 
-         function_value_type fc;
-
-         for( size_t j = 0; j < 2; j++){
-            for( size_t i = 0; i < 2; i++){
-               fc = function_value_type::Zero();
-               fc(i,j) = val;
-               ret.push_back(fc);
-            }
-         }
+      for (size_t i = 0; i < smmcb_phi.size(); i++){
+         ret.push_back(smmcb_phi[i]);
       }
 
       // basis functions of P^k,H_d(T; R)
-      const auto smscb_phi = smscb.eval_functions(msh, cl, pt, this->degree(), this->degree());
-      const size_t dim_PHk = (this->degree() + 1);
+      const auto smscb_phi = smscb.eval_functions(msh, cl, pt, poly_degree, poly_degree);
+      const size_t dim_PHk = (poly_degree + 1);
       assert( smscb_phi.rows() == dim_PHk);
 
       // basis functions of x*P^k,H_d(T; R)
@@ -2471,6 +2470,8 @@ public:
          }
       }
 
+      assert(2*(poly_degree+1) * (poly_degree+3) == (2*dim_PHk +smmcb_phi.size()));
+
       return ret;
    }
 
@@ -2484,8 +2485,9 @@ class Raviart_Thomas_matrix_basis<Mesh<T,2,Storage>, typename Mesh<T,2,Storage>:
    typedef typename mesh_type::face                face_type;
    typedef priv::monomial_basis_bones<1,2>           base;
    typedef disk::scaled_monomial_scalar_basis<mesh_type, face_type>    scaled_monomial_scalar_face_basis_type;
-
+   typedef disk::scaled_monomial_matrix_basis<mesh_type, face_type>    scaled_monomial_matrix_face_basis_type;
    scaled_monomial_scalar_face_basis_type smsfb;
+   scaled_monomial_matrix_face_basis_type smmfb;
 
 public:
    typedef static_matrix<T,2,2>                      function_value_type;
@@ -2493,34 +2495,48 @@ public:
    Raviart_Thomas_matrix_basis()
    : base(1)
    {
-      smsfb = scaled_monomial_scalar_face_basis_type(this->degree());
+      smsfb = scaled_monomial_scalar_face_basis_type(this->degree()-1);
+      smmfb = scaled_monomial_matrix_face_basis_type(this->degree()-1);
    }
 
    Raviart_Thomas_matrix_basis(size_t degree)
    : base(degree)
    {
-      smsfb = scaled_monomial_scalar_face_basis_type(this->degree());
+      smsfb = scaled_monomial_scalar_face_basis_type(this->degree()-1);
+      smmfb = scaled_monomial_matrix_face_basis_type(this->degree()-1);
    }
 
 
    //overloaded function
 
    size_t size() const {
-      return 2*(this->degree()+1) * (this->degree()+3);
+      const size_t degree = this->degree() - 1;
+      return 2*(degree+1) * (degree+3);
    }
 
    size_t computed_size() const {
-      return 2*(this->computed_degree()+1) * (this->computed_degree()+3);
+      const size_t computed_degree = this->computed_degree() - 1;
+      return 2*(computed_degree+1) * (computed_degree+3);
    }
 
    dof_range range(const size_t min_degree, const size_t max_degree) const
    {
+      const size_t degree = this->degree() - 1;
       const dof_range vector_range = base::range(min_degree, max_degree);
-
-      if(max_degree == computed_degree())
-         return dof_range(2*vector_range.min(), 2*(vector_range.max() + (max_degree + 1)));
-      else
+      if(max_degree <= degree){
          return dof_range(2*vector_range.min(), 2*vector_range.max());
+      }
+      else if(max_degree == this->degree()){
+         if(min_degree < this->degree()){
+            return dof_range(2*vector_range.min(), 2*(degree+1) * (degree+3));
+         }
+         else{
+            return dof_range(2*(base::size()+1), 2*(degree+1) * (degree+3));
+         }
+      }
+      else{
+         return dof_range(2*vector_range.min(), 2*vector_range.max());
+      }
    }
 
    dof_range range() const {
@@ -2536,39 +2552,20 @@ public:
    std::vector<function_value_type>
    eval_functions(const mesh_type& msh, const face_type& fc, const point<T,2>& pt) const
    {
-      const auto pts = points(msh, fc);
-      const auto bar = barycenter(msh, fc);
-      const auto h = diameter(msh, fc);
-      const auto v = (pts[1] - pts[0]).to_vector();
-      const auto t = (pt - bar).to_vector();
-      const T dot = v.dot(t);
-      const auto ep = point<T, 1>({dot/(h*h)});
-
       std::vector<function_value_type> ret;
-      ret.reserve(2*(this->degree()+1) * (this->degree()+3));
+      const size_t poly_degree = this->degree()-1;
+      ret.reserve(2*(poly_degree+1) * (poly_degree+3));
 
       // basis functions of P^k_d(T; R^d)
-      for (auto itor = this->monomials_begin(); itor != this->monomials_end(); itor++)
-      {
-         const auto m = *itor;
-         const auto vx = iexp_pow(ep.x(), m[0]);
+      const auto smmfb_phi = smmfb.eval_functions(msh, fc, pt);
 
-         const auto val = vx ;
-
-         function_value_type fc;
-
-         for( size_t j = 0; j < 2; j++){
-            for( size_t i = 0; i < 2; i++){
-               fc = function_value_type::Zero();
-               fc(i,j) = val;
-               ret.push_back(fc);
-            }
-         }
+      for (size_t i = 0; i < smmfb_phi.size(); i++){
+         ret.push_back(smmfb_phi[i]);
       }
 
       // basis functions of P^k,H_d(T; R)
-      const auto smsfb_phi = smsfb.eval_functions(msh, fc, pt, this->degree(), this->degree());
-      const size_t dim_PHk = this->degree() + 1;
+      const auto smsfb_phi = smsfb.eval_functions(msh, fc, pt, poly_degree, poly_degree);
+      const size_t dim_PHk = poly_degree + 1;
       assert( smsfb_phi.rows() == dim_PHk);
 
       // basis functions of x*P^k,H_d(T; R)

@@ -76,45 +76,44 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
    typedef static_matrix<T, 2, 2> result_grad_type;
-   
+
    timecounter tc;
    tc.tic();
-   
+
    auto load = [material_data](const point<T,2>& p) -> result_type {
       T fx = 2.*material_data.lambda*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
       T fy = 2.*material_data.lambda*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto solution = [material_data](const point<T,2>& p) -> result_type {
       T fx = sin(M_PI*p.x())*sin(M_PI*p.y());
       T fy = cos(M_PI*p.x())*cos(M_PI*p.y());
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto gradient = [material_data](const point<T,2>& p) -> result_grad_type {
-      T lambda = material_data.lambda;
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0,0) = cos(M_PI*p.x())*sin(M_PI*p.y());
       grad(0,1) = sin(M_PI*p.x())*cos(M_PI*p.y());
       grad(1,0) = -sin(M_PI*p.x())*cos(M_PI*p.y());
       grad(1,1) = -cos(M_PI*p.x())*sin(M_PI*p.y());
       return M_PI*grad;
    };
-   
-   
+
+
    vector_laplacian_solver<mesh_type> vl(msh, rp.degree, rp.l);
    vl.verbose(false);
-   
+
    vl.changeLaplacianParameters(material_data);
-   
-   assembly_info assembling_info = vl.assemble(load, solution);
-   solver_info solve_info = vl.solve();
-   postprocess_info post_info = vl.postprocess(load);
-   
+
+   const assembly_info assembling_info = vl.assemble(load, solution);
+   const solver_info solve_info = vl.solve();
+   const postprocess_info post_info = vl.postprocess(load);
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.degree;
@@ -134,56 +133,54 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
    typedef static_matrix<T, 3, 3> result_grad_type;
-   
+
    timecounter tc;
    tc.tic();
-   
-   
+
+
    auto load = [material_data](const point<T,3>& p) -> auto {
-      T lambda = material_data.lambda;
       T fx = 2.*material_data.lambda*M_PI*M_PI *cos(M_PI*p.x())*sin(M_PI*p.y());
-      
+
       T fy = 2.*material_data.lambda*M_PI*M_PI *cos(M_PI*p.y())*sin(M_PI*p.z());
-      
+
       T fz = 2.*material_data.lambda*M_PI*M_PI *cos(M_PI*p.z())*sin(M_PI*p.x());
-      
+
       return result_type{fx,fy,fz};
    };
-   
+
    auto solution = [material_data](const point<T,3>& p) -> auto {
       T fx = cos(M_PI*p.x())*sin(M_PI*p.y());
       T fy = cos(M_PI*p.y())*sin(M_PI*p.z());
       T fz = cos(M_PI*p.z())*sin(M_PI*p.x());
       return result_type{fx,fy,fz};
    };
-   
-   
+
+
    auto gradient = [material_data](const point<T,3  >& p) -> result_grad_type {
-      T lambda = material_data.lambda;
       result_grad_type grad = result_grad_type::Zero();
-      
+
       grad(0,0) = -sin(M_PI*p.x())*sin(M_PI*p.y()); grad(0,1) = cos(M_PI*p.x())*cos(M_PI*p.y());
       grad(1,1) = -sin(M_PI*p.y())*sin(M_PI*p.z()); grad(1,2) = cos(M_PI*p.y())*cos(M_PI*p.z());
       grad(2,2) = -sin(M_PI*p.z())*sin(M_PI*p.x()); grad(2,0) = cos(M_PI*p.z())*cos(M_PI*p.x());
       return M_PI*grad;
    };
-   
+
    vector_laplacian_solver<mesh_type> vl(msh, rp.degree, rp.l);
    vl.verbose(false);
-   
+
    vl.changeLaplacianParameters(material_data);
-   
-   assembly_info assembling_info = vl.assemble(load, solution);
-   solver_info solve_info = vl.solve();
-   postprocess_info post_info = vl.postprocess(load);
-   
+
+   const assembly_info assembling_info = vl.assemble(load, solution);
+   const solver_info solve_info = vl.solve();
+   const postprocess_info post_info = vl.postprocess(load);
+
    error_type error;
    error.h = average_diameter(msh);
    error.degree = rp.degree;
    error.nb_dof = vl.getDofs();
    error.error_depl = vl.compute_l2_error(solution);
    error.error_grad = vl.compute_l2_gradient_error(gradient);
-   
+
    return error;
 }
 
@@ -230,17 +227,17 @@ printResults(const std::vector<error_type>& error)
 template< typename T>
 void test_triangles_fvca5(const run_params& rp, LaplacianParameters material_data)
 {
-   size_t runs = 5;
-   
+   size_t runs = 4;
+
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_2.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_3.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_4.typ1");
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -252,17 +249,17 @@ void test_triangles_fvca5(const run_params& rp, LaplacianParameters material_dat
 template< typename T>
 void test_triangles_netgen(const run_params& rp, LaplacianParameters material_data)
 {
-   size_t runs = 5;
-   
+   size_t runs = 4;
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri02.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri03.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri04.mesh2d");
    paths.push_back("../diskpp/meshes/2D_triangles/netgen/tri05.mesh2d");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -276,16 +273,16 @@ template< typename T>
 void test_hexagons(const run_params& rp, LaplacianParameters material_data)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
    paths.push_back("../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -298,16 +295,16 @@ template< typename T>
 void test_kershaws(const run_params& rp, LaplacianParameters material_data)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_2.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_4.typ1");
    paths.push_back("../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -320,16 +317,16 @@ template< typename T>
 void test_quads_fvca5(const run_params& rp, LaplacianParameters material_data)
 {
    size_t runs = 5;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_1.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_2.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_3.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_4.typ1");
    paths.push_back("../diskpp/meshes/2D_quads/fvca5/mesh2_5.typ1");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -342,16 +339,16 @@ template< typename T>
 void test_quads_diskpp(const run_params& rp, LaplacianParameters material_data)
 {
    size_t runs = 4;
-   
+
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-32-32.quad");
    paths.push_back("../diskpp/meshes/2D_quads/diskpp/testmesh-256-256.quad");
-   
+
    std::vector<error_type> error_sumup;
-   
+
    for(size_t i = 0; i < runs; i++){
       auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
       error_sumup.push_back(run_vector_laplacian_solver(msh, rp, material_data));
@@ -469,8 +466,6 @@ int main(int argc, char **argv)
 {
    using RealType = double;
 
-   char    *mesh_filename  = nullptr;
-   char    *plot_filename  = nullptr;
    int     degree          = 1;
    int     l               = 0;
    bool three_dimensions = false;
@@ -479,12 +474,12 @@ int main(int argc, char **argv)
    rp.degree   = 1;
    rp.l        = 0;
    rp.verbose  = false;
-   
+
    LaplacianParameters material_data;
-   
+
    material_data.lambda = 1.0;
 
-   
+
 
    int ch;
 
@@ -493,9 +488,9 @@ int main(int argc, char **argv)
       switch(ch)
       {
          case '2': three_dimensions = false; break;
-         
+
          case '3': three_dimensions = true; break;
-         
+
          case 'k':
             degree = atoi(optarg);
             if (degree < 0)
@@ -517,7 +512,7 @@ int main(int argc, char **argv)
             break;
 
          case 'v': rp.verbose = true; break;
-         
+
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -574,51 +569,51 @@ int main(int argc, char **argv)
       std::cout << " "<< std::endl;
    }
    else{
-      
+
       tc.tic();
       std::cout << "-Triangles fvca5:" << std::endl;
       test_triangles_fvca5<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout <<  "-Triangles netgen:" << std::endl;
       test_triangles_netgen<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles fvca5:"  << std::endl;
       test_quads_fvca5<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
       tc.tic();
       std::cout << "-Quadrangles diskpp:"  << std::endl;
       test_quads_diskpp<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Hexagons:"  << std::endl;
       test_hexagons<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
-      
+
+
       tc.tic();
       std::cout << "-Kershaws:"  << std::endl;
       test_kershaws<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
-      
+
    }
 
 }

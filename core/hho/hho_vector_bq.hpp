@@ -264,7 +264,7 @@ namespace disk {
          {
             const size_t grad_basis_size = gphi.size();
             const size_t grad_degree = m_bqd.grad_degree();
-            const size_t poly_space = DIM * DIM * binomial(grad_degree + DIM, grad_degree);
+            const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
             const size_t DIM2 = DIM * DIM;
 
             matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
@@ -302,7 +302,7 @@ namespace disk {
             const size_t grad_basis_size = gphi.size();
             const size_t cell_basis_size = cdphi.size();
             const size_t grad_degree = m_bqd.grad_degree();
-            const size_t poly_space = DIM * DIM * binomial(grad_degree + DIM, grad_degree);
+            const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
             const size_t DIM2 = DIM * DIM;
 
             matrix_type BG = matrix_type::Zero(grad_basis_size, cell_basis_size);
@@ -984,13 +984,10 @@ namespace disk {
                const auto BG_row_range = cell_basis.range(1, cell_degree + 1);
                const auto BG_col_range = cell_basis.range(0, cell_degree);
 
-
                const auto fcs = faces(msh, cl);
                const size_t num_faces = fcs.size();
 
                const size_t num_cell_dofs = BG_col_range.size();
-
-               assert(num_cell_dofs == dpk);
 
                const dofspace_ranges dsr(num_cell_dofs, face_basis_size, num_faces);
 

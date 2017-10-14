@@ -100,7 +100,7 @@ class vector_laplacian_solver
    bqdata_type     m_bqd;
 
    const mesh_type& m_msh;
-   
+
    size_t m_dim;
 
    std::vector<vector_dynamic>                    m_solution_data;
@@ -128,11 +128,11 @@ public:
       m_cell_degree = degree + l;
       m_face_degree = degree;
       m_degree = degree;
-      
+
       m_dim = msh.dimension;
 
       m_laplacian_parameters.lambda = 1.0;
-      m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree);
+      m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree + 1);
 
    }
 
@@ -233,14 +233,6 @@ public:
          std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
       }
 
-      //       if(m_verbose){
-      //          std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
-      //          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
-      //          std::cout << "** After static condensation: "  << std::endl;
-      //          std::cout << "** Numbers of dofs: " << m_msh.faces_size() * num_face_dofs + total_lagr  << std::endl;
-      //          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
-      //       }
-
       timecounter tc;
 
       tc.tic();
@@ -303,8 +295,6 @@ public:
    }
 
 
-
-
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_error(const AnalyticalSolution& as)
@@ -326,32 +316,32 @@ public:
 
       return sqrt(err_dof);
    }
-   
+
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_gradient_error(const AnalyticalSolution& grad)
    {
       scalar_type err_dof = scalar_type{0.0};
-      
+
       projector_type projk(m_bqd);
-      
+
       gradrec_type gradrec(m_bqd);
-      
-      
+
+
       size_t i = 0;
-      
+
       for (auto& cl : m_msh)
       {
          auto x = m_solution_data.at(i++);
          gradrec.compute(m_msh, cl);
          dynamic_vector<scalar_type> RTu = gradrec.oper*x;
-         
+
          dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
          dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
          dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
          err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
       }
-      
+
       return sqrt(err_dof);
    }
 

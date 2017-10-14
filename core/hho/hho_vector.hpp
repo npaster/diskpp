@@ -487,8 +487,6 @@ namespace disk {
 
          const auto BG_col_range = cell_basis.range(0, m_degree);
 
-         assert(BG_col_range.size() == dpk);
-
          const auto fcs = faces(msh, cl);
          const auto num_faces = fcs.size();
 
@@ -540,7 +538,7 @@ namespace disk {
                const auto c_phi = cell_basis.eval_functions(msh, cl, qp.point()); // 0, m_degree);
                const auto gphi = grad_basis.eval_functions(msh, cl, qp.point());
 
-               assert(c_phi.size() == dpk);
+               assert(c_phi.size() == cell_basis_size);
 
                // tau.n
                const auto gphi_n = compute_gphi_n(gphi, n);
@@ -815,7 +813,7 @@ namespace disk {
                l2g[pos+i] = face_offset+i;
          }
 
-         assert(lc.first.rows() == fcs.size()*dpkf);
+         assert(lc.first.rows() == fcs.size()*face_basis_size);
          assert(lc.first.rows() == lc.first.cols());
          assert(lc.first.rows() == lc.second.size());
          assert(lc.second.size() == l2g.size());
