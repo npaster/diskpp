@@ -83,12 +83,11 @@ class vector_laplacian_solver
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-   typedef disk::gradient_reconstruction_elas_full< mesh_type,
+   typedef disk::gradient_reconstruction_elas   < mesh_type,
                                                 cell_basis_type, cell_quadrature_type,
-                                                face_basis_type, face_quadrature_type,
-                                                matrix_basis_type, matrix_quadrature_type>          gradrec_type;
+                                                face_basis_type, face_quadrature_type>          gradrec_type;
 
-   typedef disk::elas_like_stabilization_l2<   mesh_type,
+   typedef disk::elas_like_stabilization<   mesh_type,
                                              cell_basis_type, cell_quadrature_type,
                                              face_basis_type, face_quadrature_type>                stab_type;
 

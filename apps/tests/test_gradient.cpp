@@ -74,9 +74,6 @@ test_grad_vector(const mesh_type& msh, const size_t degree, const T epsilon)
    matrix_basis_type, matrix_quadrature_type>          gradrec_type;
 
 
-
-   typedef dynamic_matrix<scalar_type>         matrix_dynamic;
-
    bqdata_type bqd(degree, degree, degree);
 
    gradrecopt_type gradrec_opt(bqd);
@@ -151,9 +148,6 @@ test_grad_scalar(const mesh_type& msh, const size_t degree, const T epsilon)
                      matrix_basis_type, matrix_quadrature_type>          gradrec_type;
 
 
-
-   typedef dynamic_matrix<scalar_type>         matrix_dynamic;
-
    bqdata_type bqd(degree, degree, degree);
 
    gradrecopt_type gradrec_opt(bqd);
@@ -211,7 +205,7 @@ int main(int argc, char **argv)
 
    int ch;
 
-   while ( (ch = getopt(argc, argv, "k:h")) != -1 )
+   while ( (ch = getopt(argc, argv, "k:")) != -1 )
    {
       switch(ch)
       {
@@ -224,7 +218,6 @@ int main(int argc, char **argv)
             }
             break;
 
-         case 'h':
          case '?':
          default:
             std::cout << "wrong arguments" << std::endl;
@@ -239,7 +232,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Mesh format: 1D uniform (Not avaible)" << std::endl;
       //auto msh = disk::load_uniform_1d_mesh<RealType>(0, 1, elems_1d);
-      //run_NL_elasticity_solver(msh, rp);
       return 0;
    }
 
