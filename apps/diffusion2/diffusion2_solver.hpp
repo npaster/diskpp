@@ -103,7 +103,7 @@ public:
 
         m_cell_degree = degree + l;
         m_face_degree = degree;
-        m_grad_degree = m_cell_degree ;
+        m_grad_degree = m_cell_degree + 1;
 
         m_bqd = bqdata_type(m_face_degree, m_cell_degree, m_grad_degree);
     }

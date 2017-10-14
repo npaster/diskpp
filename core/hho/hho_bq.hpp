@@ -44,14 +44,13 @@ namespace disk {
 
       typedef Quadrature<mesh_type, cell_type>    cell_quad_type;
       typedef Quadrature<mesh_type, face_type>    face_quad_type;
-      typedef Quadrature<mesh_type, cell_type>    grad_quad_type;
 
       cell_basis_type     cell_basis;
       face_basis_type     face_basis;
       cell_quad_type      cell_quadrature;
       face_quad_type      face_quadrature;
       grad_basis_type     grad_basis;
-      grad_quad_type      grad_quadrature;
+      cell_quad_type      grad_quadrature;
 
    private:
       size_t  m_cell_degree, m_face_degree, m_grad_degree;
@@ -63,7 +62,7 @@ namespace disk {
          grad_basis          = grad_basis_type(m_grad_degree);
          cell_quadrature     = cell_quad_type(2 * m_cell_degree);
          face_quadrature     = face_quad_type(2 * m_face_degree);
-         grad_quadrature     = grad_quad_type(2 * m_grad_degree);
+         grad_quadrature     = cell_quad_type(2 * m_grad_degree);
       }
 
    public:
@@ -116,7 +115,7 @@ namespace disk {
       const BQData&                               m_bqd;
 
       face_quadrature_type face_quadrature;
-      
+
 
    public:
 
