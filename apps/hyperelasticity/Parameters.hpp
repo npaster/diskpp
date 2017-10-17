@@ -47,33 +47,25 @@ public:
    size_t  m_sublevel;      //number od sublevel if there are problems
 
    bool    m_stab;          //stabilization yes or no
-   bool    m_adapt_coeff;   //adapts automatically the stabilisation coefficient
-   bool    m_adapt_stab;    //use the adpatative stabilization
    bool    m_verbose;       //some printing
-   bool    m_compute_energy; // to compute intere energy
+   bool    m_compute_energy; // to compute intern energy
    bool    m_precomputation; // to compute the gradient before (it's memory consuption)
 
-   size_t  m_stab_init;      //type of stabilization
-   size_t  m_stab_obj;      //type of stabilization
+   size_t  m_stab_type;      //type of stabilization
    size_t  m_iter_max;        //maximun nexton iteration
    T       m_epsilon;         //stop criteria
 
-   T       m_beta_max;
-   T       m_beta_init;      // minium of stabilization constant
-   T       m_beta_obj;      // maximum of stabilization constant
+   T       m_beta;            // stabilization constante
 
    size_t  m_n_time_save;  // number of saving
    std::list<T>   m_time_save; //list of time where we save result;
 
 
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
-                m_sublevel(1), m_stab(true),
-                m_verbose(false), m_adapt_coeff(false), m_adapt_stab(false),
-                m_compute_energy(false), m_precomputation(false),
+                m_sublevel(1), m_stab(true), m_stab_type(HHO),
+                m_verbose(false), m_compute_energy(false), m_precomputation(false),
                 m_iter_max(10), m_epsilon(T(1E-6)),
-                m_beta_init(T(1.0)), m_beta_obj(T(1.0)), m_beta_max(T(1)),
-                m_stab_init(L2), m_stab_obj(HHO),
-                m_n_time_save(0)
+                m_beta(T(1.0)), m_n_time_save(0)
                 {
                    m_time_step.push_back(std::make_pair(1.0, 10));
                 }
@@ -86,12 +78,8 @@ public:
       std::cout << " - Grad degree: "  << m_grad_degree << std::endl;
       std::cout << " - Sublevel: "  << m_sublevel << std::endl;
       std::cout << " - Stabilization ?: "  << m_stab << std::endl;
-      std::cout << " - Adapt coefficient: "  << m_adapt_coeff << std::endl;
-      std::cout << "    - Beta init: "  << m_beta_init << std::endl;
-      std::cout << "    - Beta obj: "  << m_beta_obj << std::endl;
-      std::cout << " - Adapt stabilization: "  << m_adapt_stab << std::endl;
-      std::cout << "    - Stab init : "  << m_stab_init << std::endl;
-      std::cout << "    - Stab obj: "  << m_stab_obj << std::endl;
+      std::cout << "   - Type of stabilization: "  << m_stab_type << std::endl;
+      std::cout << "   - Coefficient: "  << m_beta << std::endl;
       std::cout << " - Verbose: "  << m_verbose << std::endl;
       std::cout << " - Compute Energy: "  << m_compute_energy << std::endl;
       std::cout << " - IterMax: "  << m_iter_max << std::endl;
@@ -182,75 +170,27 @@ public:
                m_stab = true;
             else{
                m_stab = false;
-               m_stab_init = NOTHING;
-               m_stab_obj = NOTHING;
+               m_stab_type = NOTHING;
             }
          }
-         else if ( keyword == "StabInit" )
+         else if ( keyword == "StabType" )
          {
             std::string type;
             ifs >> type;
             line++;
 
             if(type == "L2")
-               m_stab_init = L2;
+               m_stab_type = L2;
             else if(type == "PIKF")
-               m_stab_init = PIKF;
+               m_stab_type = PIKF;
             else if(type == "HHO")
-               m_stab_init = HHO;
+               m_stab_type = HHO;
             else if(type == "NOTHING")
-               m_stab_init = NOTHING;
+               m_stab_type = NOTHING;
          }
-         else if ( keyword == "StabObj" )
+         else if ( keyword == "Beta" )
          {
-            std::string type;
-            ifs >> type;
-            line++;
-
-            if(type == "L2")
-               m_stab_obj = L2;
-            else if(type == "PIKF")
-               m_stab_obj = PIKF;
-            else if(type == "HHO")
-               m_stab_obj = HHO;
-            else if(type == "NOTHING")
-               m_stab_obj = NOTHING;
-         }
-         else if ( keyword == "AdaptativeCoefficient" )
-         {
-            std::string logical;
-            ifs >> logical;
-            line++;
-
-            if(logical == "true")
-               m_adapt_coeff = true;
-            else
-               m_adapt_coeff = false;
-         }
-         else if ( keyword == "AdaptativeStabilization" )
-         {
-            std::string logical;
-            ifs >> logical;
-            line++;
-
-            if(logical == "true")
-               m_adapt_stab = true;
-            else
-               m_adapt_stab = false;
-         }
-         else if ( keyword == "BetaInit" )
-         {
-            ifs >> m_beta_init;
-            line++;
-         }
-         else if ( keyword == "BetaMax" )
-         {
-            ifs >> m_beta_max;
-            line++;
-         }
-         else if ( keyword == "BetaObj" )
-         {
-            ifs >> m_beta_obj;
+            ifs >> m_beta;
             line++;
          }
          else if ( keyword == "Verbose" )

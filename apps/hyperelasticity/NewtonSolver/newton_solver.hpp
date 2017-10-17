@@ -130,9 +130,7 @@ public:
 
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
-      newton_step.setBeta(m_rp.m_beta_init);
-      newton_step.setStabilization(m_rp.m_stab_init);
-
+      
       // Newton iteration
       for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
 

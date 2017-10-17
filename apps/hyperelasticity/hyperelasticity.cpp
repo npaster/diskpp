@@ -61,59 +61,9 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    typedef static_matrix<T, 2, 2> result_grad_type;
 
 
-//    auto load = [](const point<T,2>& p) -> result_type {
-//        T fx = -16.0 * p.x() * p.y() * p.y() -4.0 * p.x() * p.x() * p.x();
-//        T fy = -16.0 * p.x() * p.x() * p.y() -4.0 * p.y() * p.y() * p.y();
-//       return result_type{fx,fy};
-//    };
-//
-//    auto solution = [](const point<T,2>& p) -> result_type {
-//       T fx = 1.2 * p.x() * p.x() * p.y();
-//       T fy = (p.x() * p.y() * p.y()) * sin(p.x()) ;
-//
-//       return result_type{fx,fy};
-//    };
-
-
-//    auto load = [elas_param](const point<T,2>& p) -> result_type {
-//       T lambda = elas_param.lambda;
-//       T mu = elas_param.mu;
-//
-//       T num = -lambda * log(9.0 * std::pow(p.x(), 2.0) * std::pow(p.y(), 2.0) + 3.0 * (std::pow(p.x(), 2.0) + std::pow(p.y(), 2.0)) +1.0)
-//             + lambda + mu;
-//
-//
-//       T dem1 = 9.0 * std::pow(p.x(), 4.0) + 6.0 * std::pow(p.x(), 2.0) + 1.0;
-//       T dem2 = 9.0 * std::pow(p.y(), 4.0) + 6.0 * std::pow(p.y(), 2.0) + 1.0;
-//
-//       T fx = - 6.0 * p.x() * ( num + mu*dem1)/dem1 ;
-//       T fy = - 6.0 * p.y() * ( num + mu*dem2)/dem2 ;
-//       return result_type{fx,fy};
-//    };
-//
-//    auto solution = [elas_param](const point<T,2>& p) -> result_type {
-//       T lambda = elas_param.lambda;
-//       T fx = std::pow(p.x(), 3.0);
-//       T fy = std::pow(p.y(), 3.0);
-//
-//       return result_type{fx,fy};
-//    };
-//
-//    auto gradient = [elas_param](const point<T,2>& p) -> result_grad_type {
-//       T lambda = elas_param.lambda;
-//       result_grad_type grad = result_grad_type::Zero();
-//
-//       grad(0,0) = 3.0 * std::pow(p.x(), 2.0) ;
-//       grad(1,1) = 3.0 * std::pow(p.y(), 2.0) ;
-//
-//       return grad;
-//    };
-
-
 T alpha = 0.3;
 
 auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
-   T lambda = elas_param.lambda;
    T mu = elas_param.mu;
 
    T fx = 0.0;
@@ -238,20 +188,21 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
    // PostProcessing
    if(nl.test_convergence()){
       std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
-      std::cout << "l2 error displacement: " << nl.compute_l2_error(solution) << std::endl;
-      std::cout << "l2 error gradient: " << nl.compute_l2_gradient_error(gradient) << std::endl;
+      std::cout << "l2 error displacement: " << nl.compute_l2_error_displacement(solution) << std::endl;
+      std::cout << "l2 error gradient: " << nl.compute_l2_error_gradient(gradient) << std::endl;
 
         std::cout << "Post-processing: " << std::endl;
-        nl.compute_discontinuous_solution("sol_disc2D.msh");
-        nl.compute_conforme_solution("sol_conf2D.msh");
+        nl.compute_discontinuous_displacement("depl_disc2D.msh");
+        nl.compute_continuous_displacement("depl_cont2D.msh");
         nl.compute_deformed("def2D.msh");
-        nl.plot_displacement_at_gausspoint("depl_gp2D.msh");
-        nl.plot_J_at_gausspoint("J_gp2D.msh");
-        nl.plot_J("J_dis2d.msh");
-        nl.compute_discontinuous_PK1("PK1_disc2D.msh");
-        nl.compute_discontinuous_Prr("Prr.msh", "Prr");
-        nl.compute_discontinuous_Prr("Poo.msh", "Poo");
-        nl.compute_discontinuous_VMIS("VM.msh");
+        nl.compute_J_GP("J_GP.msh");
+        nl.compute_continuous_J("J_cont.msh");
+        nl.compute_discontinuous_J("J_disc.msh");
+        nl.compute_discontinuous_VMIS("VM_disc.msh");
+        nl.compute_continuous_VMIS("VM_cont.msh");
+        nl.compute_VMIS_GP("VM_GP.msh");
+        nl.compute_l2error_VMIS_GP("VM_GP_error.msh", gradient);
+        nl.plot_analytical_VMIS("VM_true.msh", gradient);
    }
 }
 
@@ -263,33 +214,6 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    typedef static_vector<T, 3> result_type;
    typedef static_matrix<T, 3, 3> result_grad_type;
 
-   // auto load = [](const point<T,3>& p) -> result_type {
-   //    return result_type{0.0,0.0,0.0};
-   // };
-   //
-   // auto solution = [](const point<T,3>& p) -> result_type {
-   //    T fx = -1.75 * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-   //    T fy = -1.75 * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-   //    T fz = -0.12 * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * (1.0 - cos(2.0*M_PI * p.y())) + 0.15 * p.z();
-   //    return result_type{fx,fy,fz};
-   // };
-   //
-   //
-   // auto gradient = [](const point<T,3>& p) -> static_matrix<T, 3, 3> {
-   //    static_matrix<T, 3, 3> g;
-   //    g(1,1) = -1.75 * M_PI * p.y() * (1-p.y()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-   //    g(1,2) = -1.75 *(1-2 * p.y()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.x());
-   //    g(1,3) = -1.75 * p.y() * (1-p.y()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.x());
-   //
-   //    g(2,1) = -1.75 *(1-2 * p.x()) * p.z() * (1.0 - p.z()) * cos(M_PI * p.y());
-   //    g(2,2) = -1.75 * M_PI * p.x() * (1-p.x()) * p.z() * (1.0 - p.z()) * sin(M_PI * p.x());
-   //    g(2,3) = -1.75 * p.x() * (1-p.x()) * (1.0 - 2.0 * p.z()) * cos(M_PI * p.y());
-   //
-   //    g(3,1) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.y())) * sin(2.0*M_PI * p.x());
-   //    g(3,2) = -0.24 * M_PI * p.z() * p.z() * (1.0 - cos(2.0 * M_PI * p.x())) * sin(2.0*M_PI * p.y());
-   //    g(3,3) = -0.96 * p.z() * std::pow(sin(M_PI * p.x()),2.0) * std::pow(sin(M_PI * p.y()),2.0) + 0.15;
-   //    return g;
-   // };
 
 //    T alpha = 0.2;
 //    T beta = 0.2;
@@ -339,9 +263,9 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    auto solution = [](const point<T,3>& p) -> result_type {
-      T fx = p.x();
-      T fy = p.y();
-      T fz = p.z();
+      T fx = -1.0;
+      T fy = -1.0;
+      T fz = -1.0;
 
       return result_type{fx,fy,fz};
    };
@@ -357,7 +281,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 
    // Define Boundary Conditions
    BoundaryType N1;
-   N1.id = 19;//4 cyl
+   N1.id = 4;//4 cyl
    N1.boundary_type = FREE;
 
    BoundaryType N2;
@@ -370,7 +294,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    D1.id = 18;
    D1.boundary_type = CLAMPED;
 
-   const std::vector<BoundaryType> boundary_dirichlet = {};
+   const std::vector<BoundaryType> boundary_dirichlet = {D1};
 
    // Solve
    hyperelasticity_solver<Mesh, T, 3, Storage,  point<T, 3> >
@@ -396,7 +320,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
       std::cout << "****** Elementary computation: " << solve_info.m_newton_info.m_assembly_info.m_time_elem << " sec" << std::endl;
       std::cout << "       *** Behavior computation: " << solve_info.m_newton_info.m_assembly_info.m_time_law << " sec" << std::endl;
       std::cout << "****** Static condensation: " << solve_info.m_newton_info.m_assembly_info.m_time_statcond << " sec" << std::endl;
-      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_postprocess_info.m_time_postpro << " sec" << std::endl;
+      std::cout << "**** Postprocess time: " << solve_info.m_newton_info.m_assembly_info.m_time_postpro << " sec" << std::endl;
       std::cout << "**** Solver time: " << solve_info.m_newton_info.m_solve_info.m_time_solve << " sec" << std::endl;
       std::cout << "------------------------------------------------------- " << std::endl;
       std::cout << " " << std::endl;
@@ -414,16 +338,18 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 
    std::cout << "Post-processing: " << std::endl;
    std::string name = "Result_cav_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
-   + "_b" + std::to_string(rp.m_beta_init) + "_s" + std::to_string(rp.m_stab_init) + "_";
-   nl.compute_discontinuous_solution(name + "sol_disc2D.msh");
-   nl.compute_conforme_solution(name +"sol_conf2D.msh");
-   nl.compute_deformed(name +"def2D.msh");
-   nl.plot_displacement_at_gausspoint(name +"depl_gp2D.msh");
-   nl.plot_J_at_gausspoint(name +"J_gp2D.msh");
-   nl.plot_J(name +"J_dis2d.msh");
+   + "_b" + std::to_string(rp.m_beta) + "_s" + std::to_string(rp.m_stab) + "_";
+   nl.compute_discontinuous_displacement(name + "sol_disc.msh");
+   nl.compute_continuous_displacement(name +"sol_cont.msh");
+   nl.compute_deformed(name +"def.msh");
+   nl.compute_J_GP(name +"J_GP.msh");
+   nl.compute_continuous_J(name +"J_cont.msh");
+   nl.compute_discontinuous_J(name +"J_disc.msh");
    nl.compute_discontinuous_Prr(name +"Prr.msh", "Prr");
    nl.compute_discontinuous_Prr(name +"Poo.msh", "Poo");
-   nl.compute_discontinuous_VMIS(name +"VM.msh");
+   nl.compute_discontinuous_VMIS(name +"VM_disc.msh");
+   nl.compute_continuous_VMIS(name +"VM_cont.msh");
+   nl.compute_VMIS_GP(name +"VM_GP.msh");
 }
 
 //Main
@@ -440,14 +366,14 @@ int main(int argc, char **argv)
 
     ElasticityParameters param = ElasticityParameters();
 
-    param.mu = 1.0;
+    param.mu = 0.1;
     param.lambda = 1.0;
     param.type_law = 1;
 
     //Read Parameters
     int ch;
 
-    while ( (ch = getopt(argc, argv, "g:k:l:p:r:s:v:w")) != -1 )
+    while ( (ch = getopt(argc, argv, "g:k:l:p:r:v:w")) != -1 )
     {
         switch(ch)
         {
@@ -486,7 +412,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'p':
-               rp.m_beta_init = atof(optarg);
+               rp.m_beta = atof(optarg);
                break;
 
             case 'r':
@@ -494,8 +420,6 @@ int main(int argc, char **argv)
                exit(1);
 
                break;
-
-            case 's': rp.m_adapt_stab = true; break;
 
             case 'v':
                 rp.m_verbose = true;

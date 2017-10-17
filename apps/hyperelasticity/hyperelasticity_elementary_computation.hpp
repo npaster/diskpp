@@ -34,7 +34,28 @@
 //#define USE_BLAS
 
 namespace Hyperelasticity {
-
+   
+//    namespace priv {
+//       template< typename GradBasis >
+//       struct poly_size_F {
+//          static size_t impl(const size_t DIM, const size_t grad_degree)
+//          { throw std::invalid_argument("Unknown GradBasis"); }
+//       };
+//       
+//       template<>
+//       struct poly_size_F<disk::Raviart_Thomas_matrix_basis> {
+//          static size_t impl(const size_t DIM, const size_t grad_degree)
+//          { return DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1); }
+//       };
+//       
+//       template<>
+//       struct poly_size_F<disk::scaled_monomial_matrix_basis> {
+//          static size_t impl(const size_t DIM, const size_t grad_degree)
+//          { return DIM * DIM * binomial(grad_degree + DIM, grad_degree); }
+//       };
+//       
+//   }  // namespace priv
+    
 
    template<typename BQData>
    class Hyperelasticity
@@ -50,6 +71,11 @@ namespace Hyperelasticity {
 
 
       // Optimzation of the product A:G
+      //attention grad_degree = 0
+      
+//       template<typename GradBasis>
+//       size_t poly_size(const size_t DIM, const size_t grad_degree)
+//       { return priv::poly_size_F<GradBasis>::impl(const size_t DIM, const size_t grad_degree); } 
 
       template<int DIM>
       std::vector<static_matrix<scalar_type, DIM, DIM>>
@@ -84,18 +110,20 @@ namespace Hyperelasticity {
       }
 
 
-
+   
       template<int DIM>
-      matrix_type
+      void
       compute_A_gphi_gphi(const static_tensor<scalar_type, DIM>& A,
-                          const std::vector<static_matrix<scalar_type, DIM, DIM>>& gphi ) const
+                          const std::vector<static_matrix<scalar_type, DIM, DIM>>& gphi,
+                          const scalar_type weight, matrix_type& AT) const
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
          const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
-         matrix_type AT = matrix_type::Zero(grad_basis_size, grad_basis_size);
+         assert(AT.rows() == grad_basis_size);
+         assert(AT.cols() == grad_basis_size);
 
          // compute A:gphi
 
@@ -109,7 +137,7 @@ namespace Hyperelasticity {
             for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
                for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
                   for(size_t i = col; i < poly_space; i++){
-                     AT(i,col) = A_gphi[i](l,k) * gphi[col](l,k);
+                     AT(i,col) += weight * A_gphi[i](l,k) * gphi[col](l,k);
                   }
                   col++;
                }
@@ -120,25 +148,24 @@ namespace Hyperelasticity {
 
          for(std::size_t i = poly_space; i < grad_basis_size; i ++) {
             for(std::size_t j = 0; j < grad_basis_size; j ++) {
-               AT(i,j) = disk::mm_prod(A_gphi[i], gphi[j]);
+               AT(i,j) += weight * disk::mm_prod(A_gphi[i], gphi[j]);
             }
          }
-
-         return AT;
       }
 
 
       template<int DIM>
-      matrix_type
+      void
       compute_PK1_gphi(const static_matrix<scalar_type, DIM, DIM>& PK1,
-                       const std::vector<static_matrix<scalar_type, DIM, DIM>>& gphi ) const
+                       const std::vector<static_matrix<scalar_type, DIM, DIM>>& gphi,
+                       const scalar_type weight, vector_type& aT) const
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
          const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
-         vector_type R = vector_type::Zero(grad_basis_size);
+         assert(aT.size() == grad_basis_size);
 
          //espace poly classique
 
@@ -147,7 +174,7 @@ namespace Hyperelasticity {
             for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
                for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
                   // compute (PK1(u), G^k_T v)_T
-                  R(row) = PK1(l,k) * gphi[row](l,k);
+                  aT(row) += weight * PK1(l,k) * gphi[row](l,k);
                   row++;
                }
             }
@@ -155,11 +182,9 @@ namespace Hyperelasticity {
 
          //espace RT
 
-         for(std::size_t i = poly_space; i < grad_basis_size; i ++) {
-            R(i) = disk::mm_prod(PK1, gphi[i]);
+         for(std::size_t i = poly_space; i < grad_basis_size; i++) {
+            aT(i) += weight * disk::mm_prod(PK1, gphi[i]);
          }
-
-         return R;
       }
 
 
@@ -221,10 +246,10 @@ namespace Hyperelasticity {
             time_law += tc.to_double();
 
             // compute (A(u):G^k_T du, G^k_T v)_T
-            AT += qp.weight() * compute_A_gphi_gphi(tensor_behavior.second, gphi);
+            this->compute_A_gphi_gphi(tensor_behavior.second, gphi, qp.weight(), AT);
 
             // compute (PK1(u), G^k_T v)_T
-            aT += qp.weight() * compute_PK1_gphi(tensor_behavior.first, gphi);
+            this->compute_PK1_gphi(tensor_behavior.first, gphi, qp.weight(), aT);
          }
 
 

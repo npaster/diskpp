@@ -97,8 +97,6 @@ class NewtonRaphson_step_hyperelasticity
 
    bool m_verbose;
 
-   scalar_type m_beta;
-   size_t m_stab;
 
    ElasticityParameters m_elas_param;
    const param_type& m_rp;
@@ -113,23 +111,11 @@ public:
                                        const ElasticityParameters elas_param,
                                        const BoundaryConditions& boundary_conditions)
    : m_msh(msh), m_verbose(false), m_rp(rp), m_elas_param(elas_param), m_bqd(bqd),
-     m_boundary_condition(boundary_conditions), m_beta(1.0), m_stab(HHO)
-   {
-      if(m_rp.m_stab){
-         m_stab = m_rp.m_stab_init;
-         m_beta = m_rp.m_beta_init;
-      }
-      else
-         m_stab = NOTHING;
-   }
+     m_boundary_condition(boundary_conditions)
+   {}
 
    bool    verbose(void) const     { return m_verbose; }
    void    verbose(bool v)         { m_verbose = v; }
-
-   void    setBeta(const scalar_type beta) { m_beta = beta;}
-   scalar_type  printBeta() const { return m_beta;}
-   void    setStabilization(const size_t stab) { m_stab = stab;}
-   size_t  printStabilization() const {return m_stab;}
 
    void
    initialize( const std::vector<vector_dynamic>& initial_solution_cells,
@@ -210,7 +196,7 @@ public:
    {
       #ifdef HAVE_INTEL_MKL
       Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
-      solver.pardisoParameterArray()[59] = 2; //out of core
+      //solver.pardisoParameterArray();[59] = 2; //out of core
       #else
       Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
       #endif
@@ -298,7 +284,7 @@ public:
          // Stabilisation
          tc.tic();
          if(m_rp.m_stab){
-            switch (m_stab) {
+            switch (m_rp.m_stab_type) {
                case PIKF:
                {
                   stab_PIKF.compute(m_msh, cl);
@@ -358,7 +344,7 @@ public:
 
             // Stabilisation Contribution
             if(m_rp.m_stab){
-               switch (m_stab) {
+               switch (m_rp.m_stab_type) {
                   case PIKF:
                   {
                      assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
@@ -366,8 +352,8 @@ public:
                      assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
                      assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
 
-                     lhs += m_beta * stab_PIKF.data;
-                     rhs -= m_beta * stab_PIKF.data * m_solution_data.at(i);
+                     lhs += m_rp.m_beta * stab_PIKF.data;
+                     rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(i);
                      break;
                   }
                   case HHO:
@@ -377,8 +363,8 @@ public:
                      assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
                      assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
 
-                     lhs += m_beta * stab_HHO.data;
-                     rhs -= m_beta * stab_HHO.data * m_solution_data.at(i);
+                     lhs += m_rp.m_beta * stab_HHO.data;
+                     rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(i);
                      break;
                   }
                   case NOTHING:
@@ -427,7 +413,7 @@ public:
          // Stabilisation Contribution
          tc.tic();
          if(m_rp.m_stab){
-            switch (m_stab) {
+            switch (m_rp.m_stab_type) {
                case PIKF:
                {
                   assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
@@ -435,8 +421,8 @@ public:
                   assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
                   assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
 
-                  lhs += m_beta * stab_PIKF.data;
-                  rhs -= m_beta * stab_PIKF.data * m_solution_data.at(i);
+                  lhs += m_rp.m_beta * stab_PIKF.data;
+                  rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(i);
                   break;
                }
                case HHO:
@@ -446,8 +432,8 @@ public:
                   assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
                   assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
 
-                  lhs += m_beta * stab_HHO.data;
-                  rhs -= m_beta * stab_HHO.data * m_solution_data.at(i);
+                  lhs += m_rp.m_beta * stab_HHO.data;
+                  rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(i);
                   break;
                }
                case NOTHING:
@@ -506,18 +492,18 @@ public:
 
          // Energie in the stabilisation
          if(m_rp.m_stab){
-            switch (m_stab) {
+            switch (m_rp.m_stab_type) {
                case PIKF:
                {
                   stab_PIKF.compute(m_msh, cl);
-                  energy_stab = m_beta *  m_solution_data.at(i).dot(stab_PIKF.data * m_solution_data.at(i));
+                  energy_stab = m_rp.m_beta *  m_solution_data.at(i).dot(stab_PIKF.data * m_solution_data.at(i));
                   break;
                }
                case HHO:
                {
                   deplrec.compute(m_msh, cl);
                   stab_HHO.compute(m_msh, cl, deplrec.oper);
-                  energy_stab = m_beta *  m_solution_data.at(i).dot(stab_HHO.data * m_solution_data.at(i));
+                  energy_stab = m_rp.m_beta *  m_solution_data.at(i).dot(stab_HHO.data * m_solution_data.at(i));
                   break;
                }
                case NOTHING:
@@ -525,7 +511,7 @@ public:
                   break;
                }
                default:
-                  std::cout << "Unknown Stabilisation " << m_stab << std::endl;
+                  std::cout << "Unknown Stabilisation " << m_rp.m_stab_type << std::endl;
                   throw std::invalid_argument("Unknown stabilization");
             }
          }
@@ -571,10 +557,10 @@ public:
 
       scalar_type relative_error(1.E4);
 
-      if(initial_residual == scalar_type{0.0})
+      if(initial_residual == static_cast<scalar_type>(0))
       {
-         relative_error = 0.0;
-         max_error = 0.0;
+         relative_error = static_cast<scalar_type>(0);
+         max_error = static_cast<scalar_type>(0);
       }
       else {
          relative_error = residual / initial_residual;
@@ -594,15 +580,17 @@ public:
          error_un += norm * norm;
       }
 
-      error_un = sqrt(error_un);
+      error_un = std::sqrt(error_un);
 
-      if(error_un == scalar_type(0.0))
-         error_un = 10E-6;
+      if(error_un == static_cast<scalar_type>(0)){
+         error_un = static_cast<scalar_type>(10E6);
+      }
 
       scalar_type relative_displ = error_incr/error_un;
 
-      if(iter == 0)
-         relative_displ = 1.0;
+      if(iter == 0){
+         relative_displ = static_cast<scalar_type>(1.0);
+      }
 
       const size_t nb_faces_dof = m_bqd.face_basis.size() * m_msh.faces_size();
 
