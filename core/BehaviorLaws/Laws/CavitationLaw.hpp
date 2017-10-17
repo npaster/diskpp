@@ -194,7 +194,8 @@ public:
    {
       const scalar_type J = F.determinant();
       if(J <= 0.0){
-         throw std::invalid_argument("J <= 0");
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
       }
 
       const static_matrix<scalar_type, DIM, DIM> C = F.transpose() * F;
@@ -211,7 +212,8 @@ public:
    {
       const scalar_type J = F.determinant();
       if(J <= 0.0){
-         throw std::invalid_argument("J <= 0");
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
       }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
@@ -231,7 +233,8 @@ public:
    {
       const scalar_type J = F.determinant();
       if(J <= 0.0){
-         throw std::invalid_argument("J <= 0");
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
       }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
@@ -260,7 +263,8 @@ public:
    {
       const scalar_type J = F.determinant();
       if(J <= 0.0){
-         throw std::invalid_argument("J <= 0");
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
       }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();

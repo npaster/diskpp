@@ -206,8 +206,10 @@ public:
    compute_energy(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
-         throw std::invalid_argument("J <= 0");
+      if(J <=0.0){
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
+      }
 
       const static_matrix<scalar_type, DIM, DIM> C = compute_CauchyGreenRightTensor(F);
       const static_matrix<scalar_type, DIM, DIM> EGl = compute_GreenLagrangeTensor(C);
@@ -223,8 +225,10 @@ public:
    compute_PK1(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
-         throw std::invalid_argument("J <= 0");
+      if(J <=0.0){
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const static_matrix<scalar_type, DIM, DIM> invFT = invF.transpose();
@@ -242,8 +246,10 @@ public:
    compute_tangent_moduli_A(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
-         throw std::invalid_argument("J <= 0");
+      if(J <=0.0){
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
@@ -265,8 +271,10 @@ public:
    compute_whole_PK1(const static_matrix<scalar_type, DIM, DIM>& F) const
    {
       const scalar_type J = F.determinant();
-      if(J <=0.0)
-         throw std::invalid_argument("J <= 0");
+      if(J <=0.0){
+         const std::string mess = "J= " + std::to_string(J) + " <= 0";
+         throw std::invalid_argument(mess);
+      }
 
       const static_matrix<scalar_type, DIM, DIM> invF = F.inverse();
       const static_matrix<scalar_type, DIM, DIM> invFt = invF.transpose();
