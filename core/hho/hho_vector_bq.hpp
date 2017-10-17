@@ -264,28 +264,28 @@ namespace disk {
          {
             const size_t grad_basis_size = gphi.size();
             const size_t grad_degree = m_bqd.grad_degree();
-            const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+            //const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
             const size_t DIM2 = DIM * DIM;
 
             matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
 
-            // poly classique
-
-            size_t col = 0;
-            for(size_t j = 0; j < poly_space; j += DIM2 ){
-               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
-                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-                     for(size_t i = col; i < poly_space; i += DIM2){
-                        MG(i,col) = gphi[i](l,k) * gphi[col](l,k);
-                     }
-                     col++;
-                  }
-               }
-            }
+//             // poly classique
+//
+//             size_t col = 0;
+//             for(size_t j = 0; j < poly_space; j += DIM2 ){
+//                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+//                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+//                      for(size_t i = col; i < poly_space; i += DIM2){
+//                         MG(i,col) = gphi[i](l,k) * gphi[col](l,k);
+//                      }
+//                      col++;
+//                   }
+//                }
+//             }
 
             // RT
-            for(std::size_t i = poly_space; i < grad_basis_size; i ++) {
-               for(std::size_t j = 0; j < grad_basis_size; j ++) {
+            for(std::size_t j = 0; j < grad_basis_size; j ++) {
+               for(std::size_t i = j; i < grad_basis_size; i ++) {
                   MG(i,j) = mm_prod(gphi[i], gphi[j]);
                }
             }
@@ -302,27 +302,27 @@ namespace disk {
             const size_t grad_basis_size = gphi.size();
             const size_t cell_basis_size = cdphi.size();
             const size_t grad_degree = m_bqd.grad_degree();
-            const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+            //const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
             const size_t DIM2 = DIM * DIM;
 
             matrix_type BG = matrix_type::Zero(grad_basis_size, cell_basis_size);
 
-            // poly classique
-
-            size_t row = 0;
-            for(size_t i = 0; i < poly_space; i += DIM2 ){
-               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
-                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-                     for(size_t j = l; j < cell_basis_size; j += DIM){
-                        BG(row,j) = gphi[row](l,k) * cdphi[j](l,k);
-                     }
-                     row++;
-                  }
-               }
-            }
+//             // poly classique
+//
+//             size_t row = 0;
+//             for(size_t i = 0; i < poly_space; i += DIM2 ){
+//                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+//                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+//                      for(size_t j = l; j < cell_basis_size; j += DIM){
+//                         BG(row,j) = gphi[row](l,k) * cdphi[j](l,k);
+//                      }
+//                      row++;
+//                   }
+//                }
+//             }
 
             // RT
-            for(std::size_t i = poly_space; i < grad_basis_size; i ++) {
+            for(std::size_t i = 0; i < grad_basis_size; i ++) {
                for(std::size_t j = 0; j < cell_basis_size; j ++) {
                   BG(i,j) = mm_prod(gphi[i], cdphi[j]);
                }

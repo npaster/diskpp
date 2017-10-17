@@ -132,7 +132,7 @@ public:
       m_dim = msh.dimension;
 
       m_laplacian_parameters.lambda = 1.0;
-      m_bqd = bqdata_type(m_cell_degree, m_face_degree, m_cell_degree + 1);
+      m_bqd = bqdata_type(m_face_degree, m_cell_degree, m_cell_degree+1);
 
    }
 
