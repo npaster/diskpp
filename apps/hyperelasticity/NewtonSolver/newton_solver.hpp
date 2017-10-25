@@ -119,7 +119,6 @@ public:
 
       scalar_type residu(2.0);
       bool auricchio(false);
-      bool postpro (false);
       m_convergence = false;
 
       size_t nb_negative_ev_init = 0;
@@ -130,21 +129,13 @@ public:
 
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
-      
+
       // Newton iteration
       for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
-
-         if(iter == 0){
-            postpro = false;
-         }
-         else {
-            postpro = true;
-         }
-
          //Assemble lhs and rhs
          AssemblyInfo assembly_info;
          try {
-            assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed, postpro);
+            assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed);
          }
          catch(const std::invalid_argument& ia){
             std::cerr << "Invalid argument: " << ia.what() << std::endl;
@@ -176,9 +167,11 @@ public:
          const SolveInfo solve_info = newton_step.solve();
          ni.updateSolveInfo(solve_info);
 
+         // Postprocess and update
+         newton_step.postprocess();
+
          //Update iteration
          ni.m_iter++;
-
       }
 
       //       if(auricchio){

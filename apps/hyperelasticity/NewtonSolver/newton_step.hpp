@@ -95,6 +95,8 @@ class NewtonRaphson_step_hyperelasticity
 
    std::vector<vector_dynamic>        m_solution_data, m_solution_cells, m_solution_faces, m_solution_lagr;
 
+   std::vector<vector_dynamic>         m_RT;
+   std::vector<matrix_dynamic>         m_KTT, m_KTF;
    bool m_verbose;
 
 
@@ -137,6 +139,15 @@ public:
       m_solution_data.clear();
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
+
+      m_RT.clear();
+      m_RT.resize(m_msh.cells_size());
+
+      m_KTF.clear();
+      m_KTF.resize(m_msh.cells_size());
+
+      m_KTT.clear();
+      m_KTT.resize(m_msh.cells_size());
    }
 
 
@@ -220,11 +231,11 @@ public:
       return SolveInfo(m_system_matrix.rows(), m_system_matrix.nonZeros(), tc.to_double());
    }
 
-   // Assemble, postprocess and update solution
+   // Assemble
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
    AssemblyInfo
    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-             const std::vector<matrix_dynamic>& gradient_precomputed, const bool lpostpro)
+             const std::vector<matrix_dynamic>& gradient_precomputed)
    {
       // Define function
       gradrec_type gradrec(m_bqd);
@@ -240,39 +251,15 @@ public:
       timecounter tc, ttot;
 
       ttot.tic();
-      size_t i = 0;
-
-      // Number of Unknowns by cell and face
-      const size_t cbs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
-      const size_t fbs = (m_bqd.face_basis.range(0, m_bqd.face_degree())).size();
-
-      // Update faces and Lagrange unknowns
-      if(lpostpro){
-         // Update face Uf^{i+1} = Uf^i + delta Uf^i
-         for(size_t i=0; i < m_solution_faces.size(); i++){
-            assert(m_solution_faces.at(i).size() == fbs);
-            m_solution_faces.at(i) += m_system_solution.block(i * fbs, 0, fbs, 1);
-         }
-
-         // Update lagrangian L^{i+1} = L^i + delta L^i
-         const size_t lagrange_offset = m_solution_faces.size() * fbs;
-         const size_t num_lagr_dofs = fbs/m_msh.dimension;
-
-         for(size_t i = 0; i < m_solution_lagr.size(); i++){
-            const size_t pos = lagrange_offset + m_boundary_condition.begin_lag_conditions_faceI(i);
-            const size_t size = num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i);
-            m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * size, 0, size, 1);
-         }
-      }
+      size_t cell_i = 0;
 
       for (auto& cl : m_msh)
       {
-         // Global for postpro and assembly
          // Gradient Reconstruction
          matrix_dynamic GT;
          tc.tic();
          if(m_rp.m_precomputation){
-            GT = gradient_precomputed[i];
+            GT = gradient_precomputed[cell_i];
          }
          else{
             gradrec.compute(m_msh, cl, false);
@@ -309,100 +296,12 @@ public:
          tc.toc();
          ai.m_time_stab += tc.to_double();
 
-         // PostProcessing
-         if(lpostpro){
-            tc.tic();
-            // Extract the solution
-            const auto fcs = faces(m_msh, cl);
-            const auto num_faces = fcs.size();
-
-            dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
-
-            for (size_t face_i = 0; face_i < num_faces; face_i++)
-            {
-               const auto fc = fcs[face_i];
-               const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
-               if (!eid.first)
-                  throw std::invalid_argument("This is a bug: face not found");
-
-               const auto face_id = eid.second;
-
-               dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-               xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
-               xFs.block(face_i * fbs, 0, fbs, 1) = xF;
-            }
-
-            // Compute the local contribuion
-
-            // Mechanical Computation
-
-            hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(i), m_elas_param);
-            dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
-            dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
-
-            ai.m_time_law += hyperelasticity.time_law;
-
-            // Stabilisation Contribution
-            if(m_rp.m_stab){
-               switch (m_rp.m_stab_type) {
-                  case PIKF:
-                  {
-                     assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
-                     assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
-                     assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
-                     assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
-
-                     lhs += m_rp.m_beta * stab_PIKF.data;
-                     rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(i);
-                     break;
-                  }
-                  case HHO:
-                  {
-                     assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
-                     assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
-                     assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
-                     assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
-
-                     lhs += m_rp.m_beta * stab_HHO.data;
-                     rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(i);
-                     break;
-                  }
-                  case NOTHING:
-                  {
-                     break;
-                  }
-                  default:
-                     throw std::invalid_argument("Unknown stabilization");
-               }
-            }
-            tc.toc();
-            ai.m_time_postpro += tc.to_double();
-
-            // Static Decondensation
-            const dynamic_vector<scalar_type> rhs_cell = rhs.block(0,0, cbs, 1);
-            tc.tic();
-            const dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, lhs, rhs_cell, xFs);
-            tc.toc();
-            ai.m_time_statcond += tc.to_double();
-
-            // Update Solution
-            // Update element U^{i+1} = U^i + delta U^i ///
-            assert(m_solution_data.at(i).size() == x.size());
-            m_solution_data.at(i) += x;
-
-            // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
-            assert(m_solution_cells.at(i).size() == cbs);
-            m_solution_cells.at(i) += x.block(0,0,cbs,1);
-
-         }
-         // End PostProcessing
-
          // Begin Assembly
          // Build rhs and lhs
 
          // Mechanical Computation
          tc.tic();
-         hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(i), m_elas_param);
+         hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(cell_i), m_elas_param);
          dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
          dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
 
@@ -418,22 +317,22 @@ public:
                {
                   assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
                   assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
-                  assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(i)).rows());
-                  assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(i)).cols());
+                  assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(cell_i)).rows());
+                  assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(cell_i)).cols());
 
                   lhs += m_rp.m_beta * stab_PIKF.data;
-                  rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(i);
+                  rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(cell_i);
                   break;
                }
                case HHO:
                {
                   assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
                   assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
-                  assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(i)).rows());
-                  assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(i)).cols());
+                  assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(cell_i)).rows());
+                  assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(cell_i)).cols());
 
                   lhs += m_rp.m_beta * stab_HHO.data;
-                  rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(i);
+                  rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(cell_i);
                   break;
                }
                case NOTHING:
@@ -450,12 +349,15 @@ public:
          // Static Condensation
          tc.tic();
          auto scnp = statcond.compute(m_msh, cl, lhs, rhs, true);
+         m_KTT[cell_i] = statcond.KTT;
+         m_KTF[cell_i] = statcond.KTF;
+         m_RT[cell_i] = statcond.RT;
          tc.toc();
          ai.m_time_statcond += tc.to_double();
 
          assembler.assemble(m_msh, cl, scnp);
 
-         i++;
+         cell_i++;
       }
 
       // Impose Boundary Conditions
@@ -469,6 +371,69 @@ public:
       ai.m_time_assembly = ttot.to_double();
       ai.m_linear_system_size = m_system_matrix.rows();
       return ai;
+   }
+
+   // Post-processing
+   void postprocess()
+   {
+      // Number of Unknowns by cell and face
+      const size_t cbs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
+      const size_t fbs = (m_bqd.face_basis.range(0, m_bqd.face_degree())).size();
+
+      // Update  unknowns
+      // Update face Uf^{i+1} = Uf^i + delta Uf^i
+      for(size_t i = 0; i < m_solution_faces.size(); i++){
+         assert(m_solution_faces.at(i).size() == fbs);
+         m_solution_faces.at(i) += m_system_solution.block(i * fbs, 0, fbs, 1);
+      }
+
+      // Update lagrangian L^{i+1} = L^i + delta L^i
+      const size_t lagrange_offset = m_solution_faces.size() * fbs;
+      const size_t num_lagr_dofs = fbs/m_msh.dimension;
+
+      for(size_t i = 0; i < m_solution_lagr.size(); i++){
+         const size_t pos = lagrange_offset + m_boundary_condition.begin_lag_conditions_faceI(i);
+         const size_t size = num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i);
+         m_solution_lagr.at(i) += m_system_solution.block(lagrange_offset + i * size, 0, size, 1);
+      }
+
+      // Update cell
+      size_t cell_i(0);
+      for (auto& cl : m_msh)
+      {
+         // Extract the solution
+         const auto fcs = faces(m_msh, cl);
+         const auto num_faces = fcs.size();
+
+         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
+
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            xFs.block(face_i * fbs, 0, fbs, 1) = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+         }
+
+         auto K_TT_ldlt = m_KTT[cell_i].llt();
+         const dynamic_vector<scalar_type> xT = - K_TT_ldlt.solve(-m_RT[cell_i] + m_KTF[cell_i] * xFs);
+
+         assert(xT.size() == cbs);
+         assert(m_solution_data.at(cell_i).size() == xT.size() + xFs.size());
+         // Update element U^{i+1} = U^i + delta U^i ///
+         (m_solution_data.at(cell_i)).block(0,0,cbs,1) += xT;
+         (m_solution_data.at(cell_i)).block(cbs,0,fbs,1) += xFs;
+
+         // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
+         assert(m_solution_cells.at(cell_i).size() == cbs);
+         m_solution_cells.at(cell_i) += xT;
+
+         cell_i++;
+      }
    }
 
 

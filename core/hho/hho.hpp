@@ -1098,6 +1098,9 @@ namespace disk {
       const BQData&                               m_bqd;
 
    public:
+
+      matrix_type KTT, KTF;
+      vector_type RT;
       diffusion_like_static_condensation_bq(const BQData& bqd) : m_bqd(bqd)
       {}
 
@@ -1189,6 +1192,10 @@ namespace disk {
 
          const matrix_type AC = K_FF - K_FT * AL;
          const vector_type bC = rhs_faces - K_FT * bL;
+
+         KTT = K_TT;
+         KTF = K_TF;
+         RT = rhs_cell;
 
          return std::make_pair(AC, bC);
       }

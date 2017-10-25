@@ -416,7 +416,7 @@ public:
                   catch(const std::invalid_argument& ia){
                      std::cerr << "Invalid argument: " << ia.what() << " in VM_GP" << std::endl;
                   }
-                  
+
                   m_rp.m_time_save.pop_front();
                   if(m_rp.m_time_save.empty())  time_saving = false;
                }
@@ -433,20 +433,20 @@ public:
 
    bool test_convergence() const {return m_convergence;}
    size_t getDofs() const {return total_dof_depl_static;}
-   
+
    // PostProcessing
-   
+
    // Compute different L2 error
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_error_displacement(const AnalyticalSolution& as) const
    {
       scalar_type err_dof = scalar_type{0.0};
-      
+
       projector_type projk(m_bqd);
-      
+
       size_t i = 0;
-      
+
       for (auto& cl : m_msh)
       {
          const auto x = m_solution_cells.at(i++);
@@ -455,23 +455,23 @@ public:
          const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
          err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
       }
-      
+
       return sqrt(err_dof);
    }
-   
-   
+
+
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_error_gradient(const AnalyticalSolution& grad) const
    {
       scalar_type err_dof = scalar_type{0.0};
-      
+
       projector_type projk(m_bqd);
-      
+
       gradrec_type gradrec(m_bqd);
-      
+
       size_t cell_i = 0;
-      
+
       for (auto& cl : m_msh)
       {
          const auto x = m_solution_data.at(cell_i);
@@ -490,24 +490,24 @@ public:
          err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
          cell_i++;
       }
-      
+
       return sqrt(err_dof);
    }
-   
-   
+
+
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_error_energy(const AnalyticalSolution& grad) const
    {
-      
+
       gradrec_type gradrec(m_bqd);
       projector_type projk(m_bqd);
-      
+
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i = 0;
       scalar_type error_energy = 0.0;
-      
+
       for (auto& cl : m_msh)
       {
          const auto x = m_solution_data.at(cell_i);
@@ -521,25 +521,25 @@ public:
          }
          const dynamic_vector<scalar_type> GTu = GT*x;
          const dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
-         
+
          const auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          for (auto& qp : grad_quadpoints)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const scalar_type energy_comp = law.compute_energy(FT_iqn);
-            
+
             const auto GT_true = disk::compute_gradient_matrix_pt(true_dof, gphi);
             const auto FT_true = compute_FTensor(GT_true);
             const scalar_type energy_true = law.compute_energy(FT_true);
-            
+
             error_energy += qp.weight() * std::pow(energy_true - energy_comp, 2.0);
             cell_i++;
          }
       }
-      
+
       return sqrt(error_energy);
    }
 
@@ -549,12 +549,12 @@ public:
    {
       gradrec_type gradrec(m_bqd);
       projector_type projk(m_bqd);
-      
+
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i = 0;
       scalar_type error_PK1 = 0.0;
-      
+
       for (auto& cl : m_msh)
       {
          const auto x = m_solution_data.at(cell_i);
@@ -568,39 +568,39 @@ public:
          }
          const dynamic_vector<scalar_type> GTu = GT*x;
          const dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
-         
+
          const auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          for (auto& qp : grad_quadpoints)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const auto PK1_comp = law.compute_PK1(FT_iqn);
-            
+
             const auto GT_true = disk::compute_gradient_matrix_pt(true_dof, gphi);
             const auto FT_true = compute_FTensor(GT_true);
             const auto PK1_true = law.compute_PK1(FT_true);
-            
+
             const auto PK1_diff = (PK1_true - PK1_comp).eval();
-            
+
             error_PK1 += qp.weight() * disk::mm_prod(PK1_diff, PK1_diff);
          }
       }
-      
+
       return sqrt(error_PK1);
    }
-   
+
    template<typename AnalyticalSolution>
    void
    compute_l2_error_displacement_GP(const std::string& filename, const AnalyticalSolution& as) const
    {
       visu::Gmesh msh; //creta a mesh
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
       size_t nb_node =  msh.getNumberofNodes();
-      
+
       size_t cell_i = 0;
       for (auto& cl : m_msh)
       {
@@ -610,18 +610,18 @@ public:
          {
             nb_node++;
             const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
-            
+
             static_vector<scalar_type, DIM> depl = static_vector<scalar_type, DIM>::Zero();
-            
+
             // Compute displacement
             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.m_cell_degree()).size(); i += DIM){
                for(size_t j = 0; j < DIM; j++){
                   depl(j) += phi.at(i+j)(j) * x(i+j);
                }
             }
-            // True displacement      
+            // True displacement
             const auto true_depl = as(qp.point()); // a voir et projeté
-            
+
             // Create a node at gauss point
             const visu::Node snode = visu::convertPoint(qp.point(), nb_node);
             const std::vector<double> value(1, std::sqrt(disk::mm_prod(depl - true_depl, depl - true_depl))); // save the solution at gauss point
@@ -634,7 +634,7 @@ public:
       // Create and init a nodedata view
       visu::NodeData nodedata(1, 0.0, "error_depl_gp", data, subdata);
       // Save the view
-      nodedata.saveNodeData(filename, msh); 
+      nodedata.saveNodeData(filename, msh);
    }
 
 
@@ -971,7 +971,7 @@ public:
       auto storage = m_msh.backend_storage();
 
       const size_t nb_nodes(gmsh.getNumberofNodes());
-      
+
       gradrec_type gradrec(m_bqd);
 
       //first(number of data at this node), second(cumulated value)
@@ -1001,7 +1001,7 @@ public:
             const auto pt = storage->points[point_ids];
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            
+
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
 
@@ -1024,7 +1024,7 @@ public:
             value[point_ids].first++;
             value[point_ids].second += vm;
          }
-         
+
          cell_i++;
       }
 
@@ -1114,22 +1114,22 @@ public:
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
 
-   
+
    template<typename AnalyticalSolution>
    void
    compute_l2error_VMIS_GP(const std::string& filename, const AnalyticalSolution& grad) const
    {
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
       size_t nb_nodes(gmsh.getNumberofNodes());
-      
+
       gradrec_type gradrec(m_bqd);
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i(0);
       for (auto& cl : m_msh)
       {
@@ -1142,9 +1142,9 @@ public:
             GT = gradrec.oper;
          }
          const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
-         
+
          const auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          // Loop on nodes
          for (auto& qp : qps)
          {
@@ -1153,36 +1153,36 @@ public:
             const auto GT_true = grad(qp.point());
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const auto FT_true = compute_FTensor(GT_true);
-            
+
             const auto PK1 = law.compute_PK1(FT_iqn);
             const auto PK1_true = law.compute_PK1(FT_true);
-            
+
             const auto sigma = disk::convertPK1toCauchy(PK1, FT_iqn);
             const auto sigma_true = disk::convertPK1toCauchy(PK1_true, FT_true);
-            
+
             scalar_type vm(0.0);
-            
+
             vm = sigma(0,0)*sigma(0,0) + sigma(1,1)*sigma(1,1) - sigma(0,0)*sigma(1,1) + 3*sigma(0,1)*sigma(0,1);
-            
+
             if(DIM==3){
                vm += sigma(2,2)*sigma(2,2) - sigma(0,0)*sigma(2,2) - sigma(1,1)*sigma(2,2);
                vm += 3*(sigma(1,2)*sigma(1,2) + sigma(0,2)*sigma(0,2));
             }
-            
+
             vm = sqrt(vm);
-            
+
             scalar_type vm_true(0.0);
-            
+
             vm_true = sigma_true(0,0)*sigma_true(0,0) + sigma_true(1,1)*sigma_true(1,1)
             - sigma_true(0,0)*sigma_true(1,1) + 3*sigma_true(0,1)*sigma_true(0,1);
-            
+
             if(DIM==3){
                vm_true += sigma_true(2,2)*sigma_true(2,2) - sigma_true(0,0)*sigma_true(2,2) - sigma_true(1,1)*sigma_true(2,2);
                vm_true += 3*(sigma_true(1,2)*sigma_true(1,2) + sigma_true(0,2)*sigma_true(0,2));
             }
-            
+
             vm_true = sqrt(vm_true);
-            
+
             // Add GP
             // Create a node at gauss point
             nb_nodes++;
@@ -1193,10 +1193,10 @@ public:
          }
          cell_i++;
       }
-      
+
       // Save
       visu::NodeData nodedata(1, 0.0, "VM", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
 
@@ -1224,22 +1224,22 @@ public:
       {
          const auto GT = grad(pt);
          const auto FT = compute_FTensor(GT);
-         
+
          const auto PK1 = law.compute_PK1(FT);
-         
+
          const auto sigma = disk::convertPK1toCauchy(PK1, FT);
-         
+
          scalar_type vm(0.0);
-         
+
          vm = sigma(0,0)*sigma(0,0) + sigma(1,1)*sigma(1,1) - sigma(0,0)*sigma(1,1) + 3*sigma(0,1)*sigma(0,1);
-         
+
          if(DIM==3){
             vm += sigma(2,2)*sigma(2,2) - sigma(0,0)*sigma(2,2) - sigma(1,1)*sigma(2,2);
             vm += 3*(sigma(1,2)*sigma(1,2) + sigma(0,2)*sigma(0,2));
          }
-         
+
          vm = sqrt(vm);
-         
+
          // Add VM at node
          const std::vector<double> tmp_value(1, double(vm));
          const visu::Data tmp_data(i_node + 1, tmp_value);
@@ -1258,14 +1258,14 @@ public:
    {
       visu::Gmesh gmsh(DIM);
       auto storage = m_msh.backend_storage();
-      
+
       gradrec_type gradrec(m_bqd);
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-      
+
       size_t cell_i(0);
       size_t nb_nodes(0);
       for (auto& cl : m_msh)
@@ -1279,30 +1279,30 @@ public:
             GT = gradrec.oper;
          }
          const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
-         
+
          const auto cell_nodes = visu::cell_nodes(m_msh, cl);
          std::vector<visu::Node> new_nodes;
-         
+
          // Loop on nodes
          for (size_t i = 0; i < cell_nodes.size(); i++)
          {
             nb_nodes++;
             const auto point_ids = cell_nodes[i];
             const auto pt = storage->points[point_ids];
-            
+
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            
+
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
-            
+
             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-            
+
             visu::init_coor(pt, coor);
             const visu::Node tmp_node(coor, nb_nodes, 0);
             new_nodes.push_back(tmp_node);
             gmsh.addNode(tmp_node);
-            
+
             const std::vector<scalar_type> value(1, J_iqn);
             const visu::Data datatmp(nb_nodes, value);
             data.push_back(datatmp);
@@ -1311,28 +1311,28 @@ public:
          visu::add_element(gmsh, new_nodes);
          cell_i++;
       }
-      
+
       visu::NodeData nodedata(1, 0.0, "J", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
+
    void
    compute_continuous_J(const std::string& filename) const
    {
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
-      
+
       const size_t nb_nodes(gmsh.getNumberofNodes());
-      
+
       gradrec_type gradrec(m_bqd);
-      
+
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
-      
+
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i(0);
       for (auto& cl : m_msh)
       {
@@ -1346,59 +1346,59 @@ public:
          }
          const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
          const auto cell_nodes = visu::cell_nodes(m_msh, cl);
-         
+
          // Loop on nodes
          for (size_t i = 0; i < cell_nodes.size(); i++)
          {
             const auto point_ids = cell_nodes[i];
             const auto pt = storage->points[point_ids];
-            
+
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            
+
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
-            
+
             // Add VM at node
             value[point_ids].first++;
             value[point_ids].second += J_iqn;
          }
-         
+
          cell_i++;
       }
-      
+
       std::vector<visu::Data> data; //create data
       std::vector<visu::SubData> subdata; //create subdata
       data.reserve(nb_nodes); // data has a size of nb_node
-      
+
       // Compute the average value and save it
       for(size_t  i_node = 0; i_node < value.size(); i_node++){
          const std::vector<double> tmp_value(1, value[i_node].second/ double(value[i_node].first));
-         
+
          const visu::Data tmp_data(i_node + 1, tmp_value);
          data.push_back(tmp_data);
       }
-      
+
       visu::NodeData nodedata(1, 0.0, "J", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
-   
+
+
    void
    compute_J_GP(const std::string& filename) const
    {
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
       size_t nb_nodes(gmsh.getNumberofNodes());
-      
+
       gradrec_type gradrec(m_bqd);
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i(0);
       for (auto& cl : m_msh)
       {
@@ -1411,9 +1411,9 @@ public:
             GT = gradrec.oper;
          }
          const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
-         
+
          const auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          // Loop on nodes
          for (auto& qp : qps)
          {
@@ -1421,7 +1421,7 @@ public:
             const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             const auto FT_iqn = compute_FTensor(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
-            
+
             // Add GP
             // Create a node at gauss point
             nb_nodes++;
@@ -1432,29 +1432,29 @@ public:
          }
          cell_i++;
       }
-      
+
       // Save
       visu::NodeData nodedata(1, 0.0, "J_GP", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
-   
+
+
    template<typename AnalyticalSolution>
    void
    compute_l2error_J_GP(const std::string& filename, const AnalyticalSolution& grad) const
    {
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
       size_t nb_nodes(gmsh.getNumberofNodes());
-      
+
       gradrec_type gradrec(m_bqd);
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t cell_i(0);
       for (auto& cl : m_msh)
       {
@@ -1467,9 +1467,9 @@ public:
             GT = gradrec.oper;
          }
          const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
-         
+
          const auto qps = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          // Loop on nodes
          for (auto& qp : qps)
          {
@@ -1480,7 +1480,7 @@ public:
             const auto FT_true = compute_FTensor(GT_true);
             const auto J_iqn = FT_iqn.determinant();
             const auto J_true = FT_true.determinant();
-            
+
             // Add GP
             // Create a node at gauss point
             nb_nodes++;
@@ -1491,31 +1491,31 @@ public:
          }
          cell_i++;
       }
-      
+
       // Save
       visu::NodeData nodedata(1, 0.0, "J_GP", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
+
    template<typename AnalyticalSolution>
    void
    plot_analytical_J(const std::string& filename, const AnalyticalSolution& grad) const
    {
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
-      
+
       const size_t nb_nodes(gmsh.getNumberofNodes());
       std::vector<visu::Data> data; //create data
       std::vector<visu::SubData> subdata; //create subdata
       data.reserve(nb_nodes); // data has a size of nb_node
-      
+
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
-      
+
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       size_t i_node(0);
       // Loop on nodes
       for (auto& pt : storage->points)
@@ -1523,20 +1523,20 @@ public:
          const auto GT = grad(pt);
          const auto FT = compute_FTensor(GT);
          const auto J = FT.determinant();
-         
+
          // Add VM at node
          const std::vector<double> tmp_value(1, double(J));
          const visu::Data tmp_data(i_node + 1, tmp_value);
          data.push_back(tmp_data);
          i_node++;
       }
-      
+
       visu::NodeData nodedata(1, 0.0, "J", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
-   
+
+
    /// PROVISOIRE A SUPPRIMER
    // A supprimer
    //compute PK in cylindrical base
@@ -1545,21 +1545,21 @@ public:
    {
       visu::Gmesh gmsh(DIM);
       auto storage = m_msh.backend_storage();
-      
+
       gradrec_type gradrec(m_bqd);
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
       //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      
+
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
-      
+
       size_t cell_i(0);
       size_t nb_nodes(0);
       for (auto& cl : m_msh)
       {
          gradrec.compute(m_msh, cl, false);
          const vector_dynamic GT_uTF = gradrec.oper * m_solution_data.at(cell_i);
-         
+
          auto cell_nodes = visu::cell_nodes(m_msh, cl);
          std::vector<visu::Node> new_nodes;
          for (size_t i = 0; i < cell_nodes.size(); i++)
@@ -1567,14 +1567,14 @@ public:
             nb_nodes++;
             auto point_ids = cell_nodes[i];
             auto pt = storage->points[point_ids];
-            
+
             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            
+
             auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
             auto FT_iqn = compute_FTensor(GT_iqn);
-            
+
             auto PK1= law.compute_PK1(FT_iqn);
-            
+
             vector_dynamic er;
             er.resize(DIM);
             er(0) = pt.x(); er(1) = pt.y();
@@ -1584,7 +1584,7 @@ public:
             eO.resize(DIM);
             eO(0) = -er(1); eO(1) = er(0);
             if(DIM==3) eO(2) = 0.0;
-            
+
             std::vector<scalar_type> PK1rr(1,0.0) ;
             if(compo == "Prr")
                PK1rr[0] = er.dot(PK1*er);
@@ -1594,15 +1594,15 @@ public:
                PK1rr[0] = er.dot(PK1*eO);
             else if(compo == "Por")
                PK1rr[0] = eO.dot(PK1*er);
-            
+
             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-            
+
             visu::init_coor(pt, coor);
             visu::Node tmp_node(coor, nb_nodes, 0);
             new_nodes.push_back(tmp_node);
             gmsh.addNode(tmp_node);
-            
-            
+
+
             visu::Data datatmp(nb_nodes, PK1rr);
             data.push_back(datatmp);
          }
@@ -1610,53 +1610,53 @@ public:
          visu::add_element(gmsh, new_nodes);
          cell_i++;
       }
-      
+
       visu::NodeData nodedata(1, 0.0, "PK1", data, subdata); // create and init a nodedata view
-      
+
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
-   
+
    // A supprimer
    std::pair<scalar_type,scalar_type>
    compute_l2_error_annulus(const std::string& file_error) const
    {
       std::ifstream   ifs(file_error);
       std::string     keyword;
-      
+
       if (!ifs.is_open())
       {
          std::cout << "Error opening " << file_error << std::endl;
       }
-      
+
       //ne sert a rien
       ifs >> keyword >> keyword >> keyword >> keyword >> keyword;
       size_t num(0);
       ifs >> num;
-      
+
       matrix_dynamic mat;
       mat.resize(5, num);
-      
+
       //in the order R, phi, dphi, Prr, Poo
       for (size_t i = 0; i < num; i++) {
          ifs >> mat(0,i) >> mat(1,i) >> mat(2,i) >> mat(3,i) >> mat(4,i);
       }
-      
+
       ifs.close();
-      
+
       gradrec_type gradrec(m_bqd);
-      
+
       size_t i = 0;
       scalar_type error_depl = 0.0;
       scalar_type error_grad = 0.0;
-      
+
       for (auto& cl : m_msh)
       {
          auto x = m_solution_data.at(i++);
          gradrec.compute(m_msh, cl, false);
          dynamic_vector<scalar_type> GTu = gradrec.oper*x;
-         
+
          auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
-         
+
          for (auto& qp : grad_quadpoints)
          {
             //compute depl
@@ -1665,7 +1665,7 @@ public:
             for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM)
                for(size_t j=0; j < DIM; j++)
                   depl[j] += c_phi.at(i+j)(j) * x(i+j); // a voir
-                  
+
                   // compute grad_quadpoints
                   auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
                auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
@@ -1675,7 +1675,7 @@ public:
             const scalar_type R = er.norm();
             er /= R;
             vector_dynamic eo; eo.resize(2); eo(0) = -er(1); eo(1) = er(0);
-            
+
             const scalar_type dphi = er.dot(FT_iqn*er);
             const scalar_type phi = R*eo.dot(FT_iqn*eo);
             const scalar_type cphi = depl.dot(er);
@@ -1690,41 +1690,41 @@ public:
                   ind_R = i;
                }
             }
-            
+
             // interpolation lineaire du deplacement
             const scalar_type a = (mat(1,ind_R) - mat(1,ind_R -1)) / (mat(0,ind_R) - mat(0,ind_R -1)) ;
             const scalar_type b = mat(1,ind_R -1) - a * mat(0,ind_R -1);
             const scalar_type phi_R = a*R + b;
             const scalar_type depl_R = phi_R -R;
-            
+
             // interpolation lineaire du gradient
-            
+
             const scalar_type c = (mat(2,ind_R) - mat(2,ind_R -1)) / (mat(0,ind_R) - mat(0,ind_R -1)) ;
             const scalar_type d = mat(2,ind_R -1) - c * mat(0,ind_R -1);
             const scalar_type dphi_R = c*R + d;
             matrix_dynamic grad_ref; grad_ref.resize(2,2); grad_ref.setConstant(0.0);
-            
+
             //compute L2 error depl
-            
+
             const scalar_type relative_displ = (depl_R- cphi);
-            
+
             error_depl += qp.weight() * relative_displ * relative_displ;
-            
+
             //compute l2 error gradient
             error_grad += qp.weight() * (std::pow(dphi_R - dphi, 2.0) + std::pow(phi_R - phi, 2.0));
          }
       }
-      
+
       error_depl = sqrt(error_depl);
       error_grad = sqrt(error_grad);
-      
+
       std::cout << "ERROR L2 ANNULUS" << '\n';
       std::cout << "L2 DEPL: " << error_depl << '\n';
       std::cout << "L2 GRAD: " << error_grad << '\n';
-      
+
       return std::make_pair(error_depl,error_grad);
    }
-   
+
    // A supprimer
    std::array<scalar_type, 3>
    displacement_node(const size_t num_node) const
@@ -1742,19 +1742,19 @@ public:
             auto point_ids = cell_nodes[i];
             if(point_ids == num_node){
                auto pt = storage->points[point_ids];
-               
+
                auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
-               
+
                // plot magnitude at node
                for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                   for(size_t j=0; j < DIM; j++)
                      depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
-                     
+
                      return depl;
             }
          }
       }
-      
+
       std::cout << "Invalid node number" << std::endl;
       return depl;
    }

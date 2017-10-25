@@ -96,20 +96,20 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T mu = elas_param.mu;
-// 
+//
 //       T fx = 0.0;
 //       T fy = 0.0;
 //       return result_type{fx,fy};
 //    };
-// 
+//
 //    auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //       T lambda = elas_param.lambda;
 //       T fx = alpha *  p.x();
 //       T fy = alpha *  p.y();
-// 
+//
 //       return result_type{fx,fy};
 //    };
-// 
+//
 //    auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //       T lambda = elas_param.lambda;
 //       result_grad_type grad = result_grad_type::Zero();
@@ -128,13 +128,13 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    BoundaryType N1;
 //    N1.id = 7;//4,11
 //    N1.boundary_type = FREE;
-// 
-// 
+//
+//
 //    BoundaryType N2;
 //    N2.id = 10;//14
 //    N2.boundary_type = FREE;
-// 
-// 
+//
+//
 //    BoundaryType N4;
 //    N4.id = 4;//14
 //    N4.boundary_type = NEUMANN;
@@ -146,8 +146,8 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    BoundaryType d3;
 //    d3.id = 3;
 //    d3.boundary_type = CLAMPED;
-// 
-// 
+//
+//
 //    BoundaryType d1;
 //    d1.id = 1;
 //    d1.boundary_type = DX;
@@ -190,7 +190,18 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
       std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
       std::cout << "l2 error displacement: " << nl.compute_l2_error_displacement(solution) << std::endl;
       std::cout << "l2 error gradient: " << nl.compute_l2_error_gradient(gradient) << std::endl;
-
+      try{
+         std::cout << "l2 error energy: " << nl.compute_l2_error_energy(gradient) << std::endl;
+      }
+      catch(const std::invalid_argument& ia){
+         std::cerr << "Invalid argument: " << ia.what() << " in compute_l2_error_energy" << std::endl;
+      }
+      try{
+         std::cout << "l2 error PK1: " << nl.compute_l2_error_PK1(gradient) << std::endl;
+      }
+      catch(const std::invalid_argument& ia){
+         std::cerr << "Invalid argument: " << ia.what() << " in compute_l2_error_PK1" << std::endl;
+      }
         std::cout << "Post-processing: " << std::endl;
         nl.compute_discontinuous_displacement("depl_disc2D.msh");
         nl.compute_continuous_displacement("depl_cont2D.msh");
@@ -198,10 +209,30 @@ auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
         nl.compute_J_GP("J_GP.msh");
         nl.compute_continuous_J("J_cont.msh");
         nl.compute_discontinuous_J("J_disc.msh");
-        nl.compute_discontinuous_VMIS("VM_disc.msh");
-        nl.compute_continuous_VMIS("VM_cont.msh");
-        nl.compute_VMIS_GP("VM_GP.msh");
-        nl.compute_l2error_VMIS_GP("VM_GP_error.msh", gradient);
+        try {
+           nl.compute_discontinuous_VMIS("VM_disc.msh");
+        }
+        catch(const std::invalid_argument& ia){
+           std::cerr << "Invalid argument: " << ia.what() << " in VMIS_disc" << std::endl;
+        }
+        try {
+           nl.compute_continuous_VMIS("VM_cont.msh");
+        }
+        catch(const std::invalid_argument& ia){
+           std::cerr << "Invalid argument: " << ia.what() << " in VMIS_disc" << std::endl;
+        }
+        try {
+           nl.compute_VMIS_GP("VM_GP.msh");
+        }
+        catch(const std::invalid_argument& ia){
+           std::cerr << "Invalid argument: " << ia.what() << " in VMIS_disc" << std::endl;
+        }
+        try {
+           nl.compute_l2error_VMIS_GP("VM_GP_error.msh", gradient);
+        }
+        catch(const std::invalid_argument& ia){
+           std::cerr << "Invalid argument: " << ia.what() << " in VMIS_disc" << std::endl;
+        }
         nl.plot_analytical_VMIS("VM_true.msh", gradient);
    }
 }

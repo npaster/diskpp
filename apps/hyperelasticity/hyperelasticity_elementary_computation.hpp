@@ -34,28 +34,28 @@
 //#define USE_BLAS
 
 namespace Hyperelasticity {
-   
+
 //    namespace priv {
 //       template< typename GradBasis >
 //       struct poly_size_F {
 //          static size_t impl(const size_t DIM, const size_t grad_degree)
 //          { throw std::invalid_argument("Unknown GradBasis"); }
 //       };
-//       
+//
 //       template<>
 //       struct poly_size_F<disk::Raviart_Thomas_matrix_basis> {
 //          static size_t impl(const size_t DIM, const size_t grad_degree)
 //          { return DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1); }
 //       };
-//       
+//
 //       template<>
 //       struct poly_size_F<disk::scaled_monomial_matrix_basis> {
 //          static size_t impl(const size_t DIM, const size_t grad_degree)
 //          { return DIM * DIM * binomial(grad_degree + DIM, grad_degree); }
 //       };
-//       
+//
 //   }  // namespace priv
-    
+
 
    template<typename BQData>
    class Hyperelasticity
@@ -72,10 +72,10 @@ namespace Hyperelasticity {
 
       // Optimzation of the product A:G
       //attention grad_degree = 0
-      
+
 //       template<typename GradBasis>
 //       size_t poly_size(const size_t DIM, const size_t grad_degree)
-//       { return priv::poly_size_F<GradBasis>::impl(const size_t DIM, const size_t grad_degree); } 
+//       { return priv::poly_size_F<GradBasis>::impl(const size_t DIM, const size_t grad_degree); }
 
       template<int DIM>
       std::vector<static_matrix<scalar_type, DIM, DIM>>
@@ -110,7 +110,7 @@ namespace Hyperelasticity {
       }
 
 
-   
+
       template<int DIM>
       void
       compute_A_gphi_gphi(const static_tensor<scalar_type, DIM>& A,
