@@ -130,8 +130,10 @@ public:
       newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
       newton_step.verbose(m_verbose);
 
+
       // Newton iteration
       for (size_t iter = 0; iter < m_rp.m_iter_max; iter++) {
+
          //Assemble lhs and rhs
          AssemblyInfo assembly_info;
          try {
@@ -168,10 +170,12 @@ public:
          ni.updateSolveInfo(solve_info);
 
          // Postprocess and update
-         newton_step.postprocess();
+         ni.m_assembly_info.m_time_postpro += newton_step.postprocess();
 
          //Update iteration
          ni.m_iter++;
+         
+
       }
 
       //       if(auricchio){

@@ -374,8 +374,10 @@ public:
    }
 
    // Post-processing
-   void postprocess()
+   double postprocess()
    {
+      timecounter tc;
+      tc.tic();
       // Number of Unknowns by cell and face
       const size_t cbs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
       const size_t fbs = (m_bqd.face_basis.range(0, m_bqd.face_degree())).size();
@@ -404,8 +406,9 @@ public:
          // Extract the solution
          const auto fcs = faces(m_msh, cl);
          const auto num_faces = fcs.size();
+         const auto total_faces_dof = num_faces * fbs;
 
-         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
+         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(total_faces_dof);
 
          for (size_t face_i = 0; face_i < num_faces; face_i++)
          {
@@ -421,19 +424,22 @@ public:
 
          auto K_TT_ldlt = m_KTT[cell_i].llt();
          const dynamic_vector<scalar_type> xT = - K_TT_ldlt.solve(-m_RT[cell_i] + m_KTF[cell_i] * xFs);
-
+         
          assert(xT.size() == cbs);
          assert(m_solution_data.at(cell_i).size() == xT.size() + xFs.size());
          // Update element U^{i+1} = U^i + delta U^i ///
          (m_solution_data.at(cell_i)).block(0,0,cbs,1) += xT;
-         (m_solution_data.at(cell_i)).block(cbs,0,fbs,1) += xFs;
-
+         (m_solution_data.at(cell_i)).block(cbs,0,total_faces_dof,1) += xFs;
+         
          // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
          assert(m_solution_cells.at(cell_i).size() == cbs);
          m_solution_cells.at(cell_i) += xT;
 
          cell_i++;
       }
+      
+      tc.toc();
+      return tc.to_double();
    }
 
 

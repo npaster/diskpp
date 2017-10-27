@@ -393,7 +393,7 @@ public:
                      std::cerr << "Invalid argument: " << ia.what()  << " in Prr_disc" << std::endl;
                   }
                   try {
-                     this->compute_discontinuous_Prr(name +"Prr.msh", "Poo");
+                     this->compute_discontinuous_Prr(name +"Poo.msh", "Poo");
                   }
                   catch(const std::invalid_argument& ia){
                      std::cerr << "Invalid argument: " << ia.what() << " in Prr_disc" << std::endl;
@@ -445,11 +445,11 @@ public:
 
       projector_type projk(m_bqd);
 
-      size_t i = 0;
+      size_t cell_i(0);
 
       for (auto& cl : m_msh)
       {
-         const auto x = m_solution_cells.at(i++);
+         const auto x = m_solution_cells.at(cell_i++);
          const dynamic_vector<scalar_type> true_dof = projk.compute_cell(m_msh, cl, as);
          const dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
          const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
@@ -470,7 +470,7 @@ public:
 
       gradrec_type gradrec(m_bqd);
 
-      size_t cell_i = 0;
+      size_t cell_i(0);
 
       for (auto& cl : m_msh)
       {
@@ -505,8 +505,8 @@ public:
 
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
-      size_t cell_i = 0;
-      scalar_type error_energy = 0.0;
+      size_t cell_i(0);
+      scalar_type error_energy(0.0);
 
       for (auto& cl : m_msh)
       {
@@ -536,8 +536,8 @@ public:
             const scalar_type energy_true = law.compute_energy(FT_true);
 
             error_energy += qp.weight() * std::pow(energy_true - energy_comp, 2.0);
-            cell_i++;
          }
+         cell_i++;
       }
 
       return sqrt(error_energy);
@@ -552,8 +552,8 @@ public:
 
       const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
-      size_t cell_i = 0;
-      scalar_type error_PK1 = 0.0;
+      size_t cell_i(0);
+      scalar_type error_PK1(0.0);
 
       for (auto& cl : m_msh)
       {
@@ -586,6 +586,7 @@ public:
 
             error_PK1 += qp.weight() * disk::mm_prod(PK1_diff, PK1_diff);
          }
+         cell_i++;
       }
 
       return sqrt(error_PK1);
@@ -601,7 +602,7 @@ public:
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
       size_t nb_node =  msh.getNumberofNodes();
 
-      size_t cell_i = 0;
+      size_t cell_i(0);
       for (auto& cl : m_msh)
       {
          const vector_dynamic x = m_solution_cells.at(cell_i++);
@@ -731,7 +732,7 @@ public:
 
             // Compute displacement at node
             for (size_t i = 0; i < num_cell_dofs; i += DIM){
-               for(size_t j=0; j < DIM; j++){
+               for(size_t j = 0; j < DIM; j++){
                   depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
                }
             }
@@ -762,6 +763,60 @@ public:
       visu::NodeData nodedata(3, 0.0, "depl_node", data, subdata);
       // Save the view
       nodedata.saveNodeData(filename, gmsh);
+   }
+   
+   void
+   compute_deformed_CONT(const std::string& filename) const
+   {
+      const size_t cell_degree = m_bqd.cell_degree();
+      const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, cell_degree)).size();
+      
+      visu::Gmesh gmsh(DIM);
+      auto storage = m_msh.backend_storage();
+      
+      size_t cell_i(0);
+      size_t nb_nodes(0);
+      for (auto& cl : m_msh)
+      {
+         const vector_dynamic x = m_solution_cells.at(cell_i++);
+         const auto cell_nodes = visu::cell_nodes(m_msh, cl);
+         std::vector<visu::Node> new_nodes;
+         
+         // Loop on nodes of the cell
+         for (size_t i = 0; i < cell_nodes.size(); i++)
+         {
+            nb_nodes++;
+            const auto point_ids = cell_nodes[i];
+            const auto pt = storage->points[point_ids];
+            
+            const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
+            
+            std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
+            std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
+            
+            // Compute displacement
+            visu::init_coor(pt, coor);
+            for (size_t i = 0; i < num_cell_dofs; i += DIM){
+               for(size_t j=0; j < DIM; j++){
+                  depl[j] += phi.at(i+j)(j) * x(i+j);
+               }
+            }
+            
+            // Compute new coordinates
+            for(size_t j=0; j < DIM; j++)
+               coor[j] += depl[j];
+            
+            // Save node
+            const visu::Node tmp_node(coor, nb_nodes, 0);
+            new_nodes.push_back(tmp_node);
+            gmsh.addNode(tmp_node);
+            
+         }
+         // Add new element
+         visu::add_element(gmsh, new_nodes);
+      }
+      // Save mesh
+      gmsh.writeGmesh(filename, 2);
    }
 
    void
