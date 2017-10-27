@@ -84,6 +84,19 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
 
    if(vl.verbose()){
       std::cout << "Assembling: " << assembling_info.time_assembly << " sec"  << '\n';
+      std::cout << "Conditionning: " << std::endl;
+   }
+
+   const auto cond_numbers = vl.conditioning();
+
+   if(vl.verbose()){
+      std::cout << "*********************************************" << std::endl;
+      std::cout << "* conditioning_number: static condensation *" << std::endl;
+      std::cout << "*         with        ***      without      *" << std::endl;
+      std::cout << "*********************************************" << std::endl;
+      std::cout << "*    " << cond_numbers.first << "    ***    " << cond_numbers.second
+      << "    *" << std::endl;
+      std::cout << "*********************************************" << std::endl;
    }
 
    solver_info solve_info = vl.solve();
@@ -115,11 +128,6 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
       std::cout << "**** Postprocess time: " << post_info.time_postprocess << " sec" << std::endl;
       std::cout << "***********************************************************" << std::endl;
    }
-
-//    le.plot_solution_at_gausspoint("sol_elas_2d.msh");
-//    le.plot_l2error_at_gausspoint("error_gp_2d_.msh", solution_lin);
-//    le.compute_deformed("deforme2d.msh");
-//    le.compute_discontinuous_solution("depl2d.msh");
 }
 
 template<template<typename, size_t, typename> class Mesh,
@@ -132,7 +140,6 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
 
    timecounter tc;
    tc.tic();
-
 
    auto load = [material_data](const point<T,3>& p) -> auto {
       const T lambda = material_data.lambda;
@@ -166,6 +173,18 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       std::cout << "Assembling: " << assembling_info.time_assembly << " sec"  << '\n';
    }
 
+   const auto cond_numbers = vl.conditioning();
+
+   if(vl.verbose()){
+      std::cout << "*********************************************" << std::endl;
+      std::cout << "* conditioning_number: static condensation *" << std::endl;
+      std::cout << "*         with        ***      without      *" << std::endl;
+      std::cout << "*********************************************" << std::endl;
+      std::cout << "*    " << cond_numbers.first << "    ***    " << cond_numbers.second
+      << "    *" << std::endl;
+      std::cout << "*********************************************" << std::endl;
+   }
+
    solver_info solve_info = vl.solve();
 
    if(vl.verbose()){
@@ -194,11 +213,6 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       std::cout << "**** Postprocess time: " << post_info.time_postprocess << " sec" << std::endl;
       std::cout << "***********************************************************" << std::endl;
    }
-
-   //    le.plot_solution_at_gausspoint("sol_elas_3d.msh");
-   //    le.plot_l2error_at_gausspoint("error_gp_3d_.msh", solution);
-   //    le.compute_deformed("deforme3d.msh");
-   //    le.compute_discontinuous_solution("depl3d.msh");
 }
 
 
