@@ -118,7 +118,7 @@ class vector_laplacian_solver
 
       // Construct solver object, requesting the largest 10 eigenvalues
       Spectra::SymEigsSolver< scalar_type, Spectra::LARGEST_MAGN, Spectra::SparseSymMatProd<scalar_type> >
-         eigs_largest(&op_largest, 1, 5);
+         eigs_largest(&op_largest, 1, 10);
 
       // Initialize and compute
       eigs_largest.init();
@@ -132,14 +132,14 @@ class vector_laplacian_solver
 
       // Construct solver object, requesting the smallest 10 eigenvalues
       Spectra::SymEigsShiftSolver< scalar_type, Spectra::LARGEST_MAGN, Spectra::SparseSymShiftSolve<double> >
-         eigs_smallest(&op_smallest, 1, 5, scalar_type(0));
+         eigs_smallest(&op_smallest, 1, 10, scalar_type(0));
 
       eigs_smallest.init();
       eigs_smallest.compute();
 
       if(eigs_smallest.info() != Spectra::SUCCESSFUL)
       {
-         throw std::invalid_argument("Fail to compute largest eigenvalues");
+         throw std::invalid_argument("Fail to compute smallest eigenvalues");
       }
       const auto eig_smallest = eigs_smallest.eigenvalues();
 
@@ -272,136 +272,6 @@ public:
       const scalar_type cond_stat(this->conditioning_number(m_system_matrix));
 
       return std::make_pair(cond_stat, cond_full);
-   }
-
-   solver_info
-   solve(void)
-   {
-      #ifdef HAVE_INTEL_MKL
-      Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
-      #else
-      Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
-      #endif
-
-      solver_info si;
-
-      size_t systsz = m_system_matrix.rows();
-      size_t nnz = m_system_matrix.nonZeros();
-
-      if (verbose())
-      {
-         std::cout << "Starting linear solver..." << std::endl;
-         std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
-         std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
-      }
-
-      timecounter tc;
-
-      tc.tic();
-      solver.analyzePattern(m_system_matrix);
-      solver.factorize(m_system_matrix);
-      m_system_solution = solver.solve(m_system_rhs);
-      tc.toc();
-      si.time_solver = tc.to_double();
-
-      return si;
-   }
-
-
-   postprocess_info
-   postprocess()
-   {
-      const size_t fbs = m_bqd.face_basis.size();
-      const size_t cbs = m_bqd.cell_basis.size();
-      const size_t cells_offset = m_msh.cells_size() * cbs;
-
-      postprocess_info pi;
-
-      m_solution_data.reserve(m_msh.cells_size());
-
-      timecounter tc;
-      tc.tic();
-      for (auto& cl : m_msh)
-      {
-         const auto fcs = faces(m_msh, cl);
-         const auto num_faces = fcs.size();
-         const size_t total_dof = cbs + num_faces * fbs;
-
-         dynamic_vector<scalar_type> x = dynamic_vector<scalar_type>::Zero(total_dof);
-
-         const auto cid = find_element_id(m_msh.cells_begin(), m_msh.cells_end(), cl);
-         if (!cid.first)
-         throw std::invalid_argument("This is a bug: cell not found");
-
-         const auto cell_id = cid.second;
-         const auto cell_offset = cell_id * cbs;
-
-         x.block(0,0,cbs,1) = m_system_solution.block(cell_offset,0,cbs,1);
-
-         for (size_t face_i = 0; face_i < num_faces; face_i++)
-         {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
-            if (!eid.first)
-               throw std::invalid_argument("This is a bug: face not found");
-
-            auto face_id = eid.second;
-
-            x.block(cbs + face_i * fbs, 0, fbs, 1) = m_system_solution.block(cells_offset + face_id * fbs, 0, fbs, 1);
-         }
-
-         m_solution_data.push_back(x);
-      }
-      tc.toc();
-
-      pi.time_postprocess = tc.to_double();
-
-      return pi;
-   }
-
-   template<typename AnalyticalSolution>
-   scalar_type
-   compute_l2_error(const AnalyticalSolution& as) const
-   {
-      scalar_type err_dof = static_cast<scalar_type>(0.0);
-      projector_type projk(m_bqd);
-
-      size_t cell_i = 0;
-
-      for (auto& cl : m_msh)
-      {
-         auto x = m_solution_data.at(cell_i++);
-         dynamic_vector<scalar_type> true_dof = projk.compute_cell(m_msh, cl, as);
-         dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
-         dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
-         err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
-      }
-
-      return sqrt(err_dof);
-   }
-
-   template<typename AnalyticalSolution>
-   scalar_type
-   compute_l2_gradient_error(const AnalyticalSolution& grad) const
-   {
-      scalar_type err_dof = static_cast<scalar_type>(0.0);
-
-      projector_type projk(m_bqd);
-      gradrec_type gradrec(m_bqd);
-
-      size_t cell_i = 0;
-
-      for (auto& cl : m_msh)
-      {
-         auto x = m_solution_data.at(cell_i++);
-         gradrec.compute(m_msh, cl);
-         dynamic_vector<scalar_type> RTu = gradrec.oper * x;
-         dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
-         dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
-         dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
-         err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
-      }
-      return sqrt(err_dof);
    }
 
 };

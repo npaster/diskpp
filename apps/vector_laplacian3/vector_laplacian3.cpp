@@ -99,35 +99,6 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
       std::cout << "*********************************************" << std::endl;
    }
 
-   solver_info solve_info = vl.solve();
-
-   if(vl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
-   }
-
-   postprocess_info post_info = vl.postprocess();
-
-   if(vl.verbose()){
-      std::cout << "Post-Processing: " << post_info.time_postprocess << " sec"  << '\n';
-   }
-
-   std::cout << "Discetisation h: " << disk::mesh_h(msh) << std::endl;
-   std::cout << "L2 error: " << vl.compute_l2_error(solution) << std::endl;
-
-   tc.toc();
-
-   if(vl.verbose()){
-      std::cout << std::endl;
-      std::cout << "************************************************************" << std::endl;
-      std::cout << "** Time to solve the problem " << tc.to_double() << " sec" << std::endl;
-      std::cout << "**** Assembly time: " << assembling_info.time_assembly << " sec" << std::endl;
-      std::cout << "****** Gradient reconstruction: " << assembling_info.time_gradrec << " sec" << std::endl;
-      std::cout << "****** Stabilisation: " << assembling_info.time_stab << " sec" << std::endl;
-      std::cout << "****** Static condensation: " << assembling_info.time_statcond << " sec" << std::endl;
-      std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
-      std::cout << "**** Postprocess time: " << post_info.time_postprocess << " sec" << std::endl;
-      std::cout << "***********************************************************" << std::endl;
-   }
 }
 
 template<template<typename, size_t, typename> class Mesh,
@@ -183,35 +154,6 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       std::cout << "*    " << cond_numbers.first << "    ***    " << cond_numbers.second
       << "    *" << std::endl;
       std::cout << "*********************************************" << std::endl;
-   }
-
-   solver_info solve_info = vl.solve();
-
-   if(vl.verbose()){
-      std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
-   }
-
-   postprocess_info post_info = vl.postprocess();
-
-   if(vl.verbose()){
-      std::cout << "Post-Processing: " << post_info.time_postprocess << " sec"  << '\n';
-   }
-
-   std::cout << "Discetisation h: " << disk::mesh_h(msh) << std::endl;
-   std::cout << "L2 error: " << vl.compute_l2_error(solution) << std::endl;
-
-   tc.toc();
-
-   if(vl.verbose()){
-      std::cout << std::endl;
-      std::cout << "***********************************************************" << std::endl;
-      std::cout << "** Time to solve the problem " << tc.to_double() << " sec" << std::endl;
-      std::cout << "**** Assembly time: " << assembling_info.time_assembly << " sec" << std::endl;
-      std::cout << "****** Gradient reconstruction: " << assembling_info.time_gradrec << " sec" << std::endl;
-      std::cout << "****** Static condensation: " << assembling_info.time_statcond << " sec" << std::endl;
-      std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
-      std::cout << "**** Postprocess time: " << post_info.time_postprocess << " sec" << std::endl;
-      std::cout << "***********************************************************" << std::endl;
    }
 }
 
