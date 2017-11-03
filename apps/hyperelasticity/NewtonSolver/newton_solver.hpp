@@ -36,7 +36,7 @@
 #include "hho/hho.hpp"
 #include "newton_step.hpp"
 #include "../ElasticityParameters.hpp"
-#include "../BoundaryConditions.hpp"
+#include "mechanics/BoundaryConditions.hpp"
 #include "../Informations.hpp"
 #include "../Parameters.hpp"
 
@@ -174,8 +174,6 @@ public:
 
          //Update iteration
          ni.m_iter++;
-         
-
       }
 
       //       if(auricchio){
@@ -187,6 +185,11 @@ public:
 
       //       if(!m_convergence)
       //          m_convergence = newton_step.test_convergence(1E-4, m_rp.m_iter_max, residu);
+      if(m_convergence and m_rp.m_conditioning){
+         newton_step.conditioning();
+         newton_step.conditioning_full(lf, bf, g, gradient_precomputed);
+      }   
+      
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);

@@ -27,6 +27,8 @@
 
 namespace disk {
 
+namespace hho{
+
    template<typename Mesh,
    template<typename, typename> class BasisFunction,
    template<typename, typename> class BasisGradient,
@@ -67,7 +69,7 @@ namespace disk {
          face_quadrature     = face_quad_type(2 * m_face_degree);
          grad_quadrature     = cell_quad_type(2 * m_grad_degree);
          grad_cell_quadrature     = cell_quad_type(m_grad_degree + m_cell_degree);
-         grad_face_quadrature     = face_quad_type(m_grad_degree + std::max(m_face_degree, m_cell_degree));
+         grad_face_quadrature     = face_quad_type(m_grad_degree + m_face_degree);
       }
 
    public:
@@ -103,6 +105,32 @@ namespace disk {
       size_t face_degree(void) const { return m_face_degree; }
       size_t grad_degree(void) const { return m_grad_degree; }
    };
+
+
+
+   template<typename BQData, typename Function>
+   dynamic_vector<typename BQData::mesh_type::scalar_type>
+   compute_rhs_bq(const typename BQData::mesh_type& msh,
+                  const typename BQData::mesh_type::cell& cl,
+                  const Function& f, const BQData& bqd)
+   {
+      typedef typename BQData::mesh_type          mesh_type;
+      typedef typename mesh_type::scalar_type     scalar_type;
+      typedef dynamic_vector<scalar_type> vector_type;
+
+      vector_type ret = vector_type::Zero(bqd.cell_basis.size());
+
+      const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
+      for (auto& qp : cell_quadpoints)
+      {
+         auto phi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
+         auto fval = f(qp.point());
+         for (size_t i = 0; i < bqd.cell_basis.size(); i++)
+            ret(i) += qp.weight() * mm_prod(fval, phi[i]);
+      }
+
+      return ret;
+   }
 
 
    template<typename BQData>
@@ -236,5 +264,236 @@ namespace disk {
    };
 
 
+
+   template<typename BQData>
+   class assembler_bq
+   {
+      typedef typename BQData::mesh_type          mesh_type;
+      typedef typename mesh_type::scalar_type     scalar_type;
+      typedef typename mesh_type::cell            cell_type;
+      typedef typename mesh_type::face            face_type;
+
+      typedef dynamic_matrix<scalar_type>         matrix_type;
+
+      typedef Eigen::Triplet<scalar_type>         triplet_type;
+
+      std::vector<triplet_type>                   m_triplets;
+      size_t                                      m_num_unknowns;
+
+      const BQData&                               m_bqd;
+
+   public:
+
+      typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
+      typedef dynamic_vector<scalar_type>         vector_type;
+
+      sparse_matrix_type      matrix;
+      vector_type             rhs;
+
+      assembler_bq()                 = delete;
+
+      assembler_bq(const mesh_type& msh, const BQData& bqd)
+      : m_bqd(bqd)
+      {
+         m_num_unknowns = m_bqd.face_basis.size() * (msh.faces_size() + msh.boundary_faces_size());
+         matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         rhs = vector_type::Zero(m_num_unknowns);
+      }
+
+      template<typename LocalContrib>
+      void
+      assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
+      {
+         const size_t face_basis_size = m_bqd.face_basis.size();
+
+         const auto fcs = faces(msh, cl);
+         std::vector<size_t> l2g(fcs.size() * face_basis_size);
+
+         assert(face_basis_size == face_basis_size);
+
+         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_id * face_basis_size;
+
+            const auto pos = face_i * face_basis_size;
+
+            for (size_t i = 0; i < face_basis_size; i++)
+               l2g[pos+i] = face_offset+i;
+         }
+
+         assert(lc.first.rows() == fcs.size()*face_basis_size);
+         assert(lc.first.rows() == lc.first.cols());
+         assert(lc.first.rows() == lc.second.size());
+         assert(lc.second.size() == l2g.size());
+
+         //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+         #ifdef FILL_COLMAJOR
+         for (size_t j = 0; j < lc.first.cols(); j++)
+         {
+            for (size_t i = 0; i < lc.first.rows(); i++)
+               m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+
+            rhs(l2g.at(j)) += lc.second(j);
+         }
+         #else
+         for (size_t i = 0; i < lc.first.rows(); i++)
+         {
+            for (size_t j = 0; j < lc.first.cols(); j++)
+               m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+
+            rhs(l2g.at(i)) += lc.second(i);
+         }
+         #endif
+      }
+
+      template<typename Function>
+      void
+      impose_boundary_conditions(const mesh_type& msh, const Function& bc)
+      {
+         const size_t fbs = m_bqd.face_basis.size();
+         size_t face_i = 0;
+         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+         {
+            auto bfc = *itor;
+
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_id * fbs;
+            const auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
+
+            const auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
+
+            matrix_type MFF     = matrix_type::Zero(fbs, fbs);
+            vector_type rhs_f   = vector_type::Zero(fbs);
+
+            for (auto& qp : fqd)
+            {
+               const auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+               MFF += qp.weight() * f_phi * f_phi.transpose();
+               rhs_f += qp.weight() * f_phi * bc(qp.point());
+            }
+
+            #ifdef FILL_COLMAJOR
+            for (size_t j = 0; j < MFF.cols(); j++)
+            {
+               for (size_t i = 0; i < MFF.rows(); i++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+j) = rhs_f(j);
+            }
+            #else
+            for (size_t i = 0; i < MFF.rows(); i++)
+            {
+               for (size_t j = 0; j < MFF.cols(); j++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+i) = rhs_f(i);
+            }
+            #endif
+
+            face_i++;
+         }
+      }
+
+      template<typename Function>
+      void
+      impose_boundary_conditions_nl(const mesh_type& msh, const Function& bc, const std::vector<vector_type>& sol_faces,
+                                 const std::vector<vector_type>& sol_lagr)
+      {
+         const size_t fbs = m_bqd.face_basis.size();
+         size_t face_i = 0;
+         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+         {
+            auto bfc = *itor;
+
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_id * fbs;
+            const auto face_offset_lagrange = (msh.faces_size() + face_i) * fbs;
+
+            const auto fqd = m_bqd.face_quadrature.integrate(msh, bfc);
+
+            matrix_type MFF     = matrix_type::Zero(fbs, fbs);
+            vector_type rhs_f   = vector_type::Zero(fbs);
+
+            for (auto& qp : fqd)
+            {
+               const auto f_phi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+               MFF += qp.weight() * f_phi * f_phi.transpose();
+               rhs_f += qp.weight() * f_phi * bc(qp.point());
+            }
+
+
+            rhs_f -= MFF * sol_faces.at(face_id);
+
+            const vector_type rhs_l = MFF * sol_lagr.at(face_i);
+
+            for (size_t i = 0; i < fbs; i++)
+               rhs(face_offset+i) -= rhs_l(i);
+
+            #ifdef FILL_COLMAJOR
+            for (size_t j = 0; j < MFF.cols(); j++)
+            {
+               for (size_t i = 0; i < MFF.rows(); i++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+j) = rhs_f(j);
+            }
+            #else
+            for (size_t i = 0; i < MFF.rows(); i++)
+            {
+               for (size_t j = 0; j < MFF.cols(); j++)
+               {
+                  m_triplets.push_back( triplet_type(face_offset + i, face_offset_lagrange + j, MFF(i,j)) );
+                  m_triplets.push_back( triplet_type(face_offset_lagrange + j, face_offset + i, MFF(i,j)) );
+               }
+               rhs(face_offset_lagrange+i) = rhs_f(i);
+            }
+            #endif
+
+            face_i++;
+         }
+      }
+
+      void
+      finalize()
+      {
+         matrix.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+      }
+
+      void
+      finalize(sparse_matrix_type& mat, vector_type& vec)
+      {
+         mat = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         mat.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+         vec = rhs;
+      }
+   };
+
+} // namespace hho
 
 } // namespace disk

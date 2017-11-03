@@ -22,28 +22,13 @@
 
 #pragma once
 
-#include <iostream>
-
-#include <sstream>
-#include <string>
-
-#include "BehaviorLaws/material_parameters.hpp"
 #include "common/eigen.hpp"
 #include "BehaviorLaws/maths_tensor.hpp"
-#include "BehaviorLaws/maths_deformation_tensors.hpp"
-#include "BehaviorLaws/maths_jacobian_derivate.hpp"
 
 
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-
-
-/* Material: St Venant - Kirchhoof
- * Energy :  W(E) = lambda / 2 *(tr E)**2 + mu * tr (E**2)
- * Stress :  S(E) = lmabda * tr(E) * I_2 + 2.0*mu*E
- * Module :  C(E) = lambda * ( I_2 \cirl I_2)  + 2.0 * mu * I_4
- */
 
 
 template<typename scalar_type>

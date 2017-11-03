@@ -6,9 +6,9 @@
 #target_link_libraries(hyperelasticity_test_aurrichio ${LINK_LIBS})
 # install(TARGETS hyperelasticity_test_aurrichio RUNTIME DESTINATION bin)
 
-#add_executable(hyperelasticity_test_convergence_rates hyperelasticity_test_convergence_rates.cpp)
-#target_link_libraries(hyperelasticity_test_convergence_rates ${LINK_LIBS})
-#install(TARGETS hyperelasticity_test_convergence_rates RUNTIME DESTINATION bin)
+add_executable(hyperelasticity_test_convergence_rates hyperelasticity_test_convergence_rates.cpp)
+target_link_libraries(hyperelasticity_test_convergence_rates ${LINK_LIBS})
+install(TARGETS hyperelasticity_test_convergence_rates RUNTIME DESTINATION bin)
 
 #add_executable(hyperelasticity_test_annulus hyperelasticity_test_annulus.cpp)
 #target_link_libraries(hyperelasticity_test_annulus${LINK_LIBS})

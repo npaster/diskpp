@@ -1,31 +1,28 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
- *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
- *    /\    /\
- *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
- *  /_\/_\/_\/_\   methods.
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- * If you use this code for scientific publications, you are required to
- * cite it.
- */
+*       /\
+*      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+*     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
+*    /\    /\
+*   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
+*  /_\/_\/_\/_\   methods.
+*
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this
+* file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*
+* If you use this code for scientific publications, you are required to
+* cite it.
+*/
 
 #include <iostream>
 
 #include <sstream>
 
-#include "../../config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
-#include "agmg/agmg.hpp"
-#endif
+#include "config.h"
 
 #include "hho/hho.hpp"
-#include "hho/hho_vector.hpp"
+#include "hho/hho_bq.hpp"
+#include "hho/hho_vector_bq.hpp"
 
 
 #include "../exemple_visualisation/visualisation/gmshDisk.hpp"
@@ -72,39 +69,31 @@ class vector_laplacian_solver
    typedef typename mesh_type::cell                   cell_type;
    typedef typename mesh_type::face                   face_type;
 
-   typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
-   typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
-   typedef disk::quadrature<mesh_type, cell_type>      matrix_quadrature_type;
-
-   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
-   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
-   typedef disk::scaled_monomial_matrix_basis<mesh_type, cell_type>    matrix_basis_type;
 
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-   typedef disk::gradient_reconstruction_elas   < mesh_type,
-                                                cell_basis_type, cell_quadrature_type,
-                                                face_basis_type, face_quadrature_type>          gradrec_type;
+   typedef disk::hho::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_vector_basis,
+                                                            disk::scaled_monomial_matrix_basis,
+                                                            disk::quadrature> bqdata_type;
 
-   typedef disk::elas_like_stabilization<   mesh_type,
-                                             cell_basis_type, cell_quadrature_type,
-                                             face_basis_type, face_quadrature_type>                stab_type;
+   typedef disk::hho::gradient_reconstruction_vector_bq<bqdata_type>    gradrec_type;
 
-   typedef disk::diffusion_like_static_condensation<  mesh_type,
-                                                   cell_basis_type, cell_quadrature_type,
-                                                   face_basis_type, face_quadrature_type>    statcond_type;
+   typedef disk::hho::elas_like_stabilization_bq<bqdata_type>           stab_type;
 
-   typedef disk::assembler_elas<mesh_type, face_basis_type, face_quadrature_type>               assembler_type;
+   typedef disk::diffusion_like_static_condensation_bq<bqdata_type>     statcond_type;
 
-   typedef disk::projector_elas<mesh_type, cell_basis_type, cell_quadrature_type,
-                               face_basis_type, face_quadrature_type>                projector_type;
+   typedef disk::hho::assembler_vector_bq<bqdata_type>                       assembler_type;
+
+   typedef disk::hho::projector_vector_bq<bqdata_type>                       projector_type;
 
    typename assembler_type::sparse_matrix_type     m_system_matrix;
    typename assembler_type::vector_type            m_system_rhs, m_system_solution;
 
 
-   size_t m_cell_degree, m_face_degree, m_degree;
+   size_t m_cell_degree, m_face_degree;
+
+   bqdata_type     m_bqd;
 
    const mesh_type& m_msh;
 
@@ -132,8 +121,8 @@ public:
 
       m_cell_degree = degree + l;
       m_face_degree = degree;
-      m_degree = degree;
 
+      m_bqd = bqdata_type(m_face_degree, m_cell_degree, m_cell_degree);
       m_laplacian_parameters.lambda = 1.0;
 
    }
@@ -155,9 +144,9 @@ public:
 
       m_cell_degree = degree + l;
       m_face_degree = degree;
-      m_degree = degree;
 
       m_laplacian_parameters.lambda = data.lambda;
+      m_bqd = bqdata_type(m_face_degree, m_cell_degree, m_cell_degree);
 
    }
 
@@ -175,10 +164,10 @@ public:
    assembly_info
    assemble(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
    {
-      auto gradrec     = gradrec_type(m_degree);
-      auto stab         = stab_type(m_degree);
-      auto statcond     = statcond_type(m_degree);
-      auto assembler    = assembler_type(m_msh, m_face_degree);
+      auto gradrec     = gradrec_type(m_bqd);
+      auto stab         = stab_type(m_bqd);
+      auto statcond     = statcond_type(m_bqd);
+      auto assembler    = assembler_type(m_msh, m_bqd);
 
       assembly_info ai;
       bzero(&ai, sizeof(ai));
@@ -201,9 +190,9 @@ public:
          assert(gradrec.data.cols() == stab.data.cols());
 
          tc.tic();
-         auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
-         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * (gradrec.data + stab.data);
-         auto scnp = statcond.compute(m_msh, cl, loc, cell_rhs);
+         const auto cell_rhs = disk::hho::compute_rhs_bq(m_msh, cl, lf, m_bqd);
+         const dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * (gradrec.data + stab.data);
+         const auto scnp = statcond.compute(m_msh, cl, loc, cell_rhs);
          tc.toc();
          ai.time_statcond += tc.to_double();
 
@@ -229,8 +218,8 @@ public:
 
       solver_info si;
 
-      size_t systsz = m_system_matrix.rows();
-      size_t nnz = m_system_matrix.nonZeros();
+      const size_t systsz = m_system_matrix.rows();
+      const size_t nnz = m_system_matrix.nonZeros();
 
       if (verbose())
       {
@@ -238,14 +227,6 @@ public:
          std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
          std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
       }
-
-      //       if(m_verbose){
-      //          std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
-      //          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
-      //          std::cout << "** After static condensation: "  << std::endl;
-      //          std::cout << "** Numbers of dofs: " << m_msh.faces_size() * num_face_dofs + total_lagr  << std::endl;
-      //          std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
-      //       }
 
       timecounter tc;
 
@@ -263,12 +244,11 @@ public:
    postprocess_info
    postprocess(const LoadFunction& lf)
    {
-      auto gradrec      = gradrec_type(m_degree);
-      auto stab         = stab_type(m_degree);
-      auto statcond     = statcond_type(m_degree);
+      auto gradrec      = gradrec_type(m_bqd);
+      auto stab         = stab_type(m_bqd);
+      auto statcond     = statcond_type(m_bqd);
 
-      face_basis_type face_basis(m_face_degree);
-      size_t fbs = face_basis.size();
+      const size_t fbs = m_bqd.face_basis.size();
 
       postprocess_info pi;
 
@@ -278,19 +258,19 @@ public:
       tc.tic();
       for (auto& cl : m_msh)
       {
-         auto fcs = faces(m_msh, cl);
-         auto num_faces = fcs.size();
+         const auto fcs = faces(m_msh, cl);
+         const auto num_faces = fcs.size();
 
          dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
 
          for (size_t face_i = 0; face_i < num_faces; face_i++)
          {
-            auto fc = fcs[face_i];
-            auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
-            auto face_id = eid.second;
+            const auto face_id = eid.second;
 
             dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
             xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
@@ -299,9 +279,9 @@ public:
 
          gradrec.compute(m_msh, cl);
          stab.compute(m_msh, cl, gradrec.oper);
-         dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * (gradrec.data + stab.data);
-         auto cell_rhs = disk::compute_rhs<cell_basis_type, cell_quadrature_type>(m_msh, cl, lf, m_cell_degree);
-         dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, cell_rhs, xFs);
+         const dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * (gradrec.data + stab.data);
+         const auto cell_rhs = disk::hho::compute_rhs_bq(m_msh, cl, lf, m_bqd);
+         const dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, cell_rhs, xFs);
          m_solution_data.push_back(x);
       }
       tc.toc();
@@ -312,24 +292,22 @@ public:
    }
 
 
-
-
    template<typename AnalyticalSolution>
    scalar_type
    compute_l2_error(const AnalyticalSolution& as)
    {
-      scalar_type err_dof = scalar_type{0.0};
+      scalar_type err_dof = scalar_type(0.0);
 
-      projector_type projk(m_degree);
+      projector_type projk(m_bqd);
 
       size_t i = 0;
 
       for (auto& cl : m_msh)
       {
-         auto x = m_solution_data.at(i++);
-         dynamic_vector<scalar_type> true_dof = projk.compute_cell(m_msh, cl, as);
-         dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
-         dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+         const auto x = m_solution_data.at(i++);
+         const dynamic_vector<scalar_type> true_dof = projk.compute_cell(m_msh, cl, as);
+         const dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
+         const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
          err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
       }
 

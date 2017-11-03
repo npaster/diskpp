@@ -18,7 +18,7 @@
 
 #include "common/eigen.hpp"
 #include "BehaviorLaws/maths_tensor.hpp"
-#include "BehaviorLaws/maths_deformation_tensors.hpp"
+#include "mechanics/deformation_tensors.hpp"
 
 #pragma once
 
@@ -38,12 +38,12 @@ test_Ftensor(const T prec)
    F(2,0) = T{5.0}; F(2,1) = T{7.0}; F(2,2) = T{10.0};
 
 
-   T error_R = (F - compute_FTensor(G)).norm();
+   T error_R = (F - disk::mechanics::convertGtoF(G)).norm();
 
    if(error_R > prec){
       std::cout << "error F computation: " << error_R << std::endl;
       std::cout << "F analytique: " << F << std::endl;
-      std::cout << "F calculé: " << compute_FTensor(G) << std::endl;
+      std::cout << "F calculé: " << disk::mechanics::convertGtoF(G) << std::endl;
    }
 }
 
@@ -60,11 +60,11 @@ test_CauchyGreen(const T prec)
    static_matrix<T, 3, 3> C = F.transpose() * F;
 
 
-   T error_R = (C - compute_CauchyGreenRightTensor(F)).norm();
+   T error_R = (C - disk::mechanics::convertFtoCauchyGreenRight(F)).norm();
 
    if(error_R > prec){
       std::cout << "error C computation: " << error_R << std::endl;
       std::cout << "C analytique: " << F << std::endl;
-      std::cout << "C calculé: " << compute_CauchyGreenRightTensor(F) << std::endl;
+      std::cout << "C calculé: " << disk::mechanics::convertFtoCauchyGreenRight(F) << std::endl;
    }
 }

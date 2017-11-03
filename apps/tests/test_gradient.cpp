@@ -24,12 +24,7 @@
 
 #include "colormanip.h"
 
-#include "../../config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
-#include "agmg/agmg.hpp"
-#endif
-
+#include "config.h"
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
 #include "geometry/geometry.hpp"
@@ -41,82 +36,8 @@
 
 #include "common/eigen.hpp"
 #include "hho/hho_bq.hpp"
-#include "hho/hho_vector.hpp"
-#include "hho/hho_vector_bq.hpp"
 
 
-template< typename mesh_type, typename T>
-void
-test_grad_vector(const mesh_type& msh, const size_t degree, const T epsilon)
-{
-   typedef typename mesh_type::scalar_type            scalar_type;
-   typedef typename mesh_type::cell                   cell_type;
-   typedef typename mesh_type::face                   face_type;
-
-   typedef disk::quadrature<mesh_type, cell_type>      cell_quadrature_type;
-   typedef disk::quadrature<mesh_type, face_type>      face_quadrature_type;
-   typedef disk::quadrature<mesh_type, cell_type>      matrix_quadrature_type;
-
-   typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    cell_basis_type;
-   typedef disk::scaled_monomial_vector_basis<mesh_type, face_type>    face_basis_type;
-   typedef disk::scaled_monomial_matrix_basis<mesh_type, cell_type>    matrix_basis_type;
-
-   typedef disk::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_vector_basis,
-   disk::scaled_monomial_matrix_basis,
-   disk::quadrature> bqdata_type;
-
-   typedef disk::gradient_reconstruction_elas_full_bq<bqdata_type>     gradrecopt_type;
-
-
-   typedef disk::gradient_reconstruction_elas_full< mesh_type,
-   cell_basis_type, cell_quadrature_type,
-   face_basis_type, face_quadrature_type,
-   matrix_basis_type, matrix_quadrature_type>          gradrec_type;
-
-
-   bqdata_type bqd(degree, degree, degree);
-
-   gradrecopt_type gradrec_opt(bqd);
-
-   gradrec_type gradrec     = gradrec_type(degree);
-
-   scalar_type error_oper = 0.0;
-   scalar_type error_data = 0.0;
-
-   timecounter tc;
-
-   double tgrad = 0.0;
-   double tgrad_opt = 0.0;
-
-   for (auto& cl : msh)
-   {
-      tc.tic();
-      gradrec_opt.compute(msh, cl);
-      tc.toc();
-      tgrad_opt += tc.to_double();
-
-      tc.tic();
-      gradrec.compute(msh, cl);
-      tc.toc();
-      tgrad += tc.to_double();
-
-      error_oper += std::pow( (gradrec_opt.oper - gradrec.oper).norm()   ,2.0);
-      error_data += std::pow( (gradrec_opt.data - gradrec.data).norm()   ,2.0);
-
-   }
-
-   error_oper = sqrt(error_oper)/msh.cells_size();
-   error_data = sqrt(error_data)/msh.cells_size();
-
-   if(error_data > epsilon)
-      std::cout << "ecart gradient vector: data " << error_data << std::endl;
-
-   if(error_oper > epsilon)
-      std::cout << "ecart gradient vector: oper " << error_oper << std::endl;
-
-   std::cout << "time grad vector: " << tgrad << " vs grad vector opt: " << tgrad_opt << std::endl;
-
-}
 
 
 template< typename mesh_type, typename T>
@@ -135,11 +56,11 @@ test_grad_scalar(const mesh_type& msh, const size_t degree, const T epsilon)
    typedef disk::scaled_monomial_scalar_basis<mesh_type, face_type>    face_basis_type;
    typedef disk::scaled_monomial_vector_basis<mesh_type, cell_type>    matrix_basis_type;
 
-   typedef disk::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_scalar_basis,
+   typedef disk::hho::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_scalar_basis,
    disk::scaled_monomial_vector_basis,
    disk::quadrature> bqdata_type;
 
-   typedef disk::gradient_reconstruction_full_bq<bqdata_type>     gradrecopt_type;
+   typedef disk::hho::gradient_reconstruction_full_bq<bqdata_type>     gradrecopt_type;
 
 
    typedef disk::gradient_reconstruction_full< mesh_type,
@@ -242,7 +163,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
       auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }
@@ -252,7 +172,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
       auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }
@@ -262,7 +181,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
       auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }
@@ -272,7 +190,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
       auto msh = disk::load_netgen_3d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }
@@ -282,7 +199,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
       auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }
@@ -292,7 +208,6 @@ int main(int argc, char **argv)
    {
       std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
       auto msh = disk::load_fvca6_3d_mesh<RealType>(mesh_filename);
-      test_grad_vector(msh, degree, tole);
       test_grad_scalar(msh, degree, tole);
       return 0;
    }

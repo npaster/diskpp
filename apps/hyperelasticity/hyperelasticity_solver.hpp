@@ -23,25 +23,28 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
-
 #include <sstream>
 
-#include "../../config.h"
+#include "config.h"
 
 #ifdef HAVE_SOLVER_WRAPPERS
 #include "agmg/agmg.hpp"
 #endif
 
-#include "hho/hho.hpp"
-#include "hho/hho_bq.hpp"
-#include "hho/hho_vector.hpp"
-#include "bases/bases_utils.hpp"
 #include "NewtonSolver/newton_solver.hpp"
 #include "ElasticityParameters.hpp"
-#include "BoundaryConditions.hpp"
 #include "Informations.hpp"
 #include "Parameters.hpp"
-#include "BehaviorLaws/maths_stress_tensors.hpp"
+
+#include "hho/hho.hpp"
+#include "hho/hho_bq.hpp"
+#include "hho/hho_vector_bq.hpp"
+#include "hho/hho_utils.hpp"
+#include "bases/bases_utils.hpp"
+
+#include "mechanics/stress_tensors.hpp"
+#include "mechanics/deformation_tensors.hpp"
+#include "mechanics/BoundaryConditions.hpp"
 
 #include "../exemple_visualisation/visualisation/gmshDisk.hpp"
 #include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
@@ -67,7 +70,7 @@ class hyperelasticity_solver
    typedef typename mesh_type::scalar_type            scalar_type;
    typedef ParamRun<T>                                param_type;
 
-   typedef disk::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_vector_basis,
+   typedef disk::hho::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_vector_basis,
    //disk::Raviart_Thomas_matrix_basis,
    disk::scaled_monomial_matrix_basis,
                                                       disk::quadrature> bqdata_type;
@@ -75,9 +78,9 @@ class hyperelasticity_solver
    typedef dynamic_matrix<scalar_type>         matrix_dynamic;
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
-   typedef disk::gradient_reconstruction_elas_full_bq<bqdata_type>     gradrec_type;
-   typedef disk::projector_elas_bq<bqdata_type>                        projector_type;
-   typedef disk::displacement_reconstruction_elas_bq<bqdata_type>           deplrec_type;
+   typedef disk::hho::gradient_reconstruction_vector_full_bq<bqdata_type>     gradrec_type;
+   typedef disk::hho::projector_vector_bq<bqdata_type>                        projector_type;
+   typedef disk::hho::displacement_reconstruction_elas_bq<bqdata_type>           deplrec_type;
 
    bqdata_type     m_bqd;
 
@@ -174,7 +177,7 @@ public:
       m_solution_lagr.clear();
 
       const size_t nb_faces_dirichlet = m_boundary_condition.nb_faces_dirichlet();
-      const size_t nb_lag_conditions = m_boundary_condition.nb_lag();
+      const size_t nb_lag_conditions = m_boundary_condition.nb_lags();
 
       m_solution_data.reserve(m_msh.cells_size());
       m_solution_cells.reserve(m_msh.cells_size());
@@ -527,12 +530,12 @@ public:
          for (auto& qp : grad_quadpoints)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GTu, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const scalar_type energy_comp = law.compute_energy(FT_iqn);
 
-            const auto GT_true = disk::compute_gradient_matrix_pt(true_dof, gphi);
-            const auto FT_true = compute_FTensor(GT_true);
+            const auto GT_true = disk::hho::eval_gradient(true_dof, gphi);
+            const auto FT_true = disk::mechanics::convertGtoF(GT_true);
             const scalar_type energy_true = law.compute_energy(FT_true);
 
             error_energy += qp.weight() * std::pow(energy_true - energy_comp, 2.0);
@@ -574,12 +577,12 @@ public:
          for (auto& qp : grad_quadpoints)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GTu, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto PK1_comp = law.compute_PK1(FT_iqn);
 
-            const auto GT_true = disk::compute_gradient_matrix_pt(true_dof, gphi);
-            const auto FT_true = compute_FTensor(GT_true);
+            const auto GT_true = disk::hho::eval_gradient(true_dof, gphi);
+            const auto FT_true = disk::mechanics::convertGtoF(GT_true);
             const auto PK1_true = law.compute_PK1(FT_true);
 
             const auto PK1_diff = (PK1_true - PK1_comp).eval();
@@ -912,8 +915,8 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
 
@@ -980,12 +983,12 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
 
-            const auto sigma = disk::convertPK1toCauchy(PK1, FT_iqn);
+            const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
 
             scalar_type vm(0.0);
 
@@ -1057,12 +1060,12 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
 
-            const auto sigma = disk::convertPK1toCauchy(PK1, FT_iqn);
+            const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
 
             scalar_type vm(0.0);
 
@@ -1134,12 +1137,12 @@ public:
          for (auto& qp : qps)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
 
-            const auto sigma = disk::convertPK1toCauchy(PK1, FT_iqn);
+            const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
 
             scalar_type vm(0.0);
 
@@ -1204,16 +1207,16 @@ public:
          for (auto& qp : qps)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
             const auto GT_true = grad(qp.point());
-            const auto FT_iqn = compute_FTensor(GT_iqn);
-            const auto FT_true = compute_FTensor(GT_true);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+            const auto FT_true = disk::mechanics::convertGtoF(GT_true);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
             const auto PK1_true = law.compute_PK1(FT_true);
 
-            const auto sigma = disk::convertPK1toCauchy(PK1, FT_iqn);
-            const auto sigma_true = disk::convertPK1toCauchy(PK1_true, FT_true);
+            const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
+            const auto sigma_true = disk::mechanics::convertPK1toCauchy(PK1_true, FT_true);
 
             scalar_type vm(0.0);
 
@@ -1278,11 +1281,11 @@ public:
       for (auto& pt : storage->points)
       {
          const auto GT = grad(pt);
-         const auto FT = compute_FTensor(GT);
+         const auto FT = disk::mechanics::convertGtoF(GT);
 
          const auto PK1 = law.compute_PK1(FT);
 
-         const auto sigma = disk::convertPK1toCauchy(PK1, FT);
+         const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT);
 
          scalar_type vm(0.0);
 
@@ -1347,8 +1350,8 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
 
             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
@@ -1410,8 +1413,8 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
 
             // Add VM at node
@@ -1473,8 +1476,8 @@ public:
          for (auto& qp : qps)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn = FT_iqn.determinant();
 
             // Add GP
@@ -1529,10 +1532,10 @@ public:
          for (auto& qp : qps)
          {
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
             const auto GT_true = grad(qp.point());
-            const auto FT_iqn = compute_FTensor(GT_iqn);
-            const auto FT_true = compute_FTensor(GT_true);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+            const auto FT_true = disk::mechanics::convertGtoF(GT_true);
             const auto J_iqn = FT_iqn.determinant();
             const auto J_true = FT_true.determinant();
 
@@ -1576,7 +1579,7 @@ public:
       for (auto& pt : storage->points)
       {
          const auto GT = grad(pt);
-         const auto FT = compute_FTensor(GT);
+         const auto FT = convertGtoF(GT);
          const auto J = FT.determinant();
 
          // Add VM at node
@@ -1625,8 +1628,8 @@ public:
 
             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             auto PK1= law.compute_PK1(FT_iqn);
 
@@ -1722,9 +1725,9 @@ public:
                   depl[j] += c_phi.at(i+j)(j) * x(i+j); // a voir
 
                   // compute grad_quadpoints
-                  auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-               auto GT_iqn = disk::compute_gradient_matrix_pt(GTu, gphi);
-            auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
+            const auto GT_iqn = disk::hho::eval_gradient(GTu, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             //compute er and eo
             vector_dynamic er; er.resize(2); er(0) = qp.point().x(); er(1) = qp.point().y();
             const scalar_type R = er.norm();

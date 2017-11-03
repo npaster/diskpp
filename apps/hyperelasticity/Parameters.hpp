@@ -50,6 +50,7 @@ public:
    bool    m_verbose;       //some printing
    bool    m_compute_energy; // to compute intern energy
    bool    m_precomputation; // to compute the gradient before (it's memory consuption)
+   bool    m_conditioning;   // compute the condition number
 
    size_t  m_stab_type;      //type of stabilization
    size_t  m_iter_max;        //maximun nexton iteration
@@ -64,7 +65,7 @@ public:
    ParamRun() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_l(0),
                 m_sublevel(1), m_stab(true), m_stab_type(HHO),
                 m_verbose(false), m_compute_energy(false), m_precomputation(false),
-                m_iter_max(10), m_epsilon(T(1E-6)),
+                m_conditioning(false), m_iter_max(10), m_epsilon(T(1E-6)),
                 m_beta(T(1.0)), m_n_time_save(0)
                 {
                    m_time_step.push_back(std::make_pair(1.0, 10));
@@ -81,6 +82,7 @@ public:
       std::cout << "   - Type of stabilization: "  << m_stab_type << std::endl;
       std::cout << "   - Coefficient: "  << m_beta << std::endl;
       std::cout << " - Verbose: "  << m_verbose << std::endl;
+      std::cout << " - Conditioning: "  << m_conditioning << std::endl;
       std::cout << " - Compute Energy: "  << m_compute_energy << std::endl;
       std::cout << " - IterMax: "  << m_iter_max << std::endl;
       std::cout << " - Epsilon: "  << m_epsilon << std::endl;
@@ -213,6 +215,17 @@ public:
                m_compute_energy = true;
             else
                m_compute_energy = false;
+         }
+         else if ( keyword == "Conditioning" )
+         {
+            std::string logical;
+            ifs >> logical;
+            line++;
+            
+            if(logical == "true")
+               m_conditioning = true;
+            else
+               m_conditioning = false;
          }
          else if ( keyword == "IterMax" )
          {

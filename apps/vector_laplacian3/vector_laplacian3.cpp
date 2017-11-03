@@ -125,7 +125,6 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
    };
 
    auto solution = [material_data](const point<T,3>& p) -> auto {
-      const T lambda = material_data.lambda;
       T fx = p.x()*p.x()*p.y()*p.z();
       T fy = p.y()*p.x()*p.y()*p.z();
       T fz = p.z()*p.x()*p.y()*p.z();
@@ -163,10 +162,7 @@ int main(int argc, char **argv)
    using RealType = double;
 
    char    *mesh_filename  = nullptr;
-   char    *plot_filename  = nullptr;
    int     degree          = 1;
-   int     l               = 0;
-   int     elems_1d        = 8;
 
    run_params rp;
    rp.degree   = 1;
@@ -201,19 +197,6 @@ int main(int argc, char **argv)
                std::cout << "l can be -1, 0 or 1. Falling back to 0." << std::endl;
                rp.l = 0;
             }
-            break;
-
-         case 'n':
-            elems_1d = atoi(optarg);
-            if (elems_1d < 0)
-            {
-               std::cout << "Num of elems must be positive. Falling back to 8." << std::endl;
-               elems_1d = 8;
-            }
-            break;
-
-         case 'p':
-            plot_filename = optarg;
             break;
 
          case 'v':

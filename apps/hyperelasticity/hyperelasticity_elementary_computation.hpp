@@ -25,10 +25,10 @@
 #include "common/eigen.hpp"
 #include "bases/bases_utils.hpp"
 #include "mesh/mesh.hpp"
-#include "bases/bases_ranges.hpp"
-#include "hho/hho_nl_vector.hpp"
+#include "hho/hho_utils.hpp"
 #include "BehaviorLaws/behaviorlaws.hpp"
 #include "BehaviorLaws/maths_tensor.hpp"
+#include "mechanics/deformation_tensors.hpp"
 #include "timecounter.h"
 
 //#define USE_BLAS
@@ -236,8 +236,8 @@ namespace Hyperelasticity {
             assert(grad_basis_size == gphi.size());
 
             // Compute local gradient and norm
-            const auto GT_iqn = disk::compute_gradient_matrix_pt(GT_uTF, gphi);
-            const auto FT_iqn = compute_FTensor(GT_iqn);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             //Compute bahavior
             tc.tic();

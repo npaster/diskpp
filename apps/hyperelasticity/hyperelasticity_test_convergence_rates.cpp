@@ -39,7 +39,7 @@
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
 #include "ElasticityParameters.hpp"
-#include "BoundaryConditions.hpp"
+#include "mechanics/BoundaryConditions.hpp"
 #include "Parameters.hpp"
 #include "Informations.hpp"
 
@@ -539,7 +539,7 @@ void test_hexahedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& ela
 template< typename T>
 void test_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   size_t runs = 3;
+   size_t runs = 4;
 
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet0.mesh");

@@ -244,7 +244,7 @@ public:
    size_t nb_faces_boundary() const {return m_nb_faces_boundary;}
    size_t nb_faces_dirichlet() const {return m_nb_faces_dirichlet;}
    size_t nb_faces_neumann() const {return m_nb_faces_neumann;}
-   size_t nb_lag() const {return m_nb_lag;}
+   size_t nb_lags() const {return m_nb_lag;}
 
    std::vector<BoundaryType>  boundary_neumann() const
    {
@@ -279,3 +279,4 @@ public:
       std::cout << " - Number of Lagrangian conditions: "  << m_nb_lag << std::endl;
    }
 };
+
