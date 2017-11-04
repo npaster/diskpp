@@ -185,8 +185,6 @@ namespace hho{
 
          const BQData&                               m_bqd;
 
-         matrix_type     m_oper;
-         matrix_type     m_data;
 
          template<int DIM>
          std::vector<static_vector<scalar_type, DIM> >

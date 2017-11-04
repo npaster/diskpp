@@ -20,20 +20,15 @@
 
 #include "config.h"
 
-#ifdef HAVE_SOLVER_WRAPPERS
-#include "agmg/agmg.hpp"
-#endif
-
 #include "hho/hho.hpp"
 #include "hho/hho_bq.hpp"
 #include "hho/hho_vector_bq.hpp"
-
+#include "hho/gradient_reconstruction.hpp"
 
 #include "timecounter.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
 
 struct assembly_info
 {
@@ -79,7 +74,7 @@ class vector_laplacian_solver
                                              disk::quadrature> bqdata_type;
 
 
-   typedef disk::hho::gradient_reconstruction_vector_full_bq<bqdata_type>   gradrec_type;
+   typedef disk::hho::gradient_reconstruction_full_bq<bqdata_type>   gradrec_type;
 
    typedef disk::diffusion_like_static_condensation_bq<bqdata_type>         statcond_type;
    typedef disk::hho::assembler_vector_bq<bqdata_type>                      assembler_type;

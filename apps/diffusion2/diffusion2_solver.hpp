@@ -22,6 +22,7 @@
 
 #include "hho/hho.hpp"
 #include "hho/hho_bq.hpp"
+#include "hho/gradient_reconstruction.hpp"
 
 #include "timecounter.h"
 
