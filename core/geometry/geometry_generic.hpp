@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #ifndef _GEOMETRY_HPP_WAS_INCLUDED_
@@ -26,28 +32,29 @@
 
 namespace disk {
 
-struct storage_class_generic;
+template<size_t DIM>
+struct generic_storage_class;
 
 template<size_t DIM>
-struct storage_class_trait<storage_class_generic, DIM> {
-    static_assert(DIM > 0 && DIM <= 3, "element_types: CODIM must be less than DIM");
+struct generic_storage_class {
+    static_assert(DIM > 0 && DIM <= 3, "This storage class supports DIM between 0 and 3");
 };
 
 template<>
-struct storage_class_trait<storage_class_generic, 1> {
+struct generic_storage_class<1> {
     typedef generic_element<1,0>    edge_type;
     typedef generic_element<1,1>    node_type;
 };
 
 template<>
-struct storage_class_trait<storage_class_generic, 2> {
+struct generic_storage_class<2> {
     typedef generic_element<2,0>    surface_type;
     typedef generic_element<2,1>    edge_type;
     typedef generic_element<2,2>    node_type;
 };
 
 template<>
-struct storage_class_trait<storage_class_generic, 3> {
+struct generic_storage_class<3> {
         typedef generic_element<3,0>    volume_type;
         typedef generic_element<3,1>    surface_type;
         typedef generic_element<3,2>    edge_type;
@@ -55,7 +62,7 @@ struct storage_class_trait<storage_class_generic, 3> {
 };
 
 template<typename T, size_t DIM>
-using generic_mesh_storage = mesh_storage<T, DIM, storage_class_generic>;
+using generic_mesh_storage = mesh_storage<T, DIM, generic_storage_class<DIM>>;
 
 template<typename T, size_t DIM>
 using generic_mesh = mesh<T, DIM, generic_mesh_storage<T, DIM>>;
@@ -63,8 +70,8 @@ using generic_mesh = mesh<T, DIM, generic_mesh_storage<T, DIM>>;
 /* Return the number of elements of the specified cell */
 template<typename T, size_t DIM>
 size_t
-number_of_faces(const generic_mesh<T,DIM>& msh,
-                const typename generic_mesh<T,DIM>::cell& cl)
+howmany_faces(const generic_mesh<T,DIM>& msh,
+              const typename generic_mesh<T,DIM>::cell& cl)
 {
     return cl.subelement_size();
 }
@@ -182,6 +189,36 @@ barycenter(const generic_mesh<T,2>& msh, const typename generic_mesh<T,2>::face&
     assert(pts.size() == 2);
     auto bar = (pts[0] + pts[1]) / T(2);
     return bar;
+}
+
+/* Compute the barycenter of a 2-cell */
+template<typename T>
+point<T,2>
+barycenter(const generic_mesh<T,2>& msh, const typename generic_mesh<T,2>::cell& cl)
+{
+    auto pts = points(msh, cl);
+    auto ptsnum = pts.size();
+
+    typedef typename generic_mesh<T,2>::point_type point_type;
+
+    point_type  bar{0.0, 0.0};
+    T           area = 0.0;
+
+
+    for (size_t i = 0; i < ptsnum; i++)
+    {
+        auto p0 = pts[i];
+        auto p1 = pts[(i+1)%ptsnum];
+
+        auto a = p0.x()*p1.y() - p1.x()*p0.y();
+
+        bar = bar + (p0 + p1) * a;
+        area += a;
+    }
+
+    area *= 0.5;
+
+    return bar/(6.0 * area);
 }
 
 template<typename T>

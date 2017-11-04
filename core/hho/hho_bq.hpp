@@ -55,7 +55,7 @@ namespace hho{
 
       void init(void)
       {
-         cell_basis          = cell_basis_type(m_cell_degree+1);
+         cell_basis          = cell_basis_type(m_cell_degree, m_cell_degree+1);
          face_basis          = face_basis_type(m_face_degree);
          cell_quadrature     = cell_quad_type(2*(m_cell_degree+1));
          face_quadrature     = face_quad_type(2*m_face_degree);

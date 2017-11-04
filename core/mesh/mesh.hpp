@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
  /*
@@ -56,7 +62,6 @@
 #include <set>
 
 #include "ident.hpp"
-#include "point.hpp"
 
 #include "mesh_storage.hpp"
 
@@ -372,9 +377,11 @@ public:
 
     [[deprecated("Use 'coordinate_type'")]] typedef T scalar_type;
 
-    typedef T coordinate_type;
+    typedef T           coordinate_type;
+    typedef Storage     storage_type;
 
     typedef typename priv::mesh_base<T, DIM, Storage>::point_type   point_type;
+
     typedef typename priv::mesh_base<T, DIM, Storage>::cell         cell;
     typedef typename priv::mesh_base<T, DIM, Storage>::face         face;
 
@@ -405,6 +412,7 @@ public:
                                   priv::is_internal_pred<mesh>>
                                   internal_face_iterator;
 
+    /* Return a vector with the ids of all the boundaries */
     std::vector<size_t>
     boundary_id_list(void) const
     {
@@ -571,8 +579,11 @@ public:
     {
         auto fi = find_element_id(this->faces_begin(), this->faces_end(), fc);
         if (!fi.first)
-            throw std::invalid_argument("Face not present in mesh");
-
+        {
+            std::stringstream ss;
+            ss << fc << ": Face not present in mesh";
+            throw std::invalid_argument(ss.str());
+        }
         return fi.second;
     }
 
@@ -589,7 +600,29 @@ public:
 
         return mfpe;
     }
+
+    void statistics(void) const
+    {
+        this->backend_storage()->statistics();
+    }
 };
+
+template<typename Mesh>
+void cell_info(const Mesh& msh, const typename Mesh::cell& cl)
+{
+    std::cout << "** CELL INFORMATION BEGIN **" << std::endl;
+    std::cout << cl << std::endl;
+    auto fcs = faces(msh, cl);
+    for (auto& fc : fcs)
+    {
+        std::cout << "  - " << fc;
+        if ( msh.is_boundary(fc) )
+            std::cout << " [B " << msh.boundary_id(fc) << "]";
+
+        std::cout << std::endl;
+    }
+    std::cout << "** CELL INFORMATION END **" << std::endl;
+}
 
 template<typename T, size_t DIM, typename Storage>
 typename mesh<T, DIM, Storage>::cell_iterator
@@ -627,12 +660,25 @@ dump_to_matlab(const Mesh<T, 2, Storage>& msh, const std::string& filename)
 {
     std::ofstream ofs(filename);
 
+    size_t elemnum = 0;
     for (auto cl : msh)
     {
+        auto bar = barycenter(msh, cl);
+
+        ofs << "text(" << bar.x() << "," << bar.y() << ",'" << elemnum << "');" << std::endl;
+
         auto fcs = faces(msh, cl);
         for (auto fc : fcs)
         {
+            auto ptids = fc.point_ids();
             auto pts = points(msh, fc);
+            assert(ptids.size() == pts.size());
+
+            for (size_t i = 0; i < ptids.size(); i++)
+            {
+                ofs << "text(" << pts[i].x() << "," << pts[i].y() << ",'" << ptids[i] << "');" << std::endl;
+            }
+
             if ( msh.is_boundary(fc) )
             {
                 ofs << "line([" << pts[0].x() << " " << pts[1].x() << "], [";
@@ -642,15 +688,57 @@ dump_to_matlab(const Mesh<T, 2, Storage>& msh, const std::string& filename)
             else
             {
                 ofs << "line([" << pts[0].x() << " " << pts[1].x() << "], [";
-                ofs << pts[0].y() << " " << pts[1].y() << "], 'Color', 'k');";
+                ofs << pts[0].y() << " " << pts[1].y() << "], 'Color', 'g');";
                 ofs << std::endl;
             }
         }
+        elemnum++;
     }
 
     ofs.close();
 }
 
+template<typename Mesh>
+class connectivity
+{
+    typedef Mesh                        mesh_type;
+    typedef typename mesh_type::cell    cell_type;
+    typedef typename mesh_type::face    face_type;
+
+    std::vector< std::set<cell_type> >      face_cell_connectivity;
+
+    Mesh m_msh;
+
+public:
+    connectivity(const Mesh& msh) : m_msh(msh)
+    {
+        face_cell_connectivity.resize( msh.faces_size() );
+
+        size_t cell_i = 0;
+        for (auto& cl : msh)
+        {
+            auto fcs = faces(msh, cl);
+            for (auto fc : fcs)
+            {
+                auto face_id = msh.lookup(fc);
+                face_cell_connectivity.at(face_id).insert(cl);
+            }
+        }
+    }
+
+    std::set<cell_type>
+    connected_cells(const face_type& fc)
+    {
+        auto face_id = m_msh.lookup(fc);
+        return face_cell_connectivity.at(face_id);
+    }
+};
+
+template<typename Mesh>
+auto make_connectivity(const Mesh& msh)
+{
+    return connectivity<Mesh>(msh);
+}
 
 template<typename Mesh>
 class bounding_box
@@ -709,5 +797,133 @@ std::ostream& operator<<(std::ostream& os, const bounding_box<Mesh>& bb)
     os << "[" << bb.min() << ", " << bb.max() << "]";
     return os;
 }
+
+
+
+
+
+namespace mesh_v2 {
+
+template<size_t DIM, typename Storage>
+class mesh : public priv::mesh_base<typename Storage::coordinate_type,
+                                    DIM, Storage>
+{
+    typedef priv::mesh_base<typename Storage::coordinate_type,
+                            DIM, Storage> base_type;
+
+public:
+    static const size_t dimension = DIM;
+
+    typedef typename Storage::coordinate_type   coordinate_type;
+    typedef Storage                             storage_type;
+
+    typedef typename storage_type::point_type   point_type;
+
+    typedef typename base_type::cell            cell_type;
+    typedef typename base_type::face            face_type;
+
+    /* point iterators */
+    typedef typename std::vector<point_type>::iterator              point_iterator;
+    typedef typename std::vector<point_type>::const_iterator        const_point_iterator;
+
+    point_iterator          points_begin() { return this->backend_storage()->points.begin(); }
+    point_iterator          points_end()   { return this->backend_storage()->points.end(); }
+    const_point_iterator    points_begin() const { return this->backend_storage()->points.begin(); }
+    const_point_iterator    points_end()   const { return this->backend_storage()->points.end(); }
+
+    size_t  points_size() const { return this->backend_storage()->points.size(); }
+};
+
+template<size_t DIM, typename Storage>
+typename mesh<DIM, Storage>::const_cell_iterator
+begin(const mesh<DIM, Storage>& msh)
+{
+    return msh.cells_begin();
+}
+
+template<size_t DIM, typename Storage>
+typename mesh<DIM, Storage>::const_cell_iterator
+end(const mesh<DIM, Storage>& msh)
+{
+    return msh.cells_end();
+}
+
+template<typename Mesh>
+struct mesh_traits : mesh_storage_traits<typename Mesh::storage_type>
+{};
+
+
+
+template<template<size_t, typename> class Mesh, typename Storage>
+void
+dump_to_matlab(const Mesh<2, Storage>& msh, const std::string& filename)
+{
+    std::ofstream ofs(filename);
+
+    size_t elemnum = 0;
+    for (auto cl : msh)
+    {
+        auto bar = barycenter(msh, cl);
+
+        ofs << "text(" << bar.x() << "," << bar.y() << ",'" << elemnum << "');" << std::endl;
+        /*
+        auto fcs = faces(msh, cl);
+        for (auto fc : fcs)
+        {
+            auto ptids = fc.point_ids();
+            auto pts = points(msh, fc);
+            assert(ptids.size() == pts.size());
+
+            for (size_t i = 0; i < ptids.size(); i++)
+            {
+                ofs << "text(" << pts[i].x() << "," << pts[i].y() << ",'" << ptids[i] << "');" << std::endl;
+            }
+
+            if ( msh.is_boundary(fc) )
+            {
+                ofs << "line([" << pts[0].x() << " " << pts[1].x() << "], [";
+                ofs << pts[0].y() << " " << pts[1].y() << "], 'Color', 'r');";
+                ofs << std::endl;
+            }
+            else
+            {
+                ofs << "line([" << pts[0].x() << " " << pts[1].x() << "], [";
+                ofs << pts[0].y() << " " << pts[1].y() << "], 'Color', 'g');";
+                ofs << std::endl;
+            }
+        }
+        */
+
+        auto pts = points(msh, cl);
+
+        for (size_t i = 0; i < pts.size(); i++)
+        {
+            auto p0 = pts[i];
+            auto p1 = pts[(i+1)%pts.size()];
+
+            ofs << "line([" << p0.x() << " " << p1.x() << "], [";
+            ofs << p0.y() << " " << p1.y() << "], 'Color', 'g');";
+            ofs << std::endl;
+        }
+
+        elemnum++;
+    }
+
+    ofs.close();
+}
+
+
+
+
+
+
+
+} //namespace mesh_v2
+
+
+
+
+
+
 
 } // namespace disk

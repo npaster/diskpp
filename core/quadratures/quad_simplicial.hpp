@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
  #ifndef _QUADRATURES_HPP_WAS_INCLUDED_
@@ -51,23 +57,6 @@ map_to_reference(const simplicial_mesh<T,3>& msh,
 
     return point<T,2>{x,y};
 }
-
-template<typename T>
-point<T,1>
-map_to_reference(const simplicial_mesh<T,2>& msh,
-                 const typename simplicial_mesh<T,2>::face& face,
-                 const point<T,2>& pm)
-{
-   auto pts = points(msh, face);
-   auto bar = barycenter(msh, face);
-   auto h = diameter(msh, face);
-   auto v = (pts[1] - pts[0]).to_vector();
-   auto t = (pm - bar).to_vector();
-   T dot = v.dot(t);
-
-    return point<T, 1>({dot/(h*h)}); // have to be between [0,1]
-}
-
 
 template<typename T>
 point<T,3>

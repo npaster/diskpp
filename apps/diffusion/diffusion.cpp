@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #include <iostream>
@@ -23,12 +29,6 @@
 #include <map>
 
 #include "colormanip.h"
-
-#include "../../config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
-    #include "agmg/agmg.hpp"
-#endif
 
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
@@ -68,7 +68,7 @@ run_diffusion_solver(const Mesh<T, 1, Storage>& msh, run_params& rp)
     dp.assemble(load, solution);
     dp.solve();
     dp.postprocess(load);
-    dp.plot_solution("plot.dat");
+    //dp.plot_solution("plot.dat");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -79,44 +79,40 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
 {
     typedef Mesh<T, 2, Storage> mesh_type;
 
+
     auto load = [](const point<T, 2>& p) -> auto {
-        return 2.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI);
+
+        //return 2.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI);
+        return sin(p.x()) * sin(p.y());
     };
+
+
 
     auto solution = [](const point<T, 2>& p) -> auto {
         return sin(p.x() * M_PI) * sin(p.y() * M_PI);
     };
 
-    timecounter tc;
-    tc.tic();
+
+    /*
+    auto load = [](const point<T,2>& p) -> auto {
+        auto eps = 1.0;
+        return +2.0 * M_PI * M_PI * ( 100.0*sin(M_PI*p.y()/eps)*sin(M_PI*p.y()/eps)*cos(M_PI*p.x()/eps)*cos(M_PI*p.x()/eps) + 1.0) * sin(M_PI*p.x()) * sin(M_PI*p.y())
+               - 200 * M_PI * M_PI * sin(M_PI*p.x()) * sin(M_PI*p.y()/eps) * cos(M_PI*p.y()) * cos(M_PI*p.x()/eps) * cos(M_PI*p.x()/eps) * cos(M_PI*p.y()/eps) / eps
+               + 200 * M_PI * M_PI * sin(M_PI*p.y()) * sin(M_PI*p.x()/eps) * cos(M_PI*p.x()) * sin(M_PI*p.y()/eps) * sin(M_PI*p.y()/eps) * cos(M_PI*p.x()/eps) / eps;
+
+    };
+    */
 
     diffusion_solver<mesh_type> dp(msh, rp.degree);
     dp.verbose(rp.verbose);
 
-    auto assembly_info = dp.assemble(load, solution);
-    auto solve_info = dp.solve();
-    auto postpro_info = dp.postprocess(load);
-
-    tc.toc();
-
-
-    if(dp.verbose()){
-       std::cout << " " << std::endl;
-       std::cout << "------------------------------------------------------- " << std::endl;
-       std::cout << "Summaring: " << std::endl;
-       std::cout << "Total time to solve the problem: " << tc.to_double() << " sec" << std::endl;
-       std::cout << "**** Assembly time: " << assembly_info.time_assembly << " sec" << std::endl;
-       std::cout << "****** Gradient reconstruction: " << assembly_info.time_gradrec << " sec" << std::endl;
-       std::cout << "****** Stabilisation: " << assembly_info.time_stab << " sec" << std::endl;
-       std::cout << "****** Static condensation: " << assembly_info.time_statcond << " sec" << std::endl;
-       std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
-       std::cout << "**** Postprocess time: " << postpro_info.time_postprocess << " sec" << std::endl;
-       std::cout << "------------------------------------------------------- " << std::endl;
-       std::cout << " " << std::endl;
-    }
-
-    dp.plot_solution("plot.dat");
-    std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
+    std::cout << "ASM" << std::endl;
+    dp.assemble(load, solution);
+    std::cout << "solve" << std::endl;
+    dp.solve();
+    std::cout << "post" << std::endl;
+    dp.postprocess(load);
+    //dp.plot_solution("plot.dat");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -135,36 +131,13 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
         return sin(p.x() * M_PI) * sin(p.y() * M_PI) * sin(p.z() * M_PI);
     };
 
-    timecounter tc;
-    tc.tic();
-
     diffusion_solver<mesh_type> dp(msh, rp.degree);
     dp.verbose(rp.verbose);
 
-    auto assembly_info = dp.assemble(load, solution);
-    auto solve_info = dp.solve();
-    auto postpro_info = dp.postprocess(load);
-
-    tc.toc();
-
-
-    if(dp.verbose()){
-       std::cout << " " << std::endl;
-       std::cout << "------------------------------------------------------- " << std::endl;
-       std::cout << "Summaring: " << std::endl;
-       std::cout << "Total time to solve the problem: " << tc.to_double() << " sec" << std::endl;
-       std::cout << "**** Assembly time: " << assembly_info.time_assembly << " sec" << std::endl;
-       std::cout << "****** Gradient reconstruction: " << assembly_info.time_gradrec << " sec" << std::endl;
-       std::cout << "****** Stabilisation: " << assembly_info.time_stab << " sec" << std::endl;
-       std::cout << "****** Static condensation: " << assembly_info.time_statcond << " sec" << std::endl;
-       std::cout << "**** Solver time: " << solve_info.time_solver << " sec" << std::endl;
-       std::cout << "**** Postprocess time: " << postpro_info.time_postprocess << " sec" << std::endl;
-       std::cout << "------------------------------------------------------- " << std::endl;
-       std::cout << " " << std::endl;
-    }
-
+    dp.assemble(load, solution);
+    dp.solve();
+    dp.postprocess(load);
     dp.plot_solution("plot.dat");
-    std::cout << "average diameter h: " << average_diameter(msh) << std::endl;
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
 
@@ -236,6 +209,9 @@ int main(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
+    mesh_filename = argv[0];
+
+#if 0
     if (argc == 0)
     {
         std::cout << "Mesh format: 1D uniform" << std::endl;
@@ -244,7 +220,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    mesh_filename = argv[0];
+
 
     /* FVCA5 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
@@ -254,16 +230,19 @@ int main(int argc, char **argv)
         run_diffusion_solver(msh, rp);
         return 0;
     }
-
+#endif
     /* Netgen 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$") ))
     {
         std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
         auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
+
+        std::cout << msh.faces_size() << std::endl;
+
         run_diffusion_solver(msh, rp);
         return 0;
     }
-
+#if 0
     /* DiSk++ cartesian 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.quad$") ))
     {
@@ -271,14 +250,6 @@ int main(int argc, char **argv)
         auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
         run_diffusion_solver(msh, rp);
         return 0;
-    }
-    
-    /* Medit 2d*/
-    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
-    {
-       std::cout << "Guessed mesh format: Medit format" << std::endl;
-       auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
-       return 0;
     }
 
     /* Netgen 3D */
@@ -298,6 +269,7 @@ int main(int argc, char **argv)
         run_diffusion_solver(msh, rp);
         return 0;
     }
+#endif
 
 }
 

@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #ifndef _BASES_HPP_WAS_INCLUDED_
@@ -26,7 +32,6 @@
 #include "common/eigen.hpp"
 
 namespace disk {
-
 
 
 
@@ -501,17 +506,14 @@ public:
 
         auto pts = points(msh, fc);
         auto bar = barycenter(msh, fc);
-        //auto h = (pts[1] - pts[0]).to_vector().norm()/2.0;
-        auto h = diameter(msh, fc);
-        auto v = (pts[1] - pts[0]).to_vector();
-        //auto v = (bar - pts[0]).to_vector();
+        auto h = (pts[1] - pts[0]).to_vector().norm()/2.0;
+        auto v = (bar - pts[0]).to_vector();
         auto t = (pt - bar).to_vector();
         T dot = v.dot(t);
         auto ep = point<T, 1>({dot/(h*h)});
 
         Eigen::Matrix<scalar_type, Eigen::Dynamic, 1> ret;
         ret.resize( eval_range.size(), 1 );
-
 
         size_t i = 0;
         auto begin = this->monomials_begin();

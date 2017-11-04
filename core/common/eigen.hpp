@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "../../config.h"
+#include "config.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wall"
@@ -50,8 +50,8 @@ using static_vector = Eigen::Matrix<T, N, 1>;
 template<typename T, size_t M, size_t N>
 using material_tensor = static_matrix<T, M, N>;
 
-//template<typename T>
-//using sparse_matrix = Eigen::SparseMatrix<T>;
+template<typename T>
+using sparse_matrix = Eigen::SparseMatrix<T>;
 
 //to mimic fourth order tensor
 template<typename T, size_t N>
@@ -71,4 +71,88 @@ cross(const static_vector<T, 2>& v1, const static_vector<T, 2>& v2)
     ret(2) = v1(0)*v2(1) - v1(1)*v2(0);
 
     return ret;
+}
+
+template<typename T>
+class eigen_sparse_raw
+{
+    bool m_one_based, m_already_restored;
+public:
+
+    T *     data;
+    int *   ia;
+    int *   ja;
+    int     nnz;
+    int     n;
+
+    template<int Options, typename Index>
+    eigen_sparse_raw(Eigen::SparseMatrix<T, Options, Index>& A, bool one_based = false)
+        : m_one_based(one_based), m_already_restored(false)
+    {
+        A.makeCompressed();
+
+        data    = A.valuePtr();
+        ia      = A.outerIndexPtr();    //colmaj size(ia) == N+1
+        ja      = A.innerIndexPtr();    //colmaj size(ja) == size(data) == nnz
+        nnz     = A.nonZeros();
+        n       = A.rows();
+
+        if (one_based)
+        {
+            for (size_t i = 0; i < n+1; i++)
+                ia[i] += 1;
+
+            for (size_t i = 0; i < nnz; i++)
+                ja[i] += 1;
+        }
+    }
+
+    void restore(void)
+    {
+        if ( !m_one_based || m_already_restored )
+            return;
+
+        for (size_t i = 0; i < n+1; i++)
+            ia[i] -= 1;
+
+        for (size_t i = 0; i < nnz; i++)
+            ja[i] -= 1;
+
+        m_already_restored = true;
+    }
+
+    void show(void)
+    {
+        std::cout << "A: ";
+        for (size_t i = 0; i < nnz; i++)
+            std::cout << data[i] << " ";
+        std::cout << std::endl;
+
+        std::cout << "ja: ";
+        for (size_t i = 0; i < nnz; i++)
+            std::cout << ja[i] << " ";
+        std::cout << std::endl;
+
+        std::cout << "ia: ";
+        for (size_t i = 0; i < n+1; i++)
+            std::cout << ia[i] << " ";
+        std::cout << std::endl;
+    }
+
+    ~eigen_sparse_raw()
+    {
+        if ( m_one_based && !m_already_restored )
+            restore();
+    }
+};
+
+void dump_sparse_matrix(Eigen::SparseMatrix<double>& M, const std::string& filename)
+{
+    std::ofstream ofs(filename);
+
+    for (int k=0; k < M.outerSize(); ++k)
+        for (Eigen::SparseMatrix<double>::InnerIterator it(M,k); it; ++it)
+            ofs << it.row() << " " << it.col() << " " << it.value() << std::endl;
+
+    ofs.close();
 }

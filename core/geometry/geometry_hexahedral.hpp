@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
  #ifndef _GEOMETRY_HPP_WAS_INCLUDED_
@@ -27,15 +33,13 @@
 
 namespace disk {
 
-struct storage_class_cartesian;
-
 template<size_t DIM>
-struct storage_class_trait<storage_class_cartesian, DIM> {
+struct cartesian_storage_class {
     static_assert(DIM == 2 or DIM == 3, "Only DIM = 2 or DIM = 3 for cartesian meshes");
 };
 
 template<>
-struct storage_class_trait<storage_class_cartesian, 3> {
+struct cartesian_storage_class<3> {
     typedef cartesian_element<3,0>  volume_type;
     typedef cartesian_element<3,1>  surface_type;
     typedef cartesian_element<3,2>  edge_type;
@@ -43,14 +47,14 @@ struct storage_class_trait<storage_class_cartesian, 3> {
 };
 
 template<>
-struct storage_class_trait<storage_class_cartesian, 2> {
+struct cartesian_storage_class<2> {
     typedef cartesian_element<2,0>  surface_type;
     typedef cartesian_element<2,1>  edge_type;
     typedef cartesian_element<2,2>  node_type;
 };
 
 template<typename T, size_t DIM>
-using cartesian_mesh_storage = mesh_storage<T, DIM, storage_class_cartesian>;
+using cartesian_mesh_storage = mesh_storage<T, DIM, cartesian_storage_class<DIM>>;
 
 template<typename T, size_t DIM>
 using cartesian_mesh = mesh<T, DIM, cartesian_mesh_storage<T, DIM>>;
@@ -67,7 +71,9 @@ points(const cartesian_mesh<T, DIM>& msh, const cartesian_element<DIM, CODIM>& e
         std::advance(itor, pi);
         return *itor;
     };
-    
+
+    typedef point_identifier<DIM>       point_id_type;
+
     std::array<typename cartesian_mesh<T, DIM>::point_type, cartesian_priv::howmany<DIM, CODIM>::nodes> pts;
     std::transform(ptids.begin(), ptids.end(), pts.begin(), ptid_to_point);
 

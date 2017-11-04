@@ -40,7 +40,7 @@ namespace disk{
                                                          disk::scaled_monomial_scalar_basis,
                                                          QuadratureType> >
       {
-      private:
+      public:
          typedef basis_quadrature_data<   MeshType,
                                           disk::scaled_monomial_scalar_basis,
                                           QuadratureType>      BQData_type;
@@ -54,6 +54,7 @@ namespace disk{
          typedef material_tensor<scalar_type, mesh_type::dimension, mesh_type::dimension>
          material_tensor_type;
 
+      private:
          const BQData_type&                                    m_bqd;
 
       public:
@@ -66,17 +67,20 @@ namespace disk{
          void compute(const mesh_type& msh, const cell_type& cl)
          {
             material_tensor_type id_tens;
-            id_tens = material_tensor_type::Identity();
-            compute(msh, cl, id_tens);
+            auto tf = [](const typename mesh_type::point_type& pt) -> auto {
+                return material_tensor_type::Identity();
+            };
+
+            compute(msh, cl, tf);
          }
 
+         template<typename TensorField>
          void compute(const mesh_type& msh, const cell_type& cl,
-                      const material_tensor_type& mtens)
+                      const TensorField& mtens)
          {
             const auto cell_degree = m_bqd.cell_degree();
-            const auto face_degree = m_bqd.face_degree();
-            const auto cell_basis_size = m_bqd.cell_basis.range(0, cell_degree+1).size();
-            const auto face_basis_size = m_bqd.face_basis.range(0, face_degree).size();
+            const auto cell_basis_size = m_bqd.cell_basis.computed_size();
+            const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
 
 
             matrix_type stiff_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
@@ -85,7 +89,7 @@ namespace disk{
             for (auto& qp : cell_quadpoints)
             {
                const matrix_type dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
-               stiff_mat += qp.weight() * dphi * /*mtens **/ dphi.transpose();
+               stiff_mat += qp.weight() * dphi * (dphi * mtens(qp.point())).transpose();
             }
 
             /* LHS: take basis functions derivatives from degree 1 to K+1 */
@@ -99,7 +103,7 @@ namespace disk{
             const auto fcs = faces(msh, cl);
             const auto num_faces = fcs.size();
 
-            const auto num_cell_dofs = m_bqd.cell_basis.range(0, cell_degree).size();
+            const auto num_cell_dofs = howmany_dofs(m_bqd.cell_basis);
 
             const dofspace_ranges dsr(num_cell_dofs, face_basis_size, num_faces);
             matrix_type BG = matrix_type::Zero(BG_row_range.size(), dsr.total_size());
@@ -121,7 +125,7 @@ namespace disk{
                   const matrix_type c_dphi =
                   m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 1, cell_degree+1);
 
-                  const matrix_type c_dphi_n = (c_dphi /** mtens*/ * n);
+                  const matrix_type c_dphi_n = (c_dphi * mtens(qp.point()).transpose()) * n;
                   const matrix_type T = qp.weight() * c_dphi_n * c_phi.transpose();
 
                   BG.block(0, 0, BG.rows(), BG_col_range.size()) -= T;
@@ -148,7 +152,7 @@ namespace disk{
                                                                         GradBasisType,
                                                                         QuadratureType> >
       {
-      private:
+      public:
          typedef basis_quadrature_data_full< MeshType,
                                              disk::scaled_monomial_scalar_basis,
                                              GradBasisType,
@@ -163,6 +167,7 @@ namespace disk{
          typedef static_vector<scalar_type, mesh_type::dimension>
          static_vector;
 
+      private:
          const BQData_type&                                    m_bqd;
       public:
 
@@ -292,7 +297,7 @@ namespace disk{
                                                                         GradBasisType,
                                                                         QuadratureType> >
       {
-      private:
+      public:
          typedef basis_quadrature_data_full< MeshType,
                                              disk::scaled_monomial_vector_basis,
                                              GradBasisType,
@@ -304,6 +309,7 @@ namespace disk{
          typedef dynamic_matrix<scalar_type>                   matrix_type;
          typedef dynamic_vector<scalar_type>                   vector_type;
 
+      private:
          const BQData_type&                                    m_bqd;
 
          template<int DIM>

@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
  #ifndef _GEOMETRY_HPP_WAS_INCLUDED_
@@ -116,6 +122,45 @@ diameter(const Mesh& msh, const Element& elem)
     return diam;
 }
 
+template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
+bool
+is_inside(const Mesh<T, 2, Storage>& msh,
+          const typename Mesh<T, 2, Storage>::cell& cl,
+          const typename Mesh<T, 2, Storage>::point_type& pt)
+{
+    /* Nodes MUST be ordered COUNTERCLOCKWISE and the polygon must be CONVEX */
+    auto pts = points(msh, cl);
+
+    for (size_t i = 0; i < pts.size(); i++)
+    {
+        auto p0 = pts[i];
+        auto p1 = pts[i%pts.size()];
+
+        auto x = pt.x();  auto y = pt.y();
+        auto x0 = p0.x(); auto y0 = p0.y();
+        auto x1 = p1.x(); auto y1 = p1.y();
+
+        if ( (y - y0)*(x1 - x0) - (x - x0)*(y1 - y0) < 0.0 )
+            return false;
+    }
+
+    return true;
+}
+
+template<typename Mesh>
+bool
+has_faces_on_boundary(const Mesh& msh, const typename Mesh::cell& cl)
+{
+    auto fcs = faces(msh, cl);
+    bool has_bnd = false;
+    for (auto& fc : fcs)
+        if ( msh.is_boundary(fc) )
+            has_bnd = true;
+
+    return has_bnd;
+}
+
+
 template<template<typename, size_t, typename> class Mesh,
          typename T, typename Storage>
 static_vector<T, 2>
@@ -147,6 +192,7 @@ normal(const Mesh<T, 3, Storage>& msh,
        const typename Mesh<T, 3, Storage>::face& fc)
 {
     auto pts = points(msh, fc);
+    assert(pts.size() == 4);
 
     auto v0 = (pts[1] - pts[0]).to_vector();
     auto v1 = (pts[2] - pts[1]).to_vector();

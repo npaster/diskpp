@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #pragma once
@@ -22,7 +28,7 @@
 #include "timecounter.h"
 #include "hho/hho_bq.hpp"
 #include "hho/gradient_reconstruction.hpp"
-//#include "contrib/sol2/sol.hpp"
+#include "contrib/sol2/sol.hpp"
 
 //#define USE_BLAS
 #define FILL_COLMAJOR
@@ -276,6 +282,45 @@ namespace disk {
          return mm.llt().solve(rhs);
       }
    };
+
+
+   template<typename BQData>
+class eigval_mass_matrix_bq
+{
+    typedef typename BQData::mesh_type          mesh_type;
+    typedef typename mesh_type::scalar_type     scalar_type;
+    typedef typename mesh_type::cell            cell_type;
+    typedef typename mesh_type::face            face_type;
+    typedef typename BQData::cell_basis_type    cell_basis_type;
+    typedef typename BQData::face_basis_type    face_basis_type;
+    typedef typename BQData::cell_quad_type     cell_quadrature_type;
+    typedef typename BQData::face_quad_type     face_quadrature_type;
+    typedef dynamic_matrix<scalar_type>         matrix_type;
+    typedef dynamic_vector<scalar_type>         vector_type;
+
+    const BQData&                               m_bqd;
+
+public:
+    matrix_type     data;
+
+    eigval_mass_matrix_bq(const BQData& bqd) : m_bqd(bqd)
+    {}
+
+    void compute(const mesh_type& msh, const cell_type& cl)
+    {
+        auto cell_basis_size = howmany_dofs(m_bqd.cell_basis);
+        auto cell_degree = m_bqd.cell_degree();
+
+        data = matrix_type::Zero(cell_basis_size, cell_basis_size);
+
+        auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
+        for (auto& qp : cell_quadpoints)
+        {
+            matrix_type phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
+            data += qp.weight() * phi * phi.transpose();
+        }
+    }
+};
 
 
 
@@ -1092,281 +1137,8 @@ namespace disk {
 
          return ret;
       }
-
-
-
    };
 
-   template<typename Mesh>
-   class multiscale_local_problem
-   {
-      typedef Mesh                                mesh_type;
-      typedef typename mesh_type::scalar_type     scalar_type;
-      typedef typename mesh_type::cell            cell_type;
-      typedef typename mesh_type::face            face_type;
-      typedef dynamic_matrix<scalar_type>         matrix_type;
-      typedef dynamic_vector<scalar_type>         vector_type;
-      typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
-      typedef Eigen::Triplet<scalar_type>         triplet_type;
-
-      typedef hho::basis_quadrature_data<mesh_type,
-      scaled_monomial_scalar_basis,
-      quadrature>   bqdata_type;
-
-      size_t                        m_degree,         /* degree requested by the user */
-      m_inner_degree,   /* fine scale method degree */
-      m_cf_degree,      /* cell function degree (\Phi_T) */
-      m_ff_degree;      /* face function degree (\Phi_F) */
-
-      size_t                        funcnum, ptlevels, reflevels;
-
-   public:
-      sparse_matrix_type                          matrix;
-      matrix_type                                 rhs;
-
-      multiscale_local_problem()
-      {
-         m_degree = 1;
-         m_inner_degree = 2;
-         m_cf_degree = 0;
-         m_ff_degree = 1;
-         load_params();
-      }
-
-      multiscale_local_problem(size_t degree)
-      {
-         // TODO: add checks
-         m_degree = degree;
-         m_inner_degree = degree+1;
-         m_cf_degree = degree-1;
-         m_ff_degree = degree;
-         load_params();
-      }
-
-      void load_params(void)
-      {
-         // commented for the moment
-         //sol::state lua;
-         //lua.script_file("params.lua");
-         //funcnum = lua.get<size_t>("funcnum");
-         //ptlevels = lua.get<size_t>("ptlevels");
-         //reflevels = lua.get<size_t>("reflevels");
-      }
-
-      //template<typename OuterCellBasis, OuterFaceBasis>
-      void assemble(const mesh_type& coarse_msh,
-                    const cell_type& coarse_cl/*,
-                    const OuterCellBasis& outer_cell_basis,
-                    const OuterFaceBasis& outer_face_basis*/)
-      {
-         assert(m_degree > 0);
-         submesher<Mesh>                                 submesher;
-         bqdata_type                                     bqd(m_inner_degree, m_inner_degree);
-         hho::gradient_reconstruction_bq<bqdata_type>         gradrec(bqd);
-         diffusion_like_stabilization_bq<bqdata_type>    stab(bqd);
-
-         scaled_monomial_scalar_basis<mesh_type, cell_type> outer_cell_basis(m_cf_degree);
-         scaled_monomial_scalar_basis<mesh_type, face_type> outer_face_basis(m_ff_degree);
-
-         auto msh = submesher.generate_mesh(coarse_msh, coarse_cl, reflevels);
-
-         auto num_cell_dofs = howmany_dofs(bqd.cell_basis, 0, m_inner_degree);
-         auto num_face_dofs = howmany_dofs(bqd.face_basis, 0, m_inner_degree);
-
-         auto num_cell_funcs = howmany_dofs(outer_cell_basis, 0, m_cf_degree);
-         auto num_face_funcs = howmany_dofs(outer_face_basis, 0, m_ff_degree);
-
-         auto matrix_face_offset = num_cell_dofs * msh.cells_size();
-         auto matrix_mult_offset = matrix_face_offset + num_face_dofs * msh.faces_size();
-         auto system_size = num_cell_dofs * msh.cells_size() +
-         num_face_dofs * msh.faces_size() +
-         num_face_funcs * 3;
-
-         matrix = sparse_matrix_type(system_size, system_size);
-         rhs = matrix_type::Zero(system_size, num_cell_funcs);
-
-         std::vector<triplet_type> triplets;
-
-         /* Assemble standard HHO part */
-         size_t cell_idx = 0;
-         for (auto& cl : msh)
-         {
-            auto fcs = faces(msh, cl);
-            std::vector<size_t> l2g(num_cell_dofs + fcs.size() * num_face_dofs);
-
-            /* Build DOF offset table: cell */
-            for (size_t i = 0; i < num_cell_dofs; i++)
-               l2g[i] = cell_idx * num_cell_dofs + i;
-
-            /* Build DOF offset table: faces */
-            for (size_t i = 0; i < fcs.size(); i++)
-            {
-               auto fc = fcs[i];
-               //std::cout << msh.boundary_id(fc) << std::endl;
-               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-               if (!eid.first)
-                  throw std::invalid_argument("This is a bug: face not found");
-
-               auto face_id = eid.second;
-               /* global offset of current face */
-               auto face_offset = matrix_face_offset + face_id * num_face_dofs;
-
-               /* offset in the DOF table */
-               auto dt_ofs = num_cell_dofs + i * num_face_dofs;
-
-               for (size_t j = 0; j < num_face_dofs; j++)
-                  l2g[dt_ofs+j] = face_offset+j;
-            }
-
-            /* Compute HHO element contribution */
-            gradrec.compute(msh, cl);
-            stab.compute(msh, cl, gradrec.oper);
-            dynamic_matrix<scalar_type> loc = gradrec.data + stab.data;
-            assert(loc.rows() == l2g.size());
-            assert(loc.cols() == l2g.size());
-
-            /* Assemble into the matrix */
-            for (size_t i = 0; i < l2g.size(); i++)
-               for (size_t j = 0; j < l2g.size(); j++)
-                  triplets.push_back( triplet_type(l2g[i], l2g[j], loc(i,j)) );
-
-               /* Now compute the multiscale-specific stuff */
-               matrix_type cell_rhs;
-            cell_rhs = matrix_type::Zero(num_cell_dofs, num_cell_funcs);
-
-            auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
-            for (auto& qp : cell_quadpoints)
-            {
-               auto phi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, m_inner_degree);
-               auto phi_coarse = outer_cell_basis.eval_functions(coarse_msh, coarse_cl, qp.point(), 0, m_cf_degree);
-               cell_rhs += qp.weight() * phi * phi_coarse.transpose();
-            }
-
-            for (size_t i = 0; i < num_cell_dofs; i++)
-            {
-               auto cell_offset = cell_idx * num_cell_dofs;
-               for (size_t j = 0; j < num_cell_funcs; j++)
-                  rhs(cell_offset+i, j) = cell_rhs(i,j);
-            }
-
-            cell_idx++;
-         }
-
-         auto bid_list = msh.boundary_id_list();
-
-         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
-         {
-            auto fc = *itor;
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
-            if (!eid.first)
-               throw std::invalid_argument("This is a bug: face not found");
-
-            auto face_id = eid.second;
-
-            /* row */
-            auto face_offset = matrix_face_offset + face_id * num_face_dofs;
-
-            size_t coarse_id = msh.boundary_id(fc);
-            size_t fine_id;
-            for (size_t i = 0; i < bid_list.size(); i++)
-               if (bid_list[i] == coarse_id)
-               {
-                  fine_id = i;
-                  break;
-               }
-
-               assert (fine_id < 3);
-
-            auto coarse_fc = *(coarse_msh.faces_begin() + coarse_id);
-
-            matrix_type face_mass_matrix;
-            face_mass_matrix = matrix_type::Zero(num_face_dofs, num_face_funcs);
-
-            auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
-            for (auto& qp : face_quadpoints)
-            {
-               auto phi = bqd.face_basis.eval_functions(msh, fc, qp.point());
-               auto phi_coarse = outer_face_basis.eval_functions(msh, coarse_fc, qp.point(), 0, m_ff_degree);
-               face_mass_matrix += qp.weight() * phi * phi_coarse.transpose();
-            }
-
-            /* col */
-            auto mult_offset = matrix_mult_offset + fine_id * num_face_funcs;
-
-            for (size_t j = 0; j < num_face_dofs; j++)
-            {
-               for (size_t k = 0; k < num_face_funcs; k++)
-               {
-                  size_t row = face_offset + j;
-                  size_t col = mult_offset + k;
-                  triplets.push_back( triplet_type(row, col, -face_mass_matrix(j,k)) );
-                  triplets.push_back( triplet_type(col, row, -face_mass_matrix(j,k)) );
-               }
-            }
-         }
-
-         matrix.setFromTriplets(triplets.begin(), triplets.end());
-
-         std::stringstream ssw;
-         ssw << "matrix.mat";
-         std::ofstream ofs(ssw.str());
-
-         for (int k=0; k<matrix.outerSize(); ++k)
-            for (Eigen::SparseMatrix<double>::InnerIterator it(matrix,k); it; ++it)
-               ofs << it.row() << " " << it.col() << " " << it.value() << std::endl;
-
-            ofs.close();
-
-         triplets.clear();
-
-
-
-         #ifdef HAVE_INTEL_MKL
-         Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
-         #else
-         Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
-         #endif
-
-         solver.analyzePattern(matrix);
-         solver.factorize(matrix);
-         matrix_type X = solver.solve(rhs);
-
-         auto eid = find_element_id(coarse_msh.cells_begin(), coarse_msh.cells_end(), coarse_cl);
-         if (!eid.first)
-            throw std::invalid_argument("This is a bug: cell not found");
-
-         auto cell_id = eid.second;
-
-         std::stringstream ss;
-         ss << "multiscale_plot_" << cell_id << ".dat";
-
-         std::ofstream ofs_sol(ss.str());
-         cell_idx = 0;
-         for (auto& cl : msh)
-         {
-            auto cell_sol = X.block(num_cell_dofs * cell_idx, funcnum, num_cell_dofs, 1);
-            //auto qps = bqd.cell_quadrature.integrate(msh, cl);
-            auto qps = make_test_points(msh, cl, ptlevels);
-            for (auto& qp : qps)
-            {
-               auto phi = bqd.cell_basis.eval_functions(msh, cl, qp);
-
-               scalar_type pot = 0.0;
-               for (size_t i = 0; i < bqd.cell_basis.range(0, m_inner_degree).size(); i++)
-                  pot += phi[i] * cell_sol(i,0);
-
-               auto tp = qp;
-               for (size_t i = 0; i < mesh_type::dimension; i++)
-                  ofs_sol << tp[i] << " ";
-               ofs_sol << pot << std::endl;
-            }
-
-            cell_idx++;
-         }
-         ofs_sol.close();
-
-      }
-   };
 
    template<typename Mesh, //typename CellBasisType, typename CellQuadType,
    typename FaceBasisType, typename FaceQuadType>
@@ -1541,6 +1313,162 @@ namespace disk {
       }
    };
 
+   template<typename Mesh, //typename CellBasisType, typename CellQuadType,
+                           typename FaceBasisType, typename FaceQuadType>
+   class assembler_homogeneus_dirichlet
+   {
+       typedef Mesh                                mesh_type;
+       typedef typename mesh_type::scalar_type     scalar_type;
+       typedef typename mesh_type::cell            cell_type;
+       typedef typename mesh_type::face            face_type;
+
+       //typedef CellBasisType                       cell_basis_type;
+       //typedef CellQuadType                        cell_quadrature_type;
+       typedef FaceBasisType                       face_basis_type;
+       typedef FaceQuadType                        face_quadrature_type;
+
+       typedef dynamic_matrix<scalar_type>         matrix_type;
+
+
+       //cell_basis_type                             cell_basis;
+       //cell_quadrature_type                        cell_quadrature;
+
+       face_basis_type                             face_basis;
+       face_quadrature_type                        face_quadrature;
+
+       size_t                                      m_degree;
+
+       typedef Eigen::Triplet<scalar_type>         triplet_type;
+
+       std::vector<triplet_type>                   m_triplets;
+       size_t                                      m_num_unknowns;
+
+   public:
+
+       typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
+       typedef dynamic_vector<scalar_type>         vector_type;
+
+       sparse_matrix_type      matrix;
+       vector_type             rhs;
+       std::vector<size_t>     face_compress_map, face_expand_map;
+
+       assembler_homogeneus_dirichlet()                 = delete;
+
+       assembler_homogeneus_dirichlet(const mesh_type& msh, size_t degree)
+           : m_degree(degree)
+       {
+           face_basis          = face_basis_type(m_degree);
+           face_quadrature     = face_quadrature_type(2*m_degree);
+
+           m_num_unknowns = face_basis.size() * msh.internal_faces_size();
+           matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+           rhs = vector_type::Zero(m_num_unknowns);
+
+           face_compress_map.resize( msh.faces_size() );
+           face_expand_map.resize( msh.internal_faces_size() );
+           size_t fn = 0, fi = 0;
+           for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++, fi++)
+           {
+               if( msh.is_boundary(*itor) )
+                   continue;
+
+               face_compress_map.at(fi) = fn;
+               face_expand_map.at(fn) = fi;
+               fn++;
+           }
+       }
+
+       template<typename LocalContrib>
+       void
+       assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc)
+       {
+           auto fcs = faces(msh, cl);
+           std::vector<size_t> l2g(fcs.size() * face_basis.size());
+           for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+           {
+               auto fc = fcs[face_i];
+               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+               if (!eid.first)
+                   throw std::invalid_argument("This is a bug: face not found");
+
+               auto face_id = eid.second;
+
+               auto face_offset = face_compress_map.at(face_id) * face_basis.size();
+
+               auto pos = face_i * face_basis.size();
+
+               for (size_t i = 0; i < face_basis.size(); i++)
+               {
+                   if ( msh.is_boundary(fc) )
+                       l2g.at(pos+i) = 0xDEADBEEF;
+                   else
+                       l2g.at(pos+i) = face_offset+i;
+               }
+           }
+
+           assert(lc.first.rows() == lc.first.cols());
+           assert(lc.first.rows() == lc.second.size());
+           assert(lc.second.size() == l2g.size());
+
+           //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+           for (size_t i = 0; i < lc.first.rows(); i++)
+           {
+               if (l2g[i] == 0xDEADBEEF)
+                   continue;
+
+               for (size_t j = 0; j < lc.first.cols(); j++)
+               {
+                   if (l2g[j] == 0xDEADBEEF)
+                       continue;
+
+                   m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+               }
+               rhs(l2g.at(i)) += lc.second(i);
+           }
+       }
+
+       vector_type
+       expand_solution(const mesh_type& msh, const vector_type& solution)
+       {
+           vector_type ret = vector_type::Zero(face_basis.size()*msh.faces_size());
+
+           auto basis_size = face_basis.size();
+           auto num_internal_faces = msh.internal_faces_size();
+
+           for (size_t cfacenum = 0; cfacenum < num_internal_faces; cfacenum++)
+           {
+               size_t src_block_offset = cfacenum * basis_size;
+               size_t dst_block_offset = face_expand_map.at(cfacenum) * basis_size;
+               size_t block_size = basis_size;
+               ret.block(dst_block_offset, 0, block_size, 1) =
+                   solution.block(src_block_offset, 0, block_size, 1);
+           }
+
+           return ret;
+       }
+
+       template<typename Function>
+       void
+       impose_boundary_conditions(const mesh_type& msh, const Function& bc)
+       {}
+
+       void
+       finalize()
+       {
+           matrix.setFromTriplets(m_triplets.begin(), m_triplets.end());
+           m_triplets.clear();
+       }
+
+       void
+       finalize(sparse_matrix_type& mat, vector_type& vec)
+       {
+           mat = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+           mat.setFromTriplets(m_triplets.begin(), m_triplets.end());
+           m_triplets.clear();
+           vec = rhs;
+       }
+   };
 
 
    template<typename Mesh, typename CellBasisType, typename CellQuadType,

@@ -1,6 +1,6 @@
 /*
- *       /\
- *      /__\       Matteo Cicuttin (C) 2016, 2017 - matteo.cicuttin@enpc.fr
+ *       /\        Matteo Cicuttin (C) 2016, 2017
+ *      /__\       matteo.cicuttin@enpc.fr
  *     /_\/_\      École Nationale des Ponts et Chaussées - CERMICS
  *    /\    /\
  *   /__\  /__\    DISK++, a template library for DIscontinuous SKeletal
@@ -10,8 +10,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * If you use this code for scientific publications, you are required to
- * cite it.
+ * If you use this code or parts of it for scientific publications, you
+ * are required to cite it as following:
+ *
+ * Implementation of Discontinuous Skeletal methods on arbitrary-dimensional,
+ * polytopal meshes using generic programming.
+ * M. Cicuttin, D. A. Di Pietro, A. Ern.
+ * Journal of Computational and Applied Mathematics.
+ * DOI: 10.1016/j.cam.2017.09.017
  */
 
 #include <iostream>
@@ -24,11 +30,7 @@
 
 #include "colormanip.h"
 
-#include "../../config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
- #include "agmg/agmg.hpp"
-#endif
+#include "config.h"
 
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
@@ -72,6 +74,7 @@ test_mesh_format(const std::vector<std::string>& paths,
 
         std::ofstream ofs(ss.str());
 
+        size_t mesh_index = 1;
         for (auto& tsp : paths)
         {
             MeshType    msh;
@@ -151,11 +154,11 @@ verify_convergence(const std::vector<std::string>& paths,
     typedef typename MeshType::scalar_type scalar_type;
 
     auto f = [](const point<typename MeshType::scalar_type, MeshType::dimension>& p) -> auto {
-        return M_PI * M_PI * sin(p.x() * M_PI);
+        return 2.0 * M_PI * M_PI * sin(p.x() * M_PI) * sin(p.y() * M_PI);
     };
 
     auto sf = [](const point<typename MeshType::scalar_type, MeshType::dimension>& p) -> auto {
-        return sin(p.x() * M_PI);
+        return sin(p.x() * M_PI) * sin(p.y() * M_PI);
     };
 
     bool success = true;
@@ -191,6 +194,7 @@ verify_convergence(const std::vector<std::string>& paths,
             errdiams.push_back( std::make_pair(diam, error) );
         }
 
+        bool pass       = true;
         bool warning    = false;
         bool high, low, ok;
         for (size_t i = 1; i < errdiams.size(); i++)
@@ -234,7 +238,7 @@ enum test_type
 
 void test_triangles_specialized(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/2D_triangles/netgen/tri01.mesh2d");
@@ -263,7 +267,7 @@ void test_triangles_specialized(test_type tt)
 
 void test_triangles_generic(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_1.typ1");
@@ -292,7 +296,7 @@ void test_triangles_generic(test_type tt)
 
 void test_hexagons_generic(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
@@ -319,9 +323,40 @@ void test_hexagons_generic(test_type tt)
     }
 }
 
+void test_hextri_generic(test_type tt)
+{
+    size_t runs = 2;
+
+    std::vector<std::string> paths;
+    //paths.push_back("../hexagon_splitter/hextri1.typ1");
+    paths.push_back("../hexagon_splitter/hextri2.typ1");
+    paths.push_back("../hexagon_splitter/hextri3.typ1");
+    paths.push_back("../hexagon_splitter/hextri4.typ1");
+    paths.push_back("../hexagon_splitter/hextri5.typ1");
+
+
+    typedef disk::generic_mesh<double, 2>       MT;
+    typedef disk::fvca5_mesh_loader<double, 2>  LT;
+
+    switch(tt)
+    {
+        case TEST_MEASURE_TIMES:
+            test_mesh_format<MT, LT>(paths, runs, 0, 3, "hextri_gen");
+            break;
+
+        case TEST_VERIFY_CONVERGENCE:
+            verify_convergence<MT, LT>(paths, 0, 3);
+            break;
+
+        default:
+            std::cout << "[ Unavailable Test ]" << std::endl;
+            return;
+    }
+}
+
 void test_kershaw_2d(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_1.typ1");
@@ -352,7 +387,7 @@ void test_kershaw_2d(test_type tt)
 
 void test_hexahedra_specialized(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/3D_hexa/diskpp/testmesh-2-2-2.hex");
@@ -382,7 +417,7 @@ void test_hexahedra_specialized(test_type tt)
 
 void test_hexahedra_generic(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/3D_hexa/fvca6/hexa_2x2x2.msh");
@@ -412,7 +447,7 @@ void test_hexahedra_generic(test_type tt)
 
 void test_tetrahedra_specialized(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/3D_tetras/netgen/fvca6_tet1.mesh");
@@ -441,7 +476,7 @@ void test_tetrahedra_specialized(test_type tt)
 
 void test_tetrahedra_generic(test_type tt)
 {
-    size_t runs = 5;
+    size_t runs = 2;
 
     std::vector<std::string> paths;
     paths.push_back("../../../diskpp/meshes/3D_tetras/fvca6/tet.1.msh");
@@ -553,4 +588,8 @@ int main(int argc, char **argv)
 
     std::cout << bold << underline << "Polyhedra" << reset << std::endl;
     test_polyhedra_generic(tt);
+
+    std::cout << bold << underline << "Hextri generic" << reset << std::endl;
+    test_hextri_generic(tt);
+
 }
