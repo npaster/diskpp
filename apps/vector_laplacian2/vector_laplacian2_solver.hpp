@@ -74,7 +74,7 @@ class vector_laplacian_solver
                                              disk::quadrature> bqdata_type;
 
 
-   typedef disk::hho::gradient_reconstruction_full_bq<bqdata_type>   gradrec_type;
+   typedef disk::hho::gradient_reconstruction_bq<bqdata_type>   gradrec_type;
 
    typedef disk::diffusion_like_static_condensation_bq<bqdata_type>         statcond_type;
    typedef disk::hho::assembler_vector_bq<bqdata_type>                      assembler_type;

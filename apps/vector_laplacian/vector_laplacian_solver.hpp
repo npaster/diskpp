@@ -23,6 +23,8 @@
 #include "hho/hho.hpp"
 #include "hho/hho_bq.hpp"
 #include "hho/hho_vector_bq.hpp"
+#include "hho/gradient_reconstruction.hpp"
+#include "hho/stabilization.hpp"
 
 
 #include "../exemple_visualisation/visualisation/gmshDisk.hpp"
@@ -158,7 +160,7 @@ public:
 
    bool    verbose(void) const     { return m_verbose; }
    void    verbose(bool v)         { m_verbose = v; }
-
+   size_t getDofs() {return m_msh.faces_size() * m_bqd.face_basis.size();}
 
    template<typename LoadFunction, typename BoundaryConditionFunction>
    assembly_info
@@ -309,6 +311,33 @@ public:
          const dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
          const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
          err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
+      }
+
+      return sqrt(err_dof);
+   }
+
+   template<typename AnalyticalSolution>
+   scalar_type
+   compute_l2_gradient_error(const AnalyticalSolution& grad)
+   {
+      scalar_type err_dof = scalar_type{0.0};
+
+      projector_type projk(m_bqd);
+
+      gradrec_type gradrec(m_bqd);
+
+      size_t i = 0;
+
+      for (auto& cl : m_msh)
+      {
+         const auto x = m_solution_data.at(i++);
+         gradrec.compute(m_msh, cl);
+         const dynamic_vector<scalar_type> RTu = gradrec.oper*x;
+
+         const dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
+         const dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
+         const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+         err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
       }
 
       return sqrt(err_dof);

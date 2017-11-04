@@ -30,6 +30,60 @@ namespace disk {
 namespace hho{
 
    template<typename Mesh,
+   template<typename, typename> class Basis,
+   template<typename, typename> class Quadrature>
+   class basis_quadrature_data /* this name really sucks */
+   {
+   public:
+      typedef Mesh                            mesh_type;
+      typedef typename mesh_type::cell        cell_type;
+      typedef typename mesh_type::face        face_type;
+
+      typedef Basis<mesh_type, cell_type>         cell_basis_type;
+      typedef Basis<mesh_type, face_type>         face_basis_type;
+      typedef Quadrature<mesh_type, cell_type>    cell_quad_type;
+      typedef Quadrature<mesh_type, face_type>    face_quad_type;
+
+      cell_basis_type     cell_basis;
+      face_basis_type     face_basis;
+      cell_quad_type      cell_quadrature;
+      face_quad_type      face_quadrature;
+      face_quad_type      face_max_quadrature;
+
+   private:
+      size_t  m_cell_degree, m_face_degree;
+
+      void init(void)
+      {
+         cell_basis          = cell_basis_type(m_cell_degree+1);
+         face_basis          = face_basis_type(m_face_degree);
+         cell_quadrature     = cell_quad_type(2*(m_cell_degree+1));
+         face_quadrature     = face_quad_type(2*m_face_degree);
+         face_max_quadrature = face_quad_type(2* std::max(m_face_degree,m_cell_degree+1));
+      }
+
+   public:
+      basis_quadrature_data() : m_cell_degree(1), m_face_degree(1)
+      {
+         init();
+      }
+
+      basis_quadrature_data(size_t cell_degree, size_t face_degree)
+      {
+         if ( (cell_degree + 1 < face_degree) or (cell_degree > face_degree + 1) )
+            throw std::invalid_argument("Invalid cell degree");
+
+         m_cell_degree = cell_degree;
+         m_face_degree = face_degree;
+
+         init();
+      }
+
+      size_t cell_degree(void) const { return m_cell_degree; }
+      size_t face_degree(void) const { return m_face_degree; }
+   };
+
+   template<typename Mesh,
    template<typename, typename> class BasisFunction,
    template<typename, typename> class BasisGradient,
    template<typename, typename> class Quadrature>

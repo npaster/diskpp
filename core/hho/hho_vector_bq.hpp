@@ -135,7 +135,6 @@ namespace hho{
                   c_dphi_n.push_back(mm_prod(c_dphi[i] , n));
                }
 
-               assert(c_dphi_n.size() == cell_basis_size);
                assert(c_dphi_n.size() == BG.rows());
 
                matrix_type  T= matrix_type::Zero(BG.rows(), BG_col_range.size());

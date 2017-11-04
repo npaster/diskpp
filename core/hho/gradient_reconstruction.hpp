@@ -30,23 +30,20 @@ namespace disk{
    namespace hho{
 
       template<typename BQData>
-      struct gradient_reconstruction_full_bq
+      struct gradient_reconstruction_bq
       {
           static_assert(sizeof(BQData) == -1, "gradient_reconstruction: not suitable for the requested kind of BQData");
       };
 
-      //partial spesialization for disk::scaled_monomial_scalar_basis
-      template<typename MeshType, template<typename, typename> class GradBasisType>
-      class gradient_reconstruction_full_bq<basis_quadrature_data_full< MeshType,
-                                                                        disk::scaled_monomial_scalar_basis,
-                                                                        GradBasisType,
-                                                                        disk::quadrature> >
+      template<typename MeshType, template<typename, typename> class QuadratureType>
+      class gradient_reconstruction_bq<basis_quadrature_data<  MeshType,
+                                                         disk::scaled_monomial_scalar_basis,
+                                                         QuadratureType> >
       {
       private:
-         typedef basis_quadrature_data_full< MeshType,
-                                             disk::scaled_monomial_scalar_basis,
-                                             GradBasisType,
-                                             disk::quadrature> BQData_type;
+         typedef basis_quadrature_data<   MeshType,
+                                          disk::scaled_monomial_scalar_basis,
+                                          QuadratureType>      BQData_type;
          typedef typename BQData_type::mesh_type               mesh_type;
          typedef typename mesh_type::scalar_type               scalar_type;
          typedef typename mesh_type::cell                      cell_type;
@@ -54,18 +51,129 @@ namespace disk{
          typedef dynamic_matrix<scalar_type>                   matrix_type;
          typedef dynamic_vector<scalar_type>                   vector_type;
 
+         typedef material_tensor<scalar_type, mesh_type::dimension, mesh_type::dimension>
+         material_tensor_type;
+
+         const BQData_type&                                    m_bqd;
+
+      public:
+         matrix_type     oper;
+         matrix_type     data;
+
+         gradient_reconstruction_bq(const BQData_type& bqd) : m_bqd(bqd)
+         {}
+
+         void compute(const mesh_type& msh, const cell_type& cl)
+         {
+            material_tensor_type id_tens;
+            id_tens = material_tensor_type::Identity();
+            compute(msh, cl, id_tens);
+         }
+
+         void compute(const mesh_type& msh, const cell_type& cl,
+                      const material_tensor_type& mtens)
+         {
+            const auto cell_degree = m_bqd.cell_degree();
+            const auto face_degree = m_bqd.face_degree();
+            const auto cell_basis_size = m_bqd.cell_basis.range(0, cell_degree+1).size();
+            const auto face_basis_size = m_bqd.face_basis.range(0, face_degree).size();
+
+
+            matrix_type stiff_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
+
+            const auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
+            for (auto& qp : cell_quadpoints)
+            {
+               const matrix_type dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
+               stiff_mat += qp.weight() * dphi * /*mtens **/ dphi.transpose();
+            }
+
+            /* LHS: take basis functions derivatives from degree 1 to K+1 */
+            const auto MG_rowcol_range = m_bqd.cell_basis.range(1, cell_degree+1);
+            const matrix_type MG = take(stiff_mat, MG_rowcol_range, MG_rowcol_range);
+
+            /* RHS, volumetric part. */
+            const auto BG_row_range = m_bqd.cell_basis.range(1, cell_degree+1);
+            const auto BG_col_range = m_bqd.cell_basis.range(0, cell_degree);
+
+            const auto fcs = faces(msh, cl);
+            const auto num_faces = fcs.size();
+
+            const auto num_cell_dofs = m_bqd.cell_basis.range(0, cell_degree).size();
+
+            const dofspace_ranges dsr(num_cell_dofs, face_basis_size, num_faces);
+            matrix_type BG = matrix_type::Zero(BG_row_range.size(), dsr.total_size());
+
+            BG.block(0, 0, BG_row_range.size(), BG_col_range.size()) =
+            take(stiff_mat, BG_row_range, BG_col_range);
+
+            for (size_t face_i = 0; face_i < num_faces; face_i++)
+            {
+               const auto current_face_range = dsr.face_range(face_i);
+               const auto fc = fcs[face_i];
+               const auto n = normal(msh, cl, fc);
+               const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+
+               for (auto& qp : face_quadpoints)
+               {
+                  const matrix_type c_phi =
+                  m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
+                  const matrix_type c_dphi =
+                  m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 1, cell_degree+1);
+
+                  const matrix_type c_dphi_n = (c_dphi /** mtens*/ * n);
+                  const matrix_type T = qp.weight() * c_dphi_n * c_phi.transpose();
+
+                  BG.block(0, 0, BG.rows(), BG_col_range.size()) -= T;
+
+                  const matrix_type f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+                  assert(f_phi.size() == face_basis_size);
+                  const matrix_type F = qp.weight() * c_dphi_n * f_phi.transpose();
+
+                  BG.block(0, current_face_range.min(),
+                           BG.rows(), current_face_range.size()) += F;
+               }
+            }
+
+            oper  = MG.llt().solve(BG);    // GT
+            data  = BG.transpose() * oper;  // A
+         }
+
+      };
+
+      //partial spesialization for disk::scaled_monomial_scalar_basis
+      template<typename MeshType, template<typename, typename> class GradBasisType, template<typename, typename> class QuadratureType>
+      class gradient_reconstruction_bq<basis_quadrature_data_full< MeshType,
+                                                                        disk::scaled_monomial_scalar_basis,
+                                                                        GradBasisType,
+                                                                        QuadratureType> >
+      {
+      private:
+         typedef basis_quadrature_data_full< MeshType,
+                                             disk::scaled_monomial_scalar_basis,
+                                             GradBasisType,
+                                             QuadratureType>   BQData_type;
+         typedef typename BQData_type::mesh_type               mesh_type;
+         typedef typename mesh_type::scalar_type               scalar_type;
+         typedef typename mesh_type::cell                      cell_type;
+
+         typedef dynamic_matrix<scalar_type>                   matrix_type;
+         typedef dynamic_vector<scalar_type>                   vector_type;
+
+         typedef static_vector<scalar_type, mesh_type::dimension>
+         static_vector;
+
          const BQData_type&                                    m_bqd;
       public:
 
          matrix_type     oper;
          matrix_type     data;
 
-         gradient_reconstruction_full_bq(const BQData_type& bqd) : m_bqd(bqd)
+         gradient_reconstruction_bq(const BQData_type& bqd) : m_bqd(bqd)
          {}
 
          void compute(const mesh_type& msh, const cell_type& cl, const bool compute_data = true)
          {
-            const size_t DIM = msh.dimension;
             const size_t cell_degree = m_bqd.cell_degree();
             const size_t face_degree = m_bqd.face_degree();
             const size_t grad_degree = m_bqd.grad_degree();
@@ -114,13 +222,12 @@ namespace disk{
                const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
                assert(grad_basis_size == gphi.size());
                assert(cell_basis_size == dphi.rows());
-               assert(dphi.cols() == DIM);
+               assert(dphi.cols() == mesh_type::dimension);
 
-               auto dphi_j(gphi[0]);
                for(size_t j = 0; j < cell_basis_size; j++){
                   //on converti dphi_j
-                  dphi_j.Zero();
-                  for(size_t k = 0; k < DIM; k++){
+                  static_vector dphi_j = static_vector::Zero();
+                  for(size_t k = 0; k < mesh_type::dimension; k++){
                      dphi_j(k) = dphi(j,k);
                   }
 
@@ -179,17 +286,17 @@ namespace disk{
       };
 
       //partial spesialization for disk::scaled_monomial_vector_basis
-      template<typename MeshType, template<typename, typename> class GradBasisType>
-      class gradient_reconstruction_full_bq<basis_quadrature_data_full< MeshType,
+      template<typename MeshType, template<typename, typename> class GradBasisType, template<typename, typename> class QuadratureType>
+      class gradient_reconstruction_bq<basis_quadrature_data_full< MeshType,
                                                                         disk::scaled_monomial_vector_basis,
                                                                         GradBasisType,
-                                                                        disk::quadrature> >
+                                                                        QuadratureType> >
       {
       private:
          typedef basis_quadrature_data_full< MeshType,
                                              disk::scaled_monomial_vector_basis,
                                              GradBasisType,
-                                             disk::quadrature> BQData_type;
+                                             QuadratureType> BQData_type;
          typedef typename BQData_type::mesh_type               mesh_type;
          typedef typename mesh_type::scalar_type               scalar_type;
          typedef typename mesh_type::cell                      cell_type;
@@ -221,7 +328,7 @@ namespace disk{
          matrix_type     oper;
          matrix_type     data;
 
-         gradient_reconstruction_full_bq(const BQData_type& bqd) : m_bqd(bqd)
+         gradient_reconstruction_bq(const BQData_type& bqd) : m_bqd(bqd)
          {}
 
          void compute(const mesh_type& msh, const cell_type& cl, const bool compute_data = true)
