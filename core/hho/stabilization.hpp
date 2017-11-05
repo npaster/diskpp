@@ -65,16 +65,16 @@ namespace disk{
          {
             const auto cell_degree = m_bqd.cell_degree();
             const auto face_degree = m_bqd.face_degree();
-            const auto cell_basis_size = m_bqd.cell_basis.range(0,cell_degree+1).size();
-            const auto face_basis_size = m_bqd.face_basis.range(0,face_degree).size();
+            const auto cell_basis_size = m_bqd.cell_basis.computed_size();
+            const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
 
             matrix_type mass_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
 
             const auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
             for (auto& qp : cell_quadpoints)
             {
-               const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
-               assert(c_phi.size() == cell_basis_size);
+               const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree+1);
+               assert(c_phi.rows() == cell_basis_size);
                mass_mat += qp.weight() * c_phi * c_phi.transpose();
             }
 
@@ -94,7 +94,7 @@ namespace disk{
 
             const auto fcs = faces(msh, cl);
             const auto num_faces = fcs.size();
-            const auto num_cell_dofs = m_bqd.cell_basis.range(0, cell_degree).size();
+            const auto num_cell_dofs = howmany_dofs(m_bqd.cell_basis);
             const dofspace_ranges dsr(num_cell_dofs, face_basis_size, num_faces);
 
             data = matrix_type::Zero(dsr.total_size(), dsr.total_size());
@@ -113,7 +113,7 @@ namespace disk{
                for (auto& qp : face_quadpoints)
                {
                   const auto f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
-                  const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+                  const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree+1);
                   assert(c_phi.size() == cell_basis_size);
                   assert(f_phi.size() == face_basis_size);
                   const auto q_f_phi = qp.weight() * f_phi;

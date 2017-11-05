@@ -597,8 +597,8 @@ public:
 
       void compute(const mesh_type& msh, const cell_type& cl, const matrix_type& gradrec_oper)
       {
-         auto cell_basis_size = m_bqd.cell_basis.size();
-         auto face_basis_size = m_bqd.face_basis.size();
+         auto cell_basis_size = m_bqd.cell_basis.computed_size();
+         auto face_basis_size = howmany_dofs(m_bqd.face_basis);
          auto cell_degree = m_bqd.cell_degree();
 
          matrix_type mass_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
@@ -606,7 +606,8 @@ public:
          auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
          for (auto& qp : cell_quadpoints)
          {
-            auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+            auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree+1);
+            assert(c_phi.rows() == cell_basis_size);
             mass_mat += qp.weight() * c_phi * c_phi.transpose();
          }
 
@@ -627,7 +628,7 @@ public:
          auto fcs = faces(msh, cl);
          auto num_faces = fcs.size();
 
-         auto num_cell_dofs = m_bqd.cell_basis.range(0, cell_degree).size();
+         auto num_cell_dofs = howmany_dofs(m_bqd.cell_basis);
          auto num_face_dofs = face_basis_size;
 
          dofspace_ranges dsr(num_cell_dofs, num_face_dofs, num_faces);
@@ -649,7 +650,9 @@ public:
             for (auto& qp : face_quadpoints)
             {
                auto f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
-               auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+               auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree+1);
+               assert(c_phi.size() == cell_basis_size);
+               assert(f_phi.size() == face_basis_size);
                auto q_f_phi = qp.weight() * f_phi;
                face_mass_matrix += q_f_phi * f_phi.transpose();
                face_trace_matrix += q_f_phi * c_phi.transpose();

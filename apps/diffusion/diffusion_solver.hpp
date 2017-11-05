@@ -29,15 +29,12 @@
 #include "hho/hho.hpp"
 #include "hho/hho_bq.hpp"
 #include "hho/gradient_reconstruction.hpp"
+#include "hho/stabilization.hpp"
 
 #include "timecounter.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
-
-
-
 
 
 template<typename T>
@@ -128,7 +125,7 @@ class diffusion_solver
                                 disk::quadrature> bqdata_type;
 
     typedef disk::hho::gradient_reconstruction_bq<bqdata_type>               gradrec_type;
-    typedef disk::diffusion_like_stabilization_bq<bqdata_type>          stab_type;
+    typedef disk::hho::hho_stabilization_bq<bqdata_type>          stab_type;
     typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
     //typedef disk::assembler<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
     typedef disk::assembler_homogeneus_dirichlet<mesh_type, face_basis_type, face_quadrature_type> assembler_type;

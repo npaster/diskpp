@@ -82,14 +82,15 @@ namespace disk{
             const auto cell_basis_size = m_bqd.cell_basis.computed_size();
             const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
 
-
             matrix_type stiff_mat = matrix_type::Zero(cell_basis_size, cell_basis_size);
 
             const auto cell_quadpoints = m_bqd.cell_quadrature.integrate(msh, cl);
             for (auto& qp : cell_quadpoints)
             {
-               const matrix_type dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
-               stiff_mat += qp.weight() * dphi * (dphi * mtens(qp.point())).transpose();
+               const matrix_type dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 0, cell_degree+1);
+               assert(dphi.rows() == cell_basis_size);
+
+               stiff_mat += qp.weight() * dphi * (dphi /** mtens(qp.point())*/).transpose();
             }
 
             /* LHS: take basis functions derivatives from degree 1 to K+1 */
@@ -124,6 +125,7 @@ namespace disk{
                   m_bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
                   const matrix_type c_dphi =
                   m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 1, cell_degree+1);
+                  assert(c_phi.rows() == num_cell_dofs);
 
                   const matrix_type c_dphi_n = (c_dphi * mtens(qp.point()).transpose()) * n;
                   const matrix_type T = qp.weight() * c_dphi_n * c_phi.transpose();
