@@ -26,8 +26,8 @@
 
 #include "geometry/geometry.hpp"
 #include "mesh/point.hpp"
-#include "gmshMesh.hpp"
-#include "gmshElement.hpp"
+#include "contrib/gmsh_tools/gmshMesh.hpp"
+#include "contrib/gmsh_tools/gmshElement.hpp"
 
 namespace visu{
 

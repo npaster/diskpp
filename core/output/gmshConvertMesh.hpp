@@ -27,10 +27,10 @@
 #include "loaders/loader.hpp"
 #include "geometry/geometry.hpp"
 #include "mesh/point.hpp"
-#include "gmshMesh.hpp"
-#include "gmshElement.hpp"
-#include "gmshData.hpp"
-#include "gmshDisk.hpp"
+#include "contrib/gmsh_tools/gmshMesh.hpp"
+#include "contrib/gmsh_tools/gmshElement.hpp"
+#include "contrib/gmsh_tools/gmshData.hpp"
+#include "output/gmshDisk.hpp"
 
 namespace visu{
 

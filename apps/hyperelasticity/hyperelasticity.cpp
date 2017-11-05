@@ -60,31 +60,31 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
 
 
    T alpha = 0.3;
-// 
+//
 // auto load = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T mu = elas_param.mu;
-// 
+//
 //    T fx = 0.0;
 //    T fy = 8*mu * alpha * M_PI* M_PI* cos(2*M_PI*p.x());
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto solution = [elas_param, alpha](const point<T,2>& p) -> result_type {
 //    T lambda = elas_param.lambda;
 //    T fx = (1.0/lambda + alpha) * p.x();
 //    T fy = (1.0/lambda - alpha/(1.0 + alpha)) * p.y() + /* f(x)= */ 2*alpha * (cos(2*M_PI*p.x()) -1.0);
-// 
+//
 //    return result_type{fx,fy};
 // };
-// 
+//
 // auto gradient = [elas_param, alpha](const point<T,2>& p) -> result_grad_type {
 //    T lambda = elas_param.lambda;
 //    result_grad_type grad = result_grad_type::Zero();
-// 
+//
 //    grad(0,0) = (1.0/lambda + alpha);
 //    grad(1,1) = (1.0/lambda - alpha/(1.0 + alpha));
 //    grad(1,0) = /* f'(x)= */ -4*alpha * M_PI* sin(2*M_PI*p.x());
-// 
+//
 //    return grad;
 // };
 
@@ -113,19 +113,19 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
       result_grad_type grad = result_grad_type::Zero();
       return grad;
    };
-   
-   
+
+
    auto load = [](const point<T,2>& p) -> result_type {
       T fx = 2.*M_PI*M_PI*sin(M_PI*p.x())*sin(M_PI*p.y());
       T fy = 2.*M_PI*M_PI*cos(M_PI*p.x())*cos(M_PI*p.y());
-      
+
       return result_type{fx,fy};
    };
-   
+
    auto solution = [](const point<T,2>& p) -> result_type {
       T fx = sin(M_PI*p.x())*sin(M_PI*p.y());
       T fy = cos(M_PI*p.x())*cos(M_PI*p.y());
-      
+
       return result_type{fx,fy};
    };
 
@@ -296,10 +296,10 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //
 //       return factor*grad;
 //    };
-   
-   
-   
-//DEBUT CYLINDRE   
+
+
+
+//DEBUT CYLINDRE
 
 //    //load and solutions
 //    auto load = [](const point<T,3>& p) -> result_type {
@@ -308,144 +308,144 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //       T fz = 0.0;
 //       return result_type{fx, fy, fz};
 //    };
-// 
+//
 //    auto solution = [](const point<T,3>& p) -> result_type {
 //       T fx = -1.0;
 //       T fy = -1.0;
 //       T fz = -1.0;
-// 
+//
 //       return result_type{fx,fy,fz};
 //    };
-// 
-// 
+//
+//
 //    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
 //       T fx = 0.0;
 //       T fy = 0.0;
 //       T fz = 0.0;
-// 
+//
 //       return result_type{fx,fy,fz};
 //    };
-// 
+//
 //    // Define Boundary Conditions
-   
+
 //    BoundaryType N1;
 //    N1.id = 4;
 //    N1.boundary_type = FREE;
-//    
+//
 //    BoundaryType N2;
 //    N2.id = 11;
 //    N2.boundary_type = FREE;
-//    
+//
 //    std::vector<BoundaryType> boundary_neumann = {N1, N2};
-//    
+//
 //    BoundaryType D1;
 //    D1.id = 18;
 //    D1.boundary_type = CLAMPED;
-//    
+//
 //    std::vector<BoundaryType> boundary_dirichlet = {D1};
-   
+
    // FIN CYLINDRE
-  
-   
+
+
    //DEBUT CAVITATION
-   
+
    auto load = [](const point<T,3>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
       T fz = 0.0;
       return result_type{fx, fy, fz};
    };
-   
+
    auto solution = [](const point<T,3>& p) -> result_type {
       T fx = p.x();
       T fy = p.y();
       T fz = p.z();
-      
+
       return result_type{fx,fy,fz};
    };
-   
-   
+
+
    auto neumann = [elas_param](const point<T,3>& p) -> result_type {
       T fx = 0.0;
       T fy = 0.0;
       T fz = 0.0;
-      
+
       return result_type{fx,fy,fz};
    };
-   
+
    BoundaryType N1;
    N1.id = 19;//4 cyl
    N1.boundary_type = FREE;
-   
+
    BoundaryType N2;
    N2.id = 11;
    N2.boundary_type = FREE;
-   
+
    std::vector<BoundaryType> boundary_neumann = {N1, N2};
-   
+
    std::vector<BoundaryType> boundary_dirichlet = {};
-   
+
    //FIN CAVITATION
-   
+
    //Block
-   
+
 //    auto load = [](const point<T,3>& p) -> result_type {
 //       T fx = 0.0;
 //       T fy = 0.0;
 //       T fz = 0.0;
 //       return result_type{fx, fy, fz};
 //    };
-//    
+//
 //    auto solution = [](const point<T,3>& p) -> result_type {
 //       T fx = 0;
 //       T fy = -1.0;
 //       T fz = -1.0;
-//       
+//
 //       return result_type{fx,fy,fz};
 //    };
-//    
+//
 //    T pres = 80;
 //    auto neumann = [elas_param, pres](const point<T,3>& p) -> result_type {
 //       T fx = 0.0;
 //       T fy = 0.0;
 //       T fz = 0.0;
-//       
+//
 //       return result_type{fx,fy,fz};
-//    };  
-   
-   
-   //block 
+//    };
+
+
+   //block
 //    BoundaryType N1;
 //    N1.id = 3;
 //    N1.boundary_type = FREE;
-//    
+//
 //    BoundaryType N2;
 //    N2.id = 13;
 //    N2.boundary_type = FREE;
-//    
+//
 //    BoundaryType N3;
 //    N3.id = 20;
 //    N3.boundary_type = FREE;
-//    
+//
 //    BoundaryType N4;
 //    N4.id = 34;
 //    N4.boundary_type = FREE;
-//    
+//
 //    BoundaryType N5;
 //    N5.id = 42;
 //    N5.boundary_type = FREE;
-//    
+//
 //    BoundaryType N6;
 //    N6.id = 44;
 //    N6.boundary_type = NEUMANN;
-//    
+//
 //    BoundaryType D1;
 //    D1.id = 39;
 //    D1.boundary_type = CLAMPED;
-   
+
 //    std::vector<BoundaryType> boundary_neumann = {N1, N2, N3, N4, N5};
 //    std::vector<BoundaryType> boundary_dirichlet = {D1};
-   
+
 
 
    // Solve

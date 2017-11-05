@@ -24,7 +24,7 @@
 
 #include "colormanip.h"
 
-#include "../../config.h"
+#include "config.h"
 
 #ifdef HAVE_SOLVER_WRAPPERS
     #include "agmg/agmg.hpp"
@@ -32,8 +32,8 @@
 
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
-#include "apps/exemple_visualisation/visualisation/gmshDisk.hpp"
-#include "apps/exemple_visualisation/visualisation/gmshConvertMesh.hpp"
+#include "output/gmshDisk.hpp"
+#include "output/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
 

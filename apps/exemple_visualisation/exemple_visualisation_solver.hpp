@@ -15,7 +15,6 @@
  */
 
 #include <iostream>
-
 #include <sstream>
 
 #include "config.h"
@@ -30,8 +29,8 @@
 
 #include "timecounter.h"
 
-#include "visualisation/gmshDisk.hpp"
-#include "visualisation/gmshConvertMesh.hpp"
+#include "output/gmshDisk.hpp"
+#include "output/gmshConvertMesh.hpp"
 
 #define _USE_MATH_DEFINES
 #include <cmath>

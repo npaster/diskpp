@@ -27,8 +27,8 @@
 #include "hho/stabilization.hpp"
 
 
-#include "../exemple_visualisation/visualisation/gmshDisk.hpp"
-#include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
+#include "output/gmshDisk.hpp"
+#include "output/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
 

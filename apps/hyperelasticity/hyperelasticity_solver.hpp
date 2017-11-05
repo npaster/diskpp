@@ -46,8 +46,8 @@
 #include "mechanics/deformation_tensors.hpp"
 #include "mechanics/BoundaryConditions.hpp"
 
-#include "../exemple_visualisation/visualisation/gmshDisk.hpp"
-#include "../exemple_visualisation/visualisation/gmshConvertMesh.hpp"
+#include "output/gmshDisk.hpp"
+#include "output/gmshConvertMesh.hpp"
 
 #include "timecounter.h"
 
@@ -767,16 +767,16 @@ public:
       // Save the view
       nodedata.saveNodeData(filename, gmsh);
    }
-   
+
    void
    compute_deformed_CONT(const std::string& filename) const
    {
       const size_t cell_degree = m_bqd.cell_degree();
       const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, cell_degree)).size();
-      
+
       visu::Gmesh gmsh(DIM);
       auto storage = m_msh.backend_storage();
-      
+
       size_t cell_i(0);
       size_t nb_nodes(0);
       for (auto& cl : m_msh)
@@ -784,19 +784,19 @@ public:
          const vector_dynamic x = m_solution_cells.at(cell_i++);
          const auto cell_nodes = visu::cell_nodes(m_msh, cl);
          std::vector<visu::Node> new_nodes;
-         
+
          // Loop on nodes of the cell
          for (size_t i = 0; i < cell_nodes.size(); i++)
          {
             nb_nodes++;
             const auto point_ids = cell_nodes[i];
             const auto pt = storage->points[point_ids];
-            
+
             const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
-            
+
             std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
             std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
-            
+
             // Compute displacement
             visu::init_coor(pt, coor);
             for (size_t i = 0; i < num_cell_dofs; i += DIM){
@@ -804,16 +804,16 @@ public:
                   depl[j] += phi.at(i+j)(j) * x(i+j);
                }
             }
-            
+
             // Compute new coordinates
             for(size_t j=0; j < DIM; j++)
                coor[j] += depl[j];
-            
+
             // Save node
             const visu::Node tmp_node(coor, nb_nodes, 0);
             new_nodes.push_back(tmp_node);
             gmsh.addNode(tmp_node);
-            
+
          }
          // Add new element
          visu::add_element(gmsh, new_nodes);
