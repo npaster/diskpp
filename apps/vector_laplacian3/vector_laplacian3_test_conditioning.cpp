@@ -222,7 +222,7 @@ printResults(const std::vector<conditionning_type<T> >& cond)
 template< typename T>
 void test_triangles_fvca5(const run_params& rp, LaplacianParameters material_data)
 {
-   const size_t runs = 3;
+   const size_t runs = 5;
 
    std::vector<std::string> paths;
    paths.push_back("../meshes/2D_triangles/fvca5/mesh1_1.typ1");
@@ -397,13 +397,14 @@ void test_hexahedra_fvca6(const run_params& rp, LaplacianParameters material_dat
 template< typename T>
 void test_tetrahedra_netgen(const run_params& rp, LaplacianParameters material_data)
 {
-   const size_t runs = 2;
+   const size_t runs = 5;
 
    std::vector<std::string> paths;
-   paths.push_back("../diskpp/meshes/3D_tetras/netgen/tetra01.mesh");
-   paths.push_back("../diskpp/meshes/3D_tetras/netgen/tetra02.mesh");
-   paths.push_back("../diskpp/meshes/3D_tetras/netgen/tetra03.mesh");
-   paths.push_back("../diskpp/meshes/3D_tetras/netgen/tetra04.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet0.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet1.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet2.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet3.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet4.mesh");
 
    std::vector<conditionning_type<T> > cond_sumup;
 
@@ -527,7 +528,7 @@ int main(int argc, char **argv)
    if(three_dimensions){
       tc.tic();
       std::cout << "-Tetrahedras fvca6:" << std::endl;
-      test_tetrahedra_fvca6<RealType>(rp, material_data);
+      //test_tetrahedra_fvca6<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;

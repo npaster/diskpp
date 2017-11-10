@@ -111,7 +111,7 @@ run_diffusion_solver(const Mesh<T, 2, Storage>& msh, run_params& rp)
     std::cout << "solve" << std::endl;
     dp.solve();
     std::cout << "post" << std::endl;
-    dp.postprocess(load);
+    dp.postprocess(load, solution);
     //dp.plot_solution("plot.dat");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }
@@ -136,7 +136,7 @@ run_diffusion_solver(const Mesh<T, 3, Storage>& msh, run_params& rp)
 
     dp.assemble(load, solution);
     dp.solve();
-    dp.postprocess(load);
+    dp.postprocess(load, solution);
     dp.plot_solution("plot.dat");
     std::cout << dp.compute_l2_error(solution) << std::endl;
 }

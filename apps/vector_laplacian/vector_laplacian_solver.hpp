@@ -25,6 +25,7 @@
 #include "hho/hho_vector_bq.hpp"
 #include "hho/gradient_reconstruction.hpp"
 #include "hho/stabilization.hpp"
+#include "hho/assembler.hpp"
 
 
 #include "output/gmshDisk.hpp"
@@ -85,9 +86,9 @@ class vector_laplacian_solver
 
    typedef disk::diffusion_like_static_condensation_bq<bqdata_type>     statcond_type;
 
-   typedef disk::hho::assembler_vector_bq<bqdata_type>                       assembler_type;
+   typedef disk::hho::assembler_substitution_vector_bq<bqdata_type>     assembler_type;
 
-   typedef disk::hho::projector_vector_bq<bqdata_type>                       projector_type;
+   typedef disk::hho::projector_vector_bq<bqdata_type>                  projector_type;
 
    typename assembler_type::sparse_matrix_type     m_system_matrix;
    typename assembler_type::vector_type            m_system_rhs, m_system_solution;
@@ -198,7 +199,7 @@ public:
          tc.toc();
          ai.time_statcond += tc.to_double();
 
-         assembler.assemble(m_msh, cl, scnp);
+         assembler.assemble(m_msh, cl, scnp, bcf);
       }
 
       assembler.impose_boundary_conditions(m_msh, bcf);
@@ -242,10 +243,11 @@ public:
       return si;
    }
 
-   template<typename LoadFunction>
+   template<typename LoadFunction, typename BoundaryConditionFunction>
    postprocess_info
-   postprocess(const LoadFunction& lf)
+   postprocess(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
    {
+      auto assembler    = assembler_type(m_msh, m_bqd);
       auto gradrec      = gradrec_type(m_bqd);
       auto stab         = stab_type(m_bqd);
       auto statcond     = statcond_type(m_bqd);
@@ -255,6 +257,8 @@ public:
       postprocess_info pi;
 
       m_solution_data.reserve(m_msh.cells_size());
+
+      const auto sol = assembler.expand_solution(m_msh, m_system_solution, bcf);
 
       timecounter tc;
       tc.tic();
@@ -275,7 +279,7 @@ public:
             const auto face_id = eid.second;
 
             dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-            xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+            xF = sol.block(face_id * fbs, 0, fbs, 1);
             xFs.block(face_i * fbs, 0, fbs, 1) = xF;
          }
 

@@ -24,12 +24,6 @@
 
 #include "colormanip.h"
 
-#include "config.h"
-
-#ifdef HAVE_SOLVER_WRAPPERS
-#include "agmg/agmg.hpp"
-#endif
-
 #include "loaders/loader.hpp"
 #include "hho/hho.hpp"
 #include "geometry/geometry.hpp"
@@ -56,6 +50,7 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
 {
    typedef Mesh<T, 2, Storage> mesh_type;
    typedef static_vector<T, 2> result_type;
+   typedef static_matrix<T, 2, 2> result_grad_type;
 
    timecounter tc;
    tc.tic();
@@ -74,6 +69,15 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
       return result_type{fx,fy};
    };
 
+   auto gradient = [material_data](const point<T,2>& p) -> result_grad_type {
+      result_grad_type grad = result_grad_type::Zero();
+
+      grad(0,0) = cos(M_PI*p.x())*sin(M_PI*p.y());
+      grad(0,1) = sin(M_PI*p.x())*cos(M_PI*p.y());
+      grad(1,0) = -sin(M_PI*p.x())*cos(M_PI*p.y());
+      grad(1,1) = -cos(M_PI*p.x())*sin(M_PI*p.y());
+      return M_PI*grad;
+   };
 
    vector_laplacian_solver<mesh_type> vl(msh, rp.degree, rp.l);
    vl.verbose(rp.verbose);
@@ -99,6 +103,15 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
       std::cout << "*********************************************" << std::endl;
    }
 
+   if(vl.verbose()){
+      solver_info solve_info = vl.solve(true);
+      //postprocess_info post_info = vl.postprocess(load);
+      postprocess_info post_info = vl.postprocess_full();
+      std::cout << "Discetisation h: " << disk::mesh_h(msh) << std::endl;
+      std::cout << "L2 error: " << vl.compute_l2_error(solution) << std::endl;
+      std::cout << "L2 gradient error: " << vl.compute_l2_gradient_error(gradient) << std::endl;
+   }
+
 }
 
 template<template<typename, size_t, typename> class Mesh,
@@ -108,6 +121,7 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
 {
    typedef Mesh<T, 3, Storage> mesh_type;
    typedef static_vector<T, 3> result_type;
+   typedef static_matrix<T, 3, 3> result_grad_type;
 
    timecounter tc;
    tc.tic();
@@ -129,6 +143,15 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       T fy = p.y()*p.x()*p.y()*p.z();
       T fz = p.z()*p.x()*p.y()*p.z();
       return result_type{fx,fy,fz};
+   };
+
+   auto gradient = [material_data](const point<T,3  >& p) -> result_grad_type {
+      result_grad_type grad = result_grad_type::Zero();
+
+      grad(0,0) = -sin(M_PI*p.x())*sin(M_PI*p.y()); grad(0,1) = cos(M_PI*p.x())*cos(M_PI*p.y());
+      grad(1,1) = -sin(M_PI*p.y())*sin(M_PI*p.z()); grad(1,2) = cos(M_PI*p.y())*cos(M_PI*p.z());
+      grad(2,2) = -sin(M_PI*p.z())*sin(M_PI*p.x()); grad(2,0) = cos(M_PI*p.z())*cos(M_PI*p.x());
+      return M_PI*grad;
    };
 
 
@@ -153,6 +176,15 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       std::cout << "*    " << cond_numbers.first << "    ***    " << cond_numbers.second
       << "    *" << std::endl;
       std::cout << "*********************************************" << std::endl;
+   }
+
+   if(vl.verbose()){
+      solver_info solve_info = vl.solve(true);
+      //postprocess_info post_info = vl.postprocess(load);
+      postprocess_info post_info = vl.postprocess_full();
+      std::cout << "Discetisation h: " << disk::mesh_h(msh) << std::endl;
+      std::cout << "L2 error: " << vl.compute_l2_error(solution) << std::endl;
+      std::cout << "L2 gradient error: " << vl.compute_l2_gradient_error(gradient) << std::endl;
    }
 }
 

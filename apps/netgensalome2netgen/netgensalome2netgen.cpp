@@ -19,8 +19,6 @@
 #include <regex>
 #include <array>
 #include <vector>
-#include "../../config.h"
-#include "loaders/loader.hpp"
 
 int main(int argc, char **argv)
 {
@@ -33,50 +31,50 @@ int main(int argc, char **argv)
 
         std::ifstream   ifs(filename);
         std::string     keyword;
-        
+
         if (!ifs.is_open())
         {
            std::cout << "Error opening " << filename << std::endl;
            return 0;
         }
-        
+
         ifs >> keyword;
         if ( keyword != "MeshVersionFormatted" )
         {
            std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
            return 0;
         }
-        
+
         size_t format;
         ifs >> format;
-        
+
         if ( format != 2 )
         {
            std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
            return 0;
         }
-        
+
         ifs >> keyword;
         if ( keyword != "Dimension" )
         {
            std::cout << "Expected keyword \"Dimension\"" << std::endl;
            return 0;
         }
-        
+
         size_t dim;
         ifs >> dim;
-        
+
         if (dim != 3 )
         {
            std::cout << "Expected dimension = 3 (here: " << dim << ")" << std::endl;
            return 0;
         }
-        
+
         std::vector<std::array<double,3>> vertices;
         std::vector<std::array<size_t,4>> triangles;
         std::vector<std::array<size_t,5>> tetra;
         size_t elements_to_read(0);
-        
+
         ifs >> keyword;
         while( keyword != "End")
         {
@@ -85,24 +83,24 @@ int main(int argc, char **argv)
            {
               ifs >> elements_to_read;
               vertices.reserve(elements_to_read);
-              
+
               std::array<double,3> vertice = {0.0,0.0,0.0};
-              
+
               for (size_t i = 0; i < elements_to_read; i++)
               {
                  ifs >> vertice[0] >> vertice[1] >> vertice[2] >> keyword;
                  vertices.push_back(vertice);
               }
-                 
-               
+
+
            }
            else if ( keyword == "Triangles" )
            {
               ifs >> elements_to_read;
               triangles.reserve(elements_to_read);
-              
+
               std::array<size_t,4> tri = {0,0,0,0};
-              
+
               for (size_t i = 0; i < elements_to_read; i++)
               {
                  ifs >> tri[0] >> tri[1] >> tri[2] >> tri[3];
@@ -116,9 +114,9 @@ int main(int argc, char **argv)
            else if ( keyword == "Edges" )
            {
               ifs >> elements_to_read;
-              
+
               std::array<size_t,3> edge = {0,0,0};
-              
+
               for (size_t i = 0; i < elements_to_read; i++)
               {
                  ifs >> edge[0] >> edge[1] >> edge[2];
@@ -128,9 +126,9 @@ int main(int argc, char **argv)
            {
               ifs >> elements_to_read;
               tetra.reserve(elements_to_read);
-              
+
               std::array<size_t,5> tet = {0,0,0,0,0};
-              
+
               for (size_t i = 0; i < elements_to_read; i++)
               {
                  ifs >> tet[0] >> tet[1] >> tet[2] >> tet[3] >> tet[4];
@@ -146,10 +144,10 @@ int main(int argc, char **argv)
               std::cout << "Error parsing Medit file" << std::endl;
               return 0;
            }
-           
+
            ifs >> keyword;
         }
-        
+
         ifs.close();
 
         std::ofstream ofs(argv[2]);
@@ -158,20 +156,20 @@ int main(int argc, char **argv)
 
         for (auto vertice : vertices)
            ofs << vertice[0] << " " << vertice[1] << " " << vertice[2] << std::endl;
-        
+
         ofs << tetra.size() << std::endl;
-        
+
         for (auto tet : tetra)
            ofs << tet[4] << " " << tet[0] << " " << tet[1] << " " << tet[2] << " " << tet[3] << std::endl;
-        
+
         ofs << triangles.size() << std::endl;
-        
+
         for (auto tri : triangles)
            ofs << tri[3] << " " << tri[0] << " " << tri[1] << " " << tri[2] << std::endl;
 
 
         ofs.close();
-        
+
         return 1;
     }
     else

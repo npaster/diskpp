@@ -437,6 +437,7 @@ namespace hho{
 
    public:
       matrix_type     data;
+      matrix_type     adjoint;
 
       elas_like_stabilization_bq(const BQData& bqd) : m_bqd(bqd)
       {
@@ -566,6 +567,66 @@ namespace hho{
             data += BRF.transpose() * face_mass_matrix * BRF / h;
          }
       }
+
+      void compute_adjoint(const mesh_type& msh, const cell_type& cl, const matrix_type& stab_data)
+      {
+         const size_t face_basis_size = howmany_dofs(m_bqd.face_basis);
+         const size_t cell_basis_size = howmany_dofs(m_bqd.cell_basis);
+
+         const auto fcs = faces(msh, cl);
+         const size_t num_faces = fcs.size();
+
+         const dofspace_ranges dsr(cell_basis_size, face_basis_size, num_faces);
+
+         assert(dsr.total_size() == (cell_basis_size + num_faces * face_basis_size));
+
+         // Compute lhs
+         matrix_type MG = matrix_type::Zero(dsr.total_size(), num_faces * face_basis_size);
+
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            const auto current_face_range = dsr.face_range(face_i);
+            const auto fc = fcs[face_i];
+            const auto n = normal(msh, cl, fc);
+
+            matrix_type face_mass_matrix    = matrix_type::Zero(face_basis_size, face_basis_size);
+            matrix_type face_trace_matrix   = matrix_type::Zero(face_basis_size, cell_basis_size);
+
+            const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+
+
+            for (auto& qp : face_quadpoints)
+            {
+               const auto f_phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+               const auto c_phi = m_bqd.cell_basis.eval_functions(msh, cl, qp.point());
+               assert(f_phi.size() == face_basis_size && c_phi.size() == cell_basis_size);
+
+               for(size_t j = 0; j < face_basis_size; j++){
+                  for(size_t i = 0; i < face_basis_size; i++){
+                     face_mass_matrix(i,j) = qp.weight() * mm_prod(f_phi[i], f_phi[j]);
+                  }
+               }
+
+               for(size_t i=0; i< face_basis_size; i++){
+                  for(size_t j=0; j< cell_basis_size; j++){
+                     face_trace_matrix(i,j) += qp.weight() * mm_prod(f_phi[i], c_phi[j]);
+                  }
+               }
+            }
+            matrix_type BRF   = matrix_type::Zero(face_basis_size, dsr.total_size());
+            
+            const matrix_type I_F = matrix_type::Identity(face_basis_size, face_basis_size);
+            const auto block_offset = current_face_range.min();
+            BRF.block(0, block_offset, face_basis_size, face_basis_size) = I_F;
+            BRF.block(0, 0, face_basis_size, cell_basis_size) = - face_trace_matrix;
+
+            MG.block(0,face_i * face_basis_size, dsr.total_size(), face_basis_size)  += BRF.transpose() * face_mass_matrix;
+         }
+
+         assert(stab_data.rows() == dsr.total_size() && stab_data.cols() == dsr.total_size());
+         adjoint  = MG.colPivHouseholderQr().solve(stab_data);    // GT
+         assert(adjoint.rows() == num_faces * face_basis_size && adjoint.cols() == dsr.total_size());
+      }
    };
 
 
@@ -683,6 +744,7 @@ class projector_vector_bq
    typedef typename BQData::mesh_type          mesh_type;
    typedef typename mesh_type::scalar_type     scalar_type;
    typedef typename mesh_type::cell            cell_type;
+   typedef typename mesh_type::face            face_type;
 
    typedef typename BQData::cell_basis_type    cell_basis_type;
    typedef typename BQData::cell_quad_type     cell_quad_type;
@@ -698,6 +760,7 @@ public:
    {}
 
       matrix_type cell_mm;
+      matrix_type face_mm;
       matrix_type whole_mm;
       matrix_type grad_mm;
       matrix_type pot_mm;
@@ -732,6 +795,38 @@ public:
          }
 
          cell_mm = mm;
+         return mm.llt().solve(rhs);
+      }
+
+      template<typename Function>
+      vector_type
+      compute_face(const mesh_type& msh, const face_type& fc, const Function& f)
+      {
+         const size_t face_basis_size = howmany_dofs(m_bqd.face_basis);
+
+         matrix_type mm = matrix_type::Zero(face_basis_size, face_basis_size);
+         vector_type rhs = vector_type::Zero(face_basis_size);
+
+         const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, fc);
+         for (auto& qp : face_quadpoints)
+         {
+            const auto phi = m_bqd.face_basis.eval_functions(msh, fc, qp.point());
+            assert(phi.size() == face_basis_size);
+            for(size_t i = 0; i < face_basis_size; i++)
+               for(size_t j = i; j < face_basis_size; j++)
+                  mm(i,j)  += qp.weight() * mm_prod(phi[i], phi[j]);
+
+                  for(size_t i=0; i < face_basis_size; i++){
+                     rhs(i) += qp.weight() * mm_prod( f(qp.point()) , phi[i]);
+                  }
+         }
+
+         //lower part
+         for (size_t i = 1; i < face_basis_size; i++)
+            for (size_t j = 0; j < i; j++)
+               mm(i,j) = mm(j,i);
+
+         face_mm = mm;
          return mm.llt().solve(rhs);
       }
 
@@ -805,16 +900,15 @@ public:
                }
             }
 
-            //lower part
-            for (size_t i = 0; i < grad_basis_size; i++)
-            for (size_t j = i; j < grad_basis_size; j++)
-            mm(i,j) = mm(j,i);
-
             for(size_t i=0; i < grad_basis_size; i++){
                rhs(i) += qp.weight() * mm_prod( f(qp.point()) , gphi[i]);
             }
-
          }
+
+         //lower part
+         for (size_t i = 0; i < grad_basis_size; i++)
+            for (size_t j = i; j < grad_basis_size; j++)
+               mm(i,j) = mm(j,i);
 
          grad_mm = mm;
          return mm.llt().solve(rhs);

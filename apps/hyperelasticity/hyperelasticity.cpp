@@ -297,7 +297,63 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //       return factor*grad;
 //    };
 
+   //DEBUT INDENTATION
 
+      //load and solutions
+//       auto load = [](const point<T,3>& p) -> result_type {
+//          T fx = 0.0;
+//          T fy = 0.0;
+//          T fz = 0.0;
+//          return result_type{fx, fy, fz};
+//       };
+//
+//       auto solution = [](const point<T,3>& p) -> result_type {
+//          T fx = 0.0;
+//          T fy = 0.0;
+//          T fz = -1.0;
+//
+//          return result_type{fx,fy,fz};
+//       };
+//
+//       auto neumann = [elas_param](const point<T,3>& p) -> result_type {
+//          T fx = 0.0;
+//          T fy = 0.0;
+//          T fz = 0.0;
+//
+//          return result_type{fx,fy,fz};
+//       };
+//
+//       Define Boundary Conditions
+//
+//       BoundaryType N1;
+//       N1.id = 3;
+//       N1.boundary_type = FREE;
+//
+//       BoundaryType N2;
+//       N2.id = 13;
+//       N2.boundary_type = FREE;
+//
+//       BoundaryType N3;
+//       N3.id = 20;
+//       N3.boundary_type = FREE;
+//
+//       BoundaryType N4;
+//       N4.id = 34;
+//       N4.boundary_type = FREE;
+//
+//       BoundaryType N5;
+//       N5.id = 42;
+//       N5.boundary_type = FREE;
+//
+//       std::vector<BoundaryType> boundary_neumann = {N1, N2, N3, N4, N5};
+//
+//       BoundaryType D1;
+//       D1.id = 39;
+//       D1.boundary_type = CLAMPED;
+//
+//       std::vector<BoundaryType> boundary_dirichlet = {D1};
+
+   // FIN INDENTATION
 
 //DEBUT CYLINDRE
 
@@ -374,7 +430,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    BoundaryType N1;
-   N1.id = 19;//4 cyl
+   N1.id = 19;
    N1.boundary_type = FREE;
 
    BoundaryType N2;
@@ -386,66 +442,6 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    std::vector<BoundaryType> boundary_dirichlet = {};
 
    //FIN CAVITATION
-
-   //Block
-
-//    auto load = [](const point<T,3>& p) -> result_type {
-//       T fx = 0.0;
-//       T fy = 0.0;
-//       T fz = 0.0;
-//       return result_type{fx, fy, fz};
-//    };
-//
-//    auto solution = [](const point<T,3>& p) -> result_type {
-//       T fx = 0;
-//       T fy = -1.0;
-//       T fz = -1.0;
-//
-//       return result_type{fx,fy,fz};
-//    };
-//
-//    T pres = 80;
-//    auto neumann = [elas_param, pres](const point<T,3>& p) -> result_type {
-//       T fx = 0.0;
-//       T fy = 0.0;
-//       T fz = 0.0;
-//
-//       return result_type{fx,fy,fz};
-//    };
-
-
-   //block
-//    BoundaryType N1;
-//    N1.id = 3;
-//    N1.boundary_type = FREE;
-//
-//    BoundaryType N2;
-//    N2.id = 13;
-//    N2.boundary_type = FREE;
-//
-//    BoundaryType N3;
-//    N3.id = 20;
-//    N3.boundary_type = FREE;
-//
-//    BoundaryType N4;
-//    N4.id = 34;
-//    N4.boundary_type = FREE;
-//
-//    BoundaryType N5;
-//    N5.id = 42;
-//    N5.boundary_type = FREE;
-//
-//    BoundaryType N6;
-//    N6.id = 44;
-//    N6.boundary_type = NEUMANN;
-//
-//    BoundaryType D1;
-//    D1.id = 39;
-//    D1.boundary_type = CLAMPED;
-
-//    std::vector<BoundaryType> boundary_neumann = {N1, N2, N3, N4, N5};
-//    std::vector<BoundaryType> boundary_dirichlet = {D1};
-
 
 
    // Solve
@@ -489,7 +485,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    }
 
    std::cout << "Post-processing: " << std::endl;
-   std::string name = "Result_cav_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
+   std::string name = "Result_cave_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
    + "_b" + std::to_string(rp.m_beta) + "_s" + std::to_string(rp.m_stab) + "_";
    nl.compute_discontinuous_displacement(name + "sol_disc.msh");
    nl.compute_continuous_displacement(name +"sol_cont.msh");

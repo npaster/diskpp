@@ -32,6 +32,7 @@
 #endif
 
 #include "NewtonSolver/newton_solver.hpp"
+#include "hyperelasticity_elementary_computation.hpp"
 #include "ElasticityParameters.hpp"
 #include "Informations.hpp"
 #include "Parameters.hpp"
@@ -245,7 +246,6 @@ public:
    SolverInfo
    compute(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g)
    {
-
       SolverInfo si;
       timecounter ttot;
       ttot.tic();
@@ -259,7 +259,7 @@ public:
 
       newton_solver.verbose(m_verbose);
 
-      // Precompute grradient if ok
+      // Precompute gradient if ok
       if(m_rp.m_precomputation){
          timecounter t1;
          t1.tic();
@@ -298,6 +298,8 @@ public:
          time_saving = true;
       }
 
+      std::vector<std::array<scalar_type,2>> tab_traction;
+      tab_traction.push_back({0,0});
 
       while(!list_step.empty())
       {
@@ -389,18 +391,18 @@ public:
                   this->compute_J_GP(name +"J_GP.msh");
                   this->compute_continuous_J(name +"J_cont.msh");
                   this->compute_discontinuous_J(name +"J_disc.msh");
-                  try {
-                     this->compute_discontinuous_Prr(name +"Prr.msh", "Prr");
-                  }
-                  catch(const std::invalid_argument& ia){
-                     std::cerr << "Invalid argument: " << ia.what()  << " in Prr_disc" << std::endl;
-                  }
-                  try {
-                     this->compute_discontinuous_Prr(name +"Poo.msh", "Poo");
-                  }
-                  catch(const std::invalid_argument& ia){
-                     std::cerr << "Invalid argument: " << ia.what() << " in Prr_disc" << std::endl;
-                  }
+//                   try {
+//                      this->compute_discontinuous_Prr(name +"Prr.msh", "Prr");
+//                   }
+//                   catch(const std::invalid_argument& ia){
+//                      std::cerr << "Invalid argument: " << ia.what()  << " in Prr_disc" << std::endl;
+//                   }
+//                   try {
+//                      this->compute_discontinuous_Prr(name +"Poo.msh", "Poo");
+//                   }
+//                   catch(const std::invalid_argument& ia){
+//                      std::cerr << "Invalid argument: " << ia.what() << " in Prr_disc" << std::endl;
+//                   }
                   try {
                      this->compute_discontinuous_VMIS(name +"VM_disc.msh");
                   }
@@ -424,8 +426,13 @@ public:
                   if(m_rp.m_time_save.empty())  time_saving = false;
                }
             }
+            //traction discrete
+            //const auto traction = this->compute_traction_RT(1);
+            tab_traction.push_back({current_time, this->compute_traction_Pk(3)});
          }
       }
+
+      this->save_traction(tab_traction, "traction.dat");
 
       si.m_time_step = total_step;
 
@@ -951,8 +958,8 @@ public:
       auto storage = m_msh.backend_storage();
 
       gradrec_type gradrec(m_bqd);
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -1035,8 +1042,8 @@ public:
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
 
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1115,8 +1122,8 @@ public:
       size_t nb_nodes(gmsh.getNumberofNodes());
 
       gradrec_type gradrec(m_bqd);
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1318,8 +1325,8 @@ public:
       auto storage = m_msh.backend_storage();
 
       gradrec_type gradrec(m_bqd);
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -1388,8 +1395,8 @@ public:
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
 
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1454,8 +1461,8 @@ public:
       size_t nb_nodes(gmsh.getNumberofNodes());
 
       gradrec_type gradrec(m_bqd);
-      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1673,6 +1680,133 @@ public:
 
       nodedata.saveNodeData(filename, gmsh); // save the view
    }
+
+   scalar_type
+   compute_traction_RT(const size_t& id) const
+   {
+      Hyperelasticity::discrete_traction_bq<bqdata_type> traction(m_bqd);
+      size_t cell_i = 0;
+
+      scalar_type ret(0);
+      scalar_type mesure(0);
+
+      for (auto& cl : m_msh)
+      {
+         const auto fcs = faces(m_msh, cl);
+
+         for(auto fc : fcs)
+         {
+            if(m_msh.is_boundary(fc)){
+               const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+
+               const auto face_id = eid.second;
+               const size_t b_id = m_msh.boundary_id(face_id);
+
+               if(b_id == id){
+                  traction.proj_grad_space(m_msh, cl, m_gradient_precomputed[cell_i],
+                                 m_solution_data[cell_i], m_elas_param);
+
+                  //GP loop
+                  const auto face_quadpoints = m_bqd.face_quadrature.integrate(m_msh, fc);
+
+                  for (auto& qp : face_quadpoints)
+                  {
+                     const auto T_iqn = traction.eval_RT(m_msh, cl, fc, qp.point());
+                     const auto n = disk::normal(m_msh, cl, fc);
+                     ret += qp.weight() * std::pow(disk::mm_prod(T_iqn, n),2.0);
+                  }
+
+                  mesure += disk::measure(m_msh, fc);
+               }
+            }
+         }
+
+         cell_i++;
+      }
+      return std::sqrt(ret);
+   }
+
+   scalar_type
+   compute_traction_Pk(const size_t& id) const
+   {
+      Hyperelasticity::discrete_traction_bq<bqdata_type> traction(m_bqd);
+      size_t cell_i = 0;
+
+      scalar_type ret(0);
+      scalar_type mesure(0);
+
+      for (auto& cl : m_msh)
+      {
+         const auto fcs = faces(m_msh, cl);
+
+         for(size_t face_i = 0; face_i < fcs.size(); face_i++)
+         {
+            const auto fc = fcs[face_i];
+            if(m_msh.is_boundary(fc)){
+               const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+
+               const auto face_id = eid.second;
+               const size_t b_id = m_msh.boundary_id(face_id);
+
+               if(b_id == id){
+                  traction.proj_grad_space(m_msh, cl, m_gradient_precomputed[cell_i],
+                                   m_solution_data[cell_i], m_elas_param);
+
+                  if(m_bqd.cell_degree() == m_bqd.grad_degree()){
+                     traction.compute_Sadjoint(m_msh, cl, m_solution_data[cell_i]);
+                  }
+                  //GP loop
+                  const auto face_quadpoints = m_bqd.face_quadrature.integrate(m_msh, fc);
+
+                  for (auto& qp : face_quadpoints)
+                  {
+                     if(m_bqd.cell_degree() == m_bqd.grad_degree()){
+                        const auto T_iqn = traction.eval_Pk_unstable(m_msh, cl, face_i, qp.point(), m_rp.m_beta);
+                        const auto n = disk::normal(m_msh, cl, fc);
+                        ret += qp.weight() * std::abs(disk::mm_prod(T_iqn, n));
+                     }
+                     else{
+                        const auto T_iqn = traction.eval_Pk_stable(m_msh, cl, fc, qp.point());
+                        const auto n = disk::normal(m_msh, cl, fc);
+                        ret += qp.weight() * std::abs(disk::mm_prod(T_iqn, n));
+                     }
+                  }
+
+                  mesure += disk::measure(m_msh, fc);
+               }
+            }
+         }
+
+         cell_i++;
+      }
+      return std::sqrt(ret);
+   }
+
+   void save_traction(const std::vector<std::array<scalar_type,2>>& resu, const std::string& filename)
+   {
+      std::ofstream output;
+      output.open(filename, std::ofstream::out | std::ofstream::app);
+
+      if (!output.is_open())
+      {
+         std::cerr << "Unable to open file " << filename << std::endl;
+      }
+
+      output << "time" << "\t" << "traction" << std::endl;
+
+      for(size_t i = 0; i < resu.size(); i++)
+      {
+         output << "(" << (resu[i])[0] << " , " << (resu[i])[1] << ")";
+      }
+
+
+      output.close();
+   }
+
 
    // A supprimer
    std::pair<scalar_type,scalar_type>

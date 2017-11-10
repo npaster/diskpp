@@ -30,6 +30,9 @@
 #include "hho/hho_bq.hpp"
 #include "hho/gradient_reconstruction.hpp"
 #include "hho/stabilization.hpp"
+#include "hho/assembler.hpp"
+#include "common/condition_number.hpp"
+#include <Eigen/Eigenvalues>
 
 #include "timecounter.h"
 
@@ -128,7 +131,8 @@ class diffusion_solver
     typedef disk::hho::hho_stabilization_bq<bqdata_type>          stab_type;
     typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
     //typedef disk::assembler<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
-    typedef disk::assembler_homogeneus_dirichlet<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
+    //typedef disk::assembler_homogeneus_dirichlet<mesh_type, face_basis_type, face_quadrature_type> assembler_type;
+    typedef disk::hho::assembler_substitution_scalar_bq<bqdata_type> assembler_type;
     typedef static_matrix<scalar_type, mesh_type::dimension, mesh_type::dimension> tensor_type;
 
     size_t m_cell_degree, m_face_degree;
@@ -178,7 +182,8 @@ public:
         auto gradrec    = gradrec_type(m_bqd);
         auto stab       = stab_type(m_bqd);
         auto statcond   = statcond_type(m_bqd);
-        auto assembler  = assembler_type(m_msh, m_face_degree);
+        //auto assembler  = assembler_type(m_msh, m_face_degree);
+        auto assembler  = assembler_type(m_msh, m_bqd);
 
         assembly_info ai;
         bzero(&ai, sizeof(ai));
@@ -220,7 +225,7 @@ public:
             tc.toc();
             ai.time_statcond += tc.to_double();
 
-            assembler.assemble(m_msh, cl, scnp);
+            assembler.assemble(m_msh, cl, scnp, bcf);
         }
 
         assembler.impose_boundary_conditions(m_msh, bcf);
@@ -234,15 +239,14 @@ public:
     solver_info
     solve(void)
     {
-        auto assembler  = assembler_type(m_msh, m_face_degree);
+        //auto assembler  = assembler_type(m_msh, m_face_degree);
 
 #ifdef HAVE_INTEL_MKL
         Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
-        solver.pardisoParameterArray()[59] = 0; //out-of-core
+        //solver.pardisoParameterArray()[59] = 0; //out-of-core
 #else
         Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
 #endif
-
 
         solver_info si;
 
@@ -262,7 +266,7 @@ public:
 
         solver.analyzePattern(m_system_matrix);
         solver.factorize(m_system_matrix);
-        auto sol = solver.solve(m_system_rhs);
+        m_system_solution = solver.solve(m_system_rhs);
         //m_system_solution = sol;
 
         //agmg_solver<scalar_type> agmg;
@@ -271,7 +275,7 @@ public:
         //Eigen::Matrix<scalar_type, Eigen::Dynamic, 1> sol;
         //conjugated_gradient(m_system_matrix, m_system_rhs, sol);
         //std::cout << "solver done" << std::endl;
-        m_system_solution = assembler.expand_solution(m_msh, sol);
+        //m_system_solution = assembler.expand_solution(m_msh, sol);
         //std::cout << "expand done" << std::endl;
 
         tc.toc();
@@ -280,10 +284,14 @@ public:
         return si;
     }
 
-    template<typename LoadFunction>
+    template<typename LoadFunction, typename BoundaryConditionFunction>
     postprocess_info
-    postprocess(const LoadFunction& lf)
+    postprocess(const LoadFunction& lf, const BoundaryConditionFunction& bcf)
     {
+       //expand solution
+       auto assembler  = assembler_type(m_msh, m_bqd);
+       const auto sol = assembler.expand_solution(m_msh, m_system_solution, bcf);
+
         auto gradrec    = gradrec_type(m_bqd);
         auto stab       = stab_type(m_bqd);
         auto statcond   = statcond_type(m_bqd);
@@ -334,7 +342,7 @@ public:
                 auto face_id = eid.second;
 
                 dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
-                xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+                xF = sol.block(face_id * fbs, 0, fbs, 1);
                 xFs.block(face_i * fbs, 0, fbs, 1) = xF;
             }
 

@@ -24,11 +24,600 @@
 
 #include "common/eigen.hpp"
 #include "hho/hho_bq.hpp"
+#include "hho/hho.hpp"
+#include "hho/hho_vector_bq.hpp"
+#include "mechanics/BoundaryConditions.hpp"
 
 namespace disk{
 
-   namespace hho{
+namespace hho{
+   template<typename BQData>
+   class assembler_substitution_scalar_bq
+   {
+      typedef typename BQData::mesh_type          mesh_type;
+      typedef typename mesh_type::scalar_type     scalar_type;
+      typedef typename mesh_type::cell            cell_type;
+      typedef typename mesh_type::face            face_type;
+
+      typedef dynamic_matrix<scalar_type>         matrix_type;
+
+      typedef Eigen::Triplet<scalar_type>         triplet_type;
+
+      std::vector<triplet_type>                   m_triplets;
+      size_t                                      m_num_unknowns;
+
+      const BQData&                               m_bqd;
+
+      typedef projector_bq<BQData>                projector_type;
+
+   public:
+
+      typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
+      typedef dynamic_vector<scalar_type>         vector_type;
+
+      sparse_matrix_type      matrix;
+      vector_type             rhs;
+      std::vector<size_t>     face_compress_map, face_expand_map;
+
+      assembler_substitution_scalar_bq()                 = delete;
+
+      assembler_substitution_scalar_bq(const mesh_type& msh, const BQData& bqd)
+      : m_bqd(bqd)
+      {
+         m_num_unknowns = howmany_dofs(m_bqd.face_basis) * msh.internal_faces_size();
+         matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         rhs = vector_type::Zero(m_num_unknowns);
+
+         face_compress_map.resize( msh.faces_size() );
+         face_expand_map.resize( msh.internal_faces_size() );
+         size_t fn = 0, fi = 0;
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++, fi++)
+         {
+            if( msh.is_boundary(*itor) )
+               continue;
+
+            face_compress_map.at(fi) = fn;
+            face_expand_map.at(fn) = fi;
+            fn++;
+         }
+      }
+
+      template<typename LocalContrib, typename Function>
+      void
+      assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc, const Function& bc)
+      {
+         const auto face_basis_size =  howmany_dofs(m_bqd.face_basis);
+         const auto fcs = faces(msh, cl);
+         std::vector<size_t> l2g(fcs.size() * face_basis_size);
+         vector_type rhs_bc = vector_type::Zero(fcs.size() * face_basis_size);
+
+         projector_type projector(m_bqd);
+
+         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const bool fc_is_boundary =  msh.is_boundary(fc);
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_compress_map.at(face_id) * face_basis_size;
+
+            const auto pos = face_i * face_basis_size;
+
+            for (size_t i = 0; i < face_basis_size; i++)
+            {
+               if (fc_is_boundary)
+                  l2g.at(pos+i) = 0xDEADBEEF;
+               else
+                  l2g.at(pos+i) = face_offset+i;
+            }
+
+            if(fc_is_boundary){
+               const vector_type sol_F = projector.compute_face(msh, fc, bc);
+               for (size_t face_j = 0; face_j < fcs.size(); face_j++)
+               {
+                  const auto fcj = fcs[face_j];
+                  const bool fcj_is_boundary =  msh.is_boundary(fcj);
+
+                  if(!fcj_is_boundary){
+                     rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
+                     += lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * sol_F;
+                  }
+               }
+            }
+         }
+
+         assert(lc.first.rows() == lc.first.cols());
+         assert(lc.first.rows() == lc.second.size());
+         assert(lc.second.size() == l2g.size());
+
+         //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+         for (size_t i = 0; i < lc.first.rows(); i++)
+         {
+            if (l2g[i] == 0xDEADBEEF)
+               continue;
+
+            for (size_t j = 0; j < lc.first.cols(); j++)
+            {
+               if (l2g[j] == 0xDEADBEEF)
+                  continue;
+
+               m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+            }
+            rhs(l2g.at(i)) += lc.second(i) - rhs_bc(i);
+         }
+
+         //add the bc
+      }
+
+      template <typename Function>
+      vector_type
+      expand_solution(const mesh_type& msh, const vector_type& solution, const Function& bc)
+      {
+         const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
+         const auto num_internal_faces = msh.internal_faces_size();
+
+         vector_type ret = vector_type::Zero(face_basis_size*msh.faces_size());
+         size_t cfacenum(0);
+
+         projector_type projector(m_bqd);
+
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++)
+         {
+            if( msh.is_boundary(*itor) )
+            {
+               auto bfc = *itor;
+               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+
+               const auto face_id = eid.second;
+
+               const auto face_offset = face_id * face_basis_size;
+               ret.block(face_offset, 0, face_basis_size, 1) =  projector.compute_face(msh, bfc, bc);
+            }
+            else{
+               const size_t src_block_offset = cfacenum * face_basis_size;
+               const size_t dst_block_offset = face_expand_map.at(cfacenum) * face_basis_size;
+               const size_t block_size = face_basis_size;
+               ret.block(dst_block_offset, 0, block_size, 1) =
+                  solution.block(src_block_offset, 0, block_size, 1);
+
+               cfacenum++;
+            }
+         }
+
+         return ret;
+      }
+
+      template<typename Function>
+      void
+      impose_boundary_conditions(const mesh_type& msh, const Function& bc)
+      {}
+
+      void
+      finalize()
+      {
+         matrix.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+      }
+
+      void
+      finalize(sparse_matrix_type& mat, vector_type& vec)
+      {
+         mat = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         mat.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+         vec = rhs;
+      }
+   };
 
 
-   }//hho
+
+   template<typename BQData>
+   class assembler_substitution_vector_bq
+   {
+      typedef typename BQData::mesh_type          mesh_type;
+      typedef typename mesh_type::scalar_type     scalar_type;
+      typedef typename mesh_type::cell            cell_type;
+      typedef typename mesh_type::face            face_type;
+
+      typedef dynamic_matrix<scalar_type>         matrix_type;
+
+      typedef Eigen::Triplet<scalar_type>         triplet_type;
+
+      std::vector<triplet_type>                   m_triplets;
+      size_t                                      m_num_unknowns;
+
+      const BQData&                               m_bqd;
+
+      typedef projector_vector_bq<BQData>         projector_type;
+
+   public:
+
+      typedef Eigen::SparseMatrix<scalar_type>    sparse_matrix_type;
+      typedef dynamic_vector<scalar_type>         vector_type;
+
+      sparse_matrix_type      matrix;
+      vector_type             rhs;
+      std::vector<size_t>     face_compress_map, face_expand_map;
+
+      assembler_substitution_vector_bq()                 = delete;
+
+      assembler_substitution_vector_bq(const mesh_type& msh, const BQData& bqd)
+      : m_bqd(bqd)
+      {
+         m_num_unknowns = howmany_dofs(m_bqd.face_basis) * msh.internal_faces_size();
+         matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         rhs = vector_type::Zero(m_num_unknowns);
+
+         face_compress_map.resize( msh.faces_size() );
+         face_expand_map.resize( msh.internal_faces_size() );
+         size_t fn = 0, fi = 0;
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++, fi++)
+         {
+            if( msh.is_boundary(*itor) )
+               continue;
+
+            face_compress_map.at(fi) = fn;
+            face_expand_map.at(fn) = fi;
+            fn++;
+         }
+      }
+
+      assembler_substitution_vector_bq(const mesh_type& msh, const BQData& bqd, const BoundaryConditions& boundary_conditions)
+      : m_bqd(bqd)
+      {
+         m_num_unknowns = howmany_dofs(m_bqd.face_basis) * (msh.faces_size() - boundary_conditions.nb_faces_dirichlet());
+         matrix = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         rhs = vector_type::Zero(m_num_unknowns);
+
+         face_compress_map.resize( msh.faces_size() );
+         face_expand_map.resize( msh.internal_faces_size() + boundary_conditions.nb_faces_neumann());
+         size_t fn = 0, fi = 0;
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++, fi++)
+         {
+            if( msh.is_boundary(*itor) )
+            {
+               auto bfc = *itor;
+               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+
+               const auto face_id = eid.second;
+               if(boundary_conditions.is_boundary_dirichlet(face_id))
+                  continue;
+            }
+
+            face_compress_map.at(fi) = fn;
+            face_expand_map.at(fn) = fi;
+            fn++;
+         }
+      }
+
+      template<typename LocalContrib, typename Function>
+      void
+      assemble(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc, const Function& bc)
+      {
+         const auto face_basis_size =  howmany_dofs(m_bqd.face_basis);
+         const auto fcs = faces(msh, cl);
+         std::vector<size_t> l2g(fcs.size() * face_basis_size);
+         vector_type rhs_bc = vector_type::Zero(fcs.size() * face_basis_size);
+
+         projector_type projector(m_bqd);
+
+         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const bool fc_is_boundary =  msh.is_boundary(fc);
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_compress_map.at(face_id) * face_basis_size;
+
+            const auto pos = face_i * face_basis_size;
+
+            for (size_t i = 0; i < face_basis_size; i++)
+            {
+               if (fc_is_boundary)
+                  l2g.at(pos+i) = 0xDEADBEEF;
+               else
+                  l2g.at(pos+i) = face_offset+i;
+            }
+
+            if(fc_is_boundary){
+               const vector_type sol_F = projector.compute_face(msh, fc, bc);
+               for (size_t face_j = 0; face_j < fcs.size(); face_j++)
+               {
+                  const auto fcj = fcs[face_j];
+                  const bool fcj_is_boundary =  msh.is_boundary(fcj);
+
+                  if(!fcj_is_boundary){
+                     rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
+                     += lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * sol_F;
+                  }
+               }
+            }
+         }
+
+         assert(lc.first.rows() == lc.first.cols());
+         assert(lc.first.rows() == lc.second.size());
+         assert(lc.second.size() == l2g.size());
+
+         //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+         for (size_t i = 0; i < lc.first.rows(); i++)
+         {
+            if (l2g[i] == 0xDEADBEEF)
+               continue;
+
+            for (size_t j = 0; j < lc.first.cols(); j++)
+            {
+               if (l2g[j] == 0xDEADBEEF)
+                  continue;
+
+               m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+            }
+            rhs(l2g.at(i)) += lc.second(i) - rhs_bc(i);
+         }
+      }
+
+      template<typename LocalContrib, typename Function>
+      void
+      assemble_nl(const mesh_type& msh, const cell_type& cl, const LocalContrib& lc,
+                  const Function& bc, const BoundaryConditions& boundary_conditions,
+                  const std::vector<vector_type>& sol_F)
+      {
+         const auto face_basis_size =  howmany_dofs(m_bqd.face_basis);
+         const auto fcs = faces(msh, cl);
+         std::vector<size_t> l2g(fcs.size() * face_basis_size);
+         vector_type rhs_bc = vector_type::Zero(fcs.size() * face_basis_size);
+
+         projector_type projector(m_bqd);
+
+         for (size_t face_i = 0; face_i < fcs.size(); face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const bool fc_is_dirichlet_boundary =  msh.is_boundary(fc);
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            const auto face_offset = face_compress_map.at(face_id) * face_basis_size;
+
+            const auto pos = face_i * face_basis_size;
+
+            for (size_t i = 0; i < face_basis_size; i++)
+            {
+               if (fc_is_dirichlet_boundary)
+                  l2g.at(pos+i) = 0xDEADBEEF;
+               else
+                  l2g.at(pos+i) = face_offset+i;
+            }
+
+            if(fc_is_dirichlet_boundary){
+               const vector_type proj_bcf = projector.compute_face(msh, fc, bc);
+               for (size_t face_j = 0; face_j < fcs.size(); face_j++)
+               {
+                  const auto fcj = fcs[face_j];
+                  const bool fcj_dirichlet_is_boundary =  msh.is_boundary(fcj);
+
+                  if(!fcj_is_dirichlet_boundary){
+                     switch ( boundary_conditions.boundary_type(face_id)){
+                        case DIRICHLET:
+                        {
+                           rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
+                           += lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * (proj_bcf - sol_F);
+                           break;
+                        }
+                        case CLAMPED:
+                        {
+                           rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
+                           -= lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * sol_F;
+                           break;
+                        }
+                        default:
+                        {
+                           std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
+                           break;
+                        }
+                     }
+                  }
+               }
+            }
+         }
+
+         assert(lc.first.rows() == lc.first.cols());
+         assert(lc.first.rows() == lc.second.size());
+         assert(lc.second.size() == l2g.size());
+
+         //std::cout << lc.second.size() << " " << l2g.size() << std::endl;
+
+         for (size_t i = 0; i < lc.first.rows(); i++)
+         {
+            if (l2g[i] == 0xDEADBEEF)
+               continue;
+
+            for (size_t j = 0; j < lc.first.cols(); j++)
+            {
+               if (l2g[j] == 0xDEADBEEF)
+                  continue;
+
+               m_triplets.push_back( triplet_type( l2g.at(i), l2g.at(j), lc.first(i,j) ) );
+            }
+            rhs(l2g.at(i)) += lc.second(i) - rhs_bc(i);
+         }
+      }
+
+      template <typename Function>
+      vector_type
+      expand_solution(const mesh_type& msh, const vector_type& solution, const Function& bc,
+                     const BoundaryConditions& boundary_conditions,
+                     const std::vector<vector_type>& sol_F)
+      {
+         const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
+         const auto num_internal_faces = msh.internal_faces_size();
+
+         vector_type ret = vector_type::Zero(face_basis_size*msh.faces_size());
+         size_t cfacenum(0);
+
+         projector_type projector(m_bqd);
+
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++)
+         {
+            auto bfc = *itor;
+            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            if( boundary_conditions.is_boundary_dirichlet(face_id))
+            {
+               const vector_type proj_bcf = projector.compute_face(msh, bfc, bc);
+               const auto face_offset = face_id * face_basis_size;
+               switch ( boundary_conditions.boundary_type(face_id)){
+                  case DIRICHLET:
+                  {
+                     ret.block(face_offset, 0, face_basis_size, 1) = (proj_bcf - sol_F);
+                     break;
+                  }
+                  case CLAMPED:
+                  {
+                     ret.block(face_offset, 0, face_basis_size, 1) = -sol_F;
+                     break;
+                  }
+                  default:
+                  {
+                     std::cout << "Unknown Dirichlet Conditions: we do nothing" << std::endl;
+                     break;
+                  }
+               }
+            }
+            else{
+               const size_t src_block_offset = cfacenum * face_basis_size;
+               const size_t dst_block_offset = face_expand_map.at(cfacenum) * face_basis_size;
+               const size_t block_size = face_basis_size;
+               ret.block(dst_block_offset, 0, block_size, 1) =
+               solution.block(src_block_offset, 0, block_size, 1);
+
+               cfacenum++;
+            }
+         }
+
+         return ret;
+      }
+
+      template <typename Function>
+      vector_type
+      expand_solution(const mesh_type& msh, const vector_type& solution, const Function& bc)
+      {
+         const auto face_basis_size = howmany_dofs(m_bqd.face_basis);
+         const auto num_internal_faces = msh.internal_faces_size();
+
+         vector_type ret = vector_type::Zero(face_basis_size*msh.faces_size());
+         size_t cfacenum(0);
+
+         projector_type projector(m_bqd);
+
+         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++)
+         {
+            if( msh.is_boundary(*itor) )
+            {
+               auto bfc = *itor;
+               auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+               if (!eid.first)
+                  throw std::invalid_argument("This is a bug: face not found");
+
+               const auto face_id = eid.second;
+
+               const auto face_offset = face_id * face_basis_size;
+               ret.block(face_offset, 0, face_basis_size, 1) =  projector.compute_face(msh, bfc, bc);
+            }
+            else{
+               const size_t src_block_offset = cfacenum * face_basis_size;
+               const size_t dst_block_offset = face_expand_map.at(cfacenum) * face_basis_size;
+               const size_t block_size = face_basis_size;
+               ret.block(dst_block_offset, 0, block_size, 1) =
+               solution.block(src_block_offset, 0, block_size, 1);
+
+               cfacenum++;
+            }
+         }
+
+         return ret;
+      }
+
+      template<typename Function>
+      void
+      impose_boundary_conditions(const mesh_type& msh, const Function& bc)
+      {}
+
+      template<typename NeumannFunction>
+      void
+      impose_neumann_boundary_conditions(const mesh_type& msh, const NeumannFunction& g,
+                                         const BoundaryConditions& boundary_conditions)
+      {
+         const size_t face_basis_size = howmany_dofs(m_bqd.face_basis);
+
+         for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+         {
+            auto bfc = *itor;
+
+            const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            if(boundary_conditions.boundary_type(face_id) == NEUMANN){
+               const size_t face_offset = face_id * face_basis_size;
+               vector_type TF   = vector_type::Zero(face_basis_size);
+
+               const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, bfc);
+               for (auto& qp : face_quadpoints)
+               {
+                  auto fphi = m_bqd.face_basis.eval_functions(msh, bfc, qp.point());
+                  assert(fphi.size() == face_basis_size);
+
+                  for(size_t i= 0; i < face_basis_size; i++)
+                     TF(i) += qp.weight() * mm_prod(g(qp.point()) , fphi[i]);
+               }
+
+               for (size_t i = 0; i < TF.rows(); i++)
+               {
+                  rhs(face_offset+i) += TF(i);
+               }
+            }
+         }
+      }
+
+      void
+      finalize()
+      {
+         matrix.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+      }
+
+      void
+      finalize(sparse_matrix_type& mat, vector_type& vec)
+      {
+         mat = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
+         mat.setFromTriplets(m_triplets.begin(), m_triplets.end());
+         m_triplets.clear();
+         vec = rhs;
+      }
+   };
+
+
+}//hho
 }//disk

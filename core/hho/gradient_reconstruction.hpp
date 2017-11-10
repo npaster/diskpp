@@ -90,7 +90,7 @@ namespace disk{
                const matrix_type dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point(), 0, cell_degree+1);
                assert(dphi.rows() == cell_basis_size);
 
-               stiff_mat += qp.weight() * dphi * (dphi /** mtens(qp.point())*/).transpose();
+               stiff_mat += qp.weight() * dphi * (dphi * mtens(qp.point())).transpose();
             }
 
             /* LHS: take basis functions derivatives from degree 1 to K+1 */
@@ -167,7 +167,7 @@ namespace disk{
          typedef dynamic_vector<scalar_type>                   vector_type;
 
          typedef static_vector<scalar_type, mesh_type::dimension>
-         static_vector;
+         static_vector_type;
 
       private:
          const BQData_type&                                    m_bqd;
@@ -233,7 +233,7 @@ namespace disk{
 
                for(size_t j = 0; j < cell_basis_size; j++){
                   //on converti dphi_j
-                  static_vector dphi_j = static_vector::Zero();
+                  static_vector_type dphi_j = static_vector_type::Zero();
                   for(size_t k = 0; k < mesh_type::dimension; k++){
                      dphi_j(k) = dphi(j,k);
                   }

@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include "common/eigen.hpp"
+#include <vector>
+
 enum DirichletType : size_t
 {
    CLAMPED = 0,
@@ -31,7 +34,8 @@ enum DirichletType : size_t
    DXDY = 4,
    DXDZ = 5,
    DYDZ = 6,
-   OTHER = 7
+   OTHER = 7,
+   DIRICHLET = 8
 };
 
 
@@ -59,11 +63,19 @@ private:
    std::vector<std::pair<bool, size_t>>  m_faces_dirichlet;
    std::vector<std::array<size_t, 2>> m_lagranges_info;
 
+   dynamic_vector<bool> m_faces_is_dirichlet, m_faces_is_neumann;
+
    size_t   m_nb_faces_boundary;
    size_t   m_nb_faces_dirichlet;
    size_t   m_nb_faces_neumann;
    size_t   m_nb_lag;
 
+   template<typename TypeMesh>
+   void
+   find_dirichlet_faces(const TypeMesh& msh)
+   {
+      //a remplir
+   }
 
    template<typename TypeMesh>
    void
@@ -237,6 +249,12 @@ public:
                      m_neumann_conditions(neumann_conditions),
                      m_dirichlet_conditions(dirichlet_conditions)
    {
+      m_faces_is_dirichlet.resize(msh.faces_size());
+      m_faces_is_dirichlet.setConstant(false);
+      find_dirichlet_faces(msh);
+
+      m_faces_is_neumann.resize(msh.faces_size());
+      m_faces_is_neumann.setConstant(false);
       find_neumann_faces(msh);
       number_of_lag_conditions(msh);
    }
@@ -279,4 +297,3 @@ public:
       std::cout << " - Number of Lagrangian conditions: "  << m_nb_lag << std::endl;
    }
 };
-

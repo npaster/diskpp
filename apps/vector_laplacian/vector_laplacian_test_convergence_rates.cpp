@@ -112,7 +112,7 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, const run_params& rp
 
    const assembly_info assembling_info = vl.assemble(load, solution);
    const solver_info solve_info = vl.solve();
-   const postprocess_info post_info = vl.postprocess(load);
+   const postprocess_info post_info = vl.postprocess(load, solution);
 
    error_type error;
    error.h = average_diameter(msh);
@@ -172,7 +172,7 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, const run_params& rp
 
    const assembly_info assembling_info = vl.assemble(load, solution);
    const solver_info solve_info = vl.solve();
-   const postprocess_info post_info = vl.postprocess(load);
+   const postprocess_info post_info = vl.postprocess(load, solution);
 
    error_type error;
    error.h = average_diameter(msh);
@@ -534,7 +534,7 @@ int main(int argc, char **argv)
    if(three_dimensions){
       tc.tic();
       std::cout << "-Tetrahedras fvca6:" << std::endl;
-      test_tetrahedra_fvca6<RealType>(rp, material_data);
+      //test_tetrahedra_fvca6<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;
@@ -572,7 +572,7 @@ int main(int argc, char **argv)
 
       tc.tic();
       std::cout << "-Triangles fvca5:" << std::endl;
-      test_triangles_fvca5<RealType>(rp, material_data);
+      //test_triangles_fvca5<RealType>(rp, material_data);
       tc.toc();
       std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
       std::cout << " "<< std::endl;

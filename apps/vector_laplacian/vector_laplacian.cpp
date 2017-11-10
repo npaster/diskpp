@@ -24,7 +24,6 @@
 
 #include "colormanip.h"
 
-#include "../../config.h"
 
 #ifdef HAVE_SOLVER_WRAPPERS
 #include "agmg/agmg.hpp"
@@ -92,7 +91,7 @@ run_vector_laplacian_solver(const Mesh<T, 2, Storage>& msh, run_params& rp, Lapl
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
    }
 
-   postprocess_info post_info = vl.postprocess(load);
+   postprocess_info post_info = vl.postprocess(load, solution);
 
    if(vl.verbose()){
       std::cout << "Post-Processing: " << post_info.time_postprocess << " sec"  << '\n';
@@ -172,7 +171,7 @@ run_vector_laplacian_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Lapl
       std::cout << "Total time to solve the problem: " << solve_info.time_solver << " sec" << '\n';
    }
 
-   postprocess_info post_info = vl.postprocess(load);
+   postprocess_info post_info = vl.postprocess(load, solution);
 
    if(vl.verbose()){
       std::cout << "Post-Processing: " << post_info.time_postprocess << " sec"  << '\n';
@@ -312,7 +311,7 @@ int main(int argc, char **argv)
       run_vector_laplacian_solver(msh, rp, material_data);
       return 0;
    }
-   
+
    /* Medit 2d*/
    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$") ))
    {

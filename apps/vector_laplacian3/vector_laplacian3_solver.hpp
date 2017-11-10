@@ -87,7 +87,8 @@ class vector_laplacian_solver
 
    typedef typename assembler_type::sparse_matrix_type   sparse_matrix_type;
    sparse_matrix_type     m_system_matrix, m_system_matrix_full;
-   typename assembler_type::vector_type            m_system_rhs, m_system_rhs_full, m_system_solution;
+   typename assembler_type::vector_type            m_system_rhs, m_system_rhs_full;
+   typename assembler_type::vector_type            m_system_solution, m_system_solution_full;
 
    size_t m_cell_degree, m_face_degree;
 
@@ -227,6 +228,196 @@ public:
       const scalar_type cond_stat(condition_number(m_system_matrix));
 
       return std::make_pair(cond_stat, cond_full);
+   }
+
+
+   solver_info
+   solve(bool full = false)
+   {
+      #ifdef HAVE_INTEL_MKL
+      Eigen::PardisoLU<Eigen::SparseMatrix<scalar_type>>  solver;
+      #else
+      Eigen::SparseLU<Eigen::SparseMatrix<scalar_type>>   solver;
+      #endif
+
+      solver_info si;
+
+      const size_t systsz = m_system_matrix.rows();
+      const size_t nnz = m_system_matrix.nonZeros();
+
+      if (verbose())
+      {
+         std::cout << "Starting linear solver..." << std::endl;
+         std::cout << " * Solving for " << systsz << " unknowns." << std::endl;
+         std::cout << " * Matrix fill: " << 100.0*double(nnz)/(systsz*systsz) << "%" << std::endl;
+      }
+
+      timecounter tc;
+
+      tc.tic();
+      if(full){
+         solver.analyzePattern(m_system_matrix_full);
+         solver.factorize(m_system_matrix_full);
+         m_system_solution_full = solver.solve(m_system_rhs_full);
+      }
+      else{
+         solver.analyzePattern(m_system_matrix);
+         solver.factorize(m_system_matrix);
+         m_system_solution = solver.solve(m_system_rhs);
+      }
+      tc.toc();
+      si.time_solver = tc.to_double();
+
+      return si;
+   }
+
+
+   template<typename LoadFunction>
+   postprocess_info
+   postprocess(const LoadFunction& lf)
+   {
+      auto gradrec    = gradrec_type(m_bqd);
+      auto statcond   = statcond_type(m_bqd);
+
+      const size_t fbs = m_bqd.face_basis.size();
+
+      postprocess_info pi;
+
+      m_solution_data.reserve(m_msh.cells_size());
+
+      timecounter tc;
+      tc.tic();
+      for (auto& cl : m_msh)
+      {
+         const auto fcs = faces(m_msh, cl);
+         const auto num_faces = fcs.size();
+
+         dynamic_vector<scalar_type> xFs = dynamic_vector<scalar_type>::Zero(num_faces*fbs);
+
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            dynamic_vector<scalar_type> xF = dynamic_vector<scalar_type>::Zero(fbs);
+            xF = m_system_solution.block(face_id * fbs, 0, fbs, 1);
+            xFs.block(face_i * fbs, 0, fbs, 1) = xF;
+         }
+
+         gradrec.compute(m_msh, cl);
+         const dynamic_matrix<scalar_type> loc = m_laplacian_parameters.lambda * gradrec.data;
+         const auto cell_rhs = disk::hho::compute_rhs_bq(m_msh, cl, lf, m_bqd);
+         const dynamic_vector<scalar_type> x = statcond.recover(m_msh, cl, loc, cell_rhs, xFs);
+         m_solution_data.push_back(x);
+      }
+      tc.toc();
+
+      pi.time_postprocess = tc.to_double();
+
+      return pi;
+   }
+
+
+   postprocess_info
+   postprocess_full()
+   {
+
+      const size_t fbs = m_bqd.face_basis.size();
+      const size_t cbs = howmany_dofs(m_bqd.cell_basis);
+      const size_t cells_offset = m_msh.cells_size() * cbs;
+
+      postprocess_info pi;
+
+      m_solution_data.reserve(m_msh.cells_size());
+
+      timecounter tc;
+      tc.tic();
+      size_t cell_i(0);
+      for (auto& cl : m_msh)
+      {
+         const auto fcs = faces(m_msh, cl);
+         const auto num_faces = fcs.size();
+         const auto faces_dofs = num_faces*fbs;
+         const auto total_dofs = cbs + faces_dofs;
+
+         dynamic_vector<scalar_type> x = dynamic_vector<scalar_type>::Zero(total_dofs);
+         x.block(0, 0, cbs, 1) = m_system_solution_full.block(cell_i * cbs, 0, cbs, 1);
+
+         for (size_t face_i = 0; face_i < num_faces; face_i++)
+         {
+            const auto fc = fcs[face_i];
+            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), fc);
+            if (!eid.first)
+               throw std::invalid_argument("This is a bug: face not found");
+
+            const auto face_id = eid.second;
+
+            x.block(cbs + face_i * fbs, 0, fbs, 1) = m_system_solution_full.block(cells_offset + face_id * fbs, 0, fbs, 1);;
+         }
+
+         m_solution_data.push_back(x);
+
+         cell_i++;
+      }
+      tc.toc();
+
+      pi.time_postprocess = tc.to_double();
+
+      return pi;
+   }
+
+
+   template<typename AnalyticalSolution>
+   scalar_type
+   compute_l2_error(const AnalyticalSolution& as)
+   {
+      scalar_type err_dof = scalar_type{0.0};
+
+      projector_type projk(m_bqd);
+
+      size_t i = 0;
+
+      for (auto& cl : m_msh)
+      {
+         const auto x = m_solution_data.at(i++);
+         const dynamic_vector<scalar_type> true_dof = projk.compute_cell(m_msh, cl, as);
+         const dynamic_vector<scalar_type> comp_dof = x.block(0,0,true_dof.size(), 1);
+         const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+         err_dof += diff_dof.dot(projk.cell_mm * diff_dof);
+      }
+
+      return sqrt(err_dof);
+   }
+
+   template<typename AnalyticalSolution>
+   scalar_type
+   compute_l2_gradient_error(const AnalyticalSolution& grad)
+   {
+      scalar_type err_dof = scalar_type{0.0};
+
+      projector_type projk(m_bqd);
+
+      gradrec_type gradrec(m_bqd);
+
+      size_t i = 0;
+
+      for (auto& cl : m_msh)
+      {
+         const auto x = m_solution_data.at(i++);
+         gradrec.compute(m_msh, cl);
+         const dynamic_vector<scalar_type> RTu = gradrec.oper*x;
+
+         const dynamic_vector<scalar_type> true_dof = projk.compute_cell_grad(m_msh, cl, grad);
+         const dynamic_vector<scalar_type> comp_dof = RTu.block(0,0,true_dof.size(), 1);
+         const dynamic_vector<scalar_type> diff_dof = (true_dof - comp_dof);
+         err_dof += diff_dof.dot(projk.grad_mm * diff_dof);
+      }
+
+      return sqrt(err_dof);
    }
 
 };

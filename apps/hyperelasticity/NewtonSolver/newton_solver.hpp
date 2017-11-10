@@ -183,13 +183,13 @@ public:
       //             std::cout << "Test Aurricchio: we loos the coercivite of D2L " << nb_negative_ev << " > " << nb_negative_ev_init << std::endl;
       //       }
 
-      //       if(!m_convergence)
-      //          m_convergence = newton_step.test_convergence(1E-4, m_rp.m_iter_max, residu);
+      if(!m_convergence)
+         m_convergence = newton_step.test_convergence(1E-3, m_rp.m_iter_max, residu);
       if(m_convergence and m_rp.m_conditioning){
          newton_step.conditioning();
          newton_step.conditioning_full(lf, bf, g, gradient_precomputed);
-      }   
-      
+      }
+
 
       if(m_convergence)
          newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
