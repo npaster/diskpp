@@ -64,6 +64,7 @@ private:
    std::vector<std::array<size_t, 2>> m_lagranges_info;
 
    dynamic_vector<bool> m_faces_is_dirichlet, m_faces_is_neumann;
+   dynamic_vector<size_t> m_type_boundary_dirichlet;
 
    size_t   m_nb_faces_boundary;
    size_t   m_nb_faces_dirichlet;
@@ -74,7 +75,18 @@ private:
    void
    find_dirichlet_faces(const TypeMesh& msh)
    {
-      //a remplir
+      for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+      {
+         auto bfc = *itor;
+
+         const auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
+         if (!eid.first)
+            throw std::invalid_argument("This is a bug: face not found");
+
+         const auto face_id = eid.second;
+         m_faces_is_dirichlet[face_id] = true;
+         m_type_boundary_dirichlet[face_id] = DirichletType::DIRICHLET;
+      }
    }
 
    template<typename TypeMesh>
@@ -106,6 +118,8 @@ private:
                   m_faces_dirichlet[face] = std::make_pair(false, elem.boundary_type);
                   m_nb_faces_dirichlet--;
                   m_nb_faces_neumann++;
+                  m_faces_is_dirichlet[face_id] = false;
+                  m_faces_is_neumann[face_id] = true;
                   break;
                }
             }
@@ -149,73 +163,74 @@ private:
                         m_lagranges_info.push_back(info);
                         m_nb_lag += DIM;
                         m_faces_dirichlet[face].second = CLAMPED;
+                        m_type_boundary_dirichlet[face_id] = CLAMPED;
                         break;
-                        case DX:
-                        dirichlet_standart = false;
-                        info[0] = m_nb_lag; info[1] = 1;
-                        m_lagranges_info.push_back(info);
-                        m_nb_lag += 1;
-                        m_faces_dirichlet[face].second = DX;
-                        break;
-                        case DY:
-                        dirichlet_standart = false;
-                        info[0] = m_nb_lag; info[1] = 1;
-                        m_lagranges_info.push_back(info);
-                        m_nb_lag += 1;
-                        m_faces_dirichlet[face].second = DY;
-                        break;
-                        case DZ:
-                        dirichlet_standart = false;
-                        if( DIM != 3){
-                           std::cout << "Invalid condition for face:" << face_id << std::endl;
-                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                        }
-                        else{
-                           info[0] = m_nb_lag; info[1] = 1;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += 1;
-                           m_faces_dirichlet[face].second = DZ;
-                        }
-                        break;
-                        case DXDY:
-                        dirichlet_standart = false;
-                        if( DIM != 3){
-                           std::cout << "Invalid condition for face:" << face_id << std::endl;
-                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                        }
-                        else{
-                           info[0] = m_nb_lag; info[1] = 2;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += 2;
-                           m_faces_dirichlet[face].second = DXDY;
-                        }
-                        break;
-                        case DXDZ:
-                        dirichlet_standart = false;
-                        if( DIM != 3){
-                           std::cout << "Invalid condition for face:" << face_id << std::endl;
-                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                        }
-                        else{
-                           info[0] = m_nb_lag; info[1] = 2;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += 2;
-                           m_faces_dirichlet[face].second = DXDZ;
-                        }
-                        break;
-                        case DYDZ:
-                        dirichlet_standart = false;
-                        if( DIM != 3){
-                           std::cout << "Invalid condition for face:" << face_id << std::endl;
-                           throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
-                        }
-                        else{
-                           info[0] = m_nb_lag; info[1] = 2;
-                           m_lagranges_info.push_back(info);
-                           m_nb_lag += 2;
-                           m_faces_dirichlet[face].second = DYDZ;
-                        }
-                        break;
+                        // case DX:
+                        // dirichlet_standart = false;
+                        // info[0] = m_nb_lag; info[1] = 1;
+                        // m_lagranges_info.push_back(info);
+                        // m_nb_lag += 1;
+                        // m_faces_dirichlet[face].second = DX;
+                        // break;
+                        // case DY:
+                        // dirichlet_standart = false;
+                        // info[0] = m_nb_lag; info[1] = 1;
+                        // m_lagranges_info.push_back(info);
+                        // m_nb_lag += 1;
+                        // m_faces_dirichlet[face].second = DY;
+                        // break;
+                        // case DZ:
+                        // dirichlet_standart = false;
+                        // if( DIM != 3){
+                        //    std::cout << "Invalid condition for face:" << face_id << std::endl;
+                        //    throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        // }
+                        // else{
+                        //    info[0] = m_nb_lag; info[1] = 1;
+                        //    m_lagranges_info.push_back(info);
+                        //    m_nb_lag += 1;
+                        //    m_faces_dirichlet[face].second = DZ;
+                        // }
+                        // break;
+                        // case DXDY:
+                        // dirichlet_standart = false;
+                        // if( DIM != 3){
+                        //    std::cout << "Invalid condition for face:" << face_id << std::endl;
+                        //    throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        // }
+                        // else{
+                        //    info[0] = m_nb_lag; info[1] = 2;
+                        //    m_lagranges_info.push_back(info);
+                        //    m_nb_lag += 2;
+                        //    m_faces_dirichlet[face].second = DXDY;
+                        // }
+                        // break;
+                        // case DXDZ:
+                        // dirichlet_standart = false;
+                        // if( DIM != 3){
+                        //    std::cout << "Invalid condition for face:" << face_id << std::endl;
+                        //    throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        // }
+                        // else{
+                        //    info[0] = m_nb_lag; info[1] = 2;
+                        //    m_lagranges_info.push_back(info);
+                        //    m_nb_lag += 2;
+                        //    m_faces_dirichlet[face].second = DXDZ;
+                        // }
+                        // break;
+                        // case DYDZ:
+                        // dirichlet_standart = false;
+                        // if( DIM != 3){
+                        //    std::cout << "Invalid condition for face:" << face_id << std::endl;
+                        //    throw std::invalid_argument(" ONLY DIM = 3 for this Dirichlet Conditions");
+                        // }
+                        // else{
+                        //    info[0] = m_nb_lag; info[1] = 2;
+                        //    m_lagranges_info.push_back(info);
+                        //    m_nb_lag += 2;
+                        //    m_faces_dirichlet[face].second = DYDZ;
+                        // }
+                        // break;
                         default:
                         std::cout << "Unknown Dirichlet Conditions" << std::endl;
                         throw std::invalid_argument(" Unknown Dirichlet Conditions");
@@ -251,6 +266,8 @@ public:
    {
       m_faces_is_dirichlet.resize(msh.faces_size());
       m_faces_is_dirichlet.setConstant(false);
+      m_type_boundary_dirichlet.resize(msh.faces_size());
+      m_type_boundary_dirichlet.setConstant(DirichletType::OTHER);
       find_dirichlet_faces(msh);
 
       m_faces_is_neumann.resize(msh.faces_size());
@@ -274,9 +291,24 @@ public:
       return m_faces_dirichlet[face_i].first;
    }
 
+   bool is_dirichlet_face(const size_t face_i) const
+   {
+      return m_faces_is_dirichlet[face_i];
+   }
+
+   bool is_neumann_face(const size_t face_i) const
+   {
+      return m_faces_is_neumann[face_i];
+   }
+
    size_t boundary_type(const size_t face_i) const
    {
       return m_faces_dirichlet[face_i].second;
+   }
+
+   size_t dirichlet_boundary_type(const size_t face_i) const
+   {
+      return m_type_boundary_dirichlet[face_i];
    }
 
    size_t nb_lag_conditions_faceI(const size_t face_i) const

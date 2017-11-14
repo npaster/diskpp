@@ -170,7 +170,7 @@ public:
          ni.updateSolveInfo(solve_info);
 
          // Postprocess and update
-         ni.m_assembly_info.m_time_postpro += newton_step.postprocess();
+         ni.m_assembly_info.m_time_postpro += newton_step.postprocess(bf);
 
          //Update iteration
          ni.m_iter++;
@@ -187,7 +187,7 @@ public:
          m_convergence = newton_step.test_convergence(1E-3, m_rp.m_iter_max, residu);
       if(m_convergence and m_rp.m_conditioning){
          newton_step.conditioning();
-         newton_step.conditioning_full(lf, bf, g, gradient_precomputed);
+         //newton_step.conditioning_full(lf, bf, g, gradient_precomputed);
       }
 
 

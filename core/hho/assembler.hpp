@@ -385,12 +385,13 @@ namespace hho{
          for (size_t face_i = 0; face_i < fcs.size(); face_i++)
          {
             const auto fc = fcs[face_i];
-            const bool fc_is_dirichlet_boundary =  msh.is_boundary(fc);
+
             auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), fc);
             if (!eid.first)
                throw std::invalid_argument("This is a bug: face not found");
 
             const auto face_id = eid.second;
+            const bool fc_is_dirichlet_boundary =  boundary_conditions.is_dirichlet_face(face_id);
 
             const auto face_offset = face_compress_map.at(face_id) * face_basis_size;
 
@@ -409,20 +410,25 @@ namespace hho{
                for (size_t face_j = 0; face_j < fcs.size(); face_j++)
                {
                   const auto fcj = fcs[face_j];
-                  const bool fcj_dirichlet_is_boundary =  msh.is_boundary(fcj);
+                  auto eidj = find_element_id(msh.faces_begin(), msh.faces_end(), fcj);
+                  if (!eidj.first)
+                     throw std::invalid_argument("This is a bug: face not found");
+
+                  const auto face_idj = eidj.second;
+                  const bool fcj_is_dirichlet_boundary =  boundary_conditions.is_dirichlet_face(face_idj);
 
                   if(!fcj_is_dirichlet_boundary){
-                     switch ( boundary_conditions.boundary_type(face_id)){
+                     switch ( boundary_conditions.dirichlet_boundary_type(face_id)){
                         case DIRICHLET:
                         {
                            rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
-                           += lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * (proj_bcf - sol_F);
+                           += lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * (proj_bcf - sol_F[face_id]);
                            break;
                         }
                         case CLAMPED:
                         {
                            rhs_bc.block(face_j * face_basis_size, 0, face_basis_size, 1)
-                           -= lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * sol_F;
+                           -= lc.first.block(face_j * face_basis_size, pos ,face_basis_size, face_basis_size) * sol_F[face_id];
                            break;
                         }
                         default:
@@ -460,7 +466,7 @@ namespace hho{
 
       template <typename Function>
       vector_type
-      expand_solution(const mesh_type& msh, const vector_type& solution, const Function& bc,
+      expand_solution_nl(const mesh_type& msh, const vector_type& solution, const Function& bc,
                      const BoundaryConditions& boundary_conditions,
                      const std::vector<vector_type>& sol_F)
       {
@@ -488,12 +494,12 @@ namespace hho{
                switch ( boundary_conditions.boundary_type(face_id)){
                   case DIRICHLET:
                   {
-                     ret.block(face_offset, 0, face_basis_size, 1) = (proj_bcf - sol_F);
+                     ret.block(face_offset, 0, face_basis_size, 1) = (proj_bcf - sol_F[face_id]);
                      break;
                   }
                   case CLAMPED:
                   {
-                     ret.block(face_offset, 0, face_basis_size, 1) = -sol_F;
+                     ret.block(face_offset, 0, face_basis_size, 1) = -sol_F[face_id];
                      break;
                   }
                   default:
@@ -562,6 +568,7 @@ namespace hho{
       impose_boundary_conditions(const mesh_type& msh, const Function& bc)
       {}
 
+      // ne marche pas
       template<typename NeumannFunction>
       void
       impose_neumann_boundary_conditions(const mesh_type& msh, const NeumannFunction& g,
@@ -579,8 +586,8 @@ namespace hho{
 
             const auto face_id = eid.second;
 
-            if(boundary_conditions.boundary_type(face_id) == NEUMANN){
-               const size_t face_offset = face_id * face_basis_size;
+            if(boundary_conditions.is_neumann_face(face_id)){
+               const size_t face_offset = face_compress_map.at(face_id) * face_basis_size; //trouver bon decalage
                vector_type TF   = vector_type::Zero(face_basis_size);
 
                const auto face_quadpoints = m_bqd.face_quadrature.integrate(msh, bfc);
