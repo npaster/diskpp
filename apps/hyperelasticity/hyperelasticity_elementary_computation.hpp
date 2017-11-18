@@ -120,7 +120,7 @@ namespace Hyperelasticity {
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+         const size_t poly_space = grad_basis_size;// DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
          assert(AT.rows() == grad_basis_size);
@@ -163,7 +163,7 @@ namespace Hyperelasticity {
       {
          const size_t grad_basis_size = gphi.size();
          const size_t grad_degree = m_bqd.grad_degree();
-         const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+         const size_t poly_space = grad_basis_size;//DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
          const size_t DIM2 = DIM * DIM;
 
          assert(aT.size() == grad_basis_size);
@@ -187,7 +187,6 @@ namespace Hyperelasticity {
             aT(i) += weight * disk::mm_prod(PK1, gphi[i]);
          }
       }
-
 
 
    public:
@@ -226,8 +225,8 @@ namespace Hyperelasticity {
 
          const vector_type GT_uTF = GT * uTF;
 
-         //const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
-         const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         //const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
 
          const auto grad_quadpoints = m_bqd.grad_quadrature.integrate(msh, cl);
 
@@ -308,12 +307,13 @@ class discrete_traction_bq
 
    const BQData&                               m_bqd;
 
-   vector_type m_proj_PK1_coeff;
+
    vector_type m_stab;
    bool m_mat_computed;
    bool m_stab_computed;
 
 public:
+   vector_type m_proj_PK1_coeff;
 
    discrete_traction_bq(const BQData& bqd) : m_bqd(bqd), m_mat_computed(false), m_stab_computed(false)
    {}
@@ -326,7 +326,8 @@ public:
       const auto bqd = m_bqd;
       const vector_type GT_uTF = GT * uTF;
       auto PK1 = [msh, cl, GT_uTF, elas_param, bqd](const point_type& pt) -> auto {
-         const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         //const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
          const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
          const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
          const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);

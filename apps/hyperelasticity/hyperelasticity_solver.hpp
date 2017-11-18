@@ -69,6 +69,7 @@ class hyperelasticity_solver
 {
    typedef Mesh<T, DIM, Storage>                      mesh_type;
    typedef typename mesh_type::scalar_type            scalar_type;
+   typedef typename mesh_type::point_type            point_type;
    typedef ParamRun<T>                                param_type;
 
    typedef disk::hho::basis_quadrature_data_full<mesh_type, disk::scaled_monomial_vector_basis,
@@ -90,7 +91,7 @@ class hyperelasticity_solver
    const mesh_type& m_msh;
 
    std::vector<vector_dynamic>         m_solution_data;
-   std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
+   std::vector<vector_dynamic>         m_solution_cells, m_solution_faces;
 
    bool m_verbose, m_convergence;
 
@@ -175,22 +176,14 @@ public:
       m_solution_data.clear();
       m_solution_cells.clear();
       m_solution_faces.clear();
-      m_solution_lagr.clear();
-
-      const size_t nb_faces_dirichlet = m_boundary_condition.nb_faces_dirichlet();
-      const size_t nb_lag_conditions = m_boundary_condition.nb_lags();
 
       m_solution_data.reserve(m_msh.cells_size());
       m_solution_cells.reserve(m_msh.cells_size());
       m_solution_faces.reserve(m_msh.faces_size());
-      m_solution_lagr.reserve(nb_faces_dirichlet);
-
 
       const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, m_bqd.cell_degree())).size();
       const size_t num_face_dofs = m_bqd.face_basis.size();
-      const size_t num_lagr_dofs = num_face_dofs/DIM;
       const size_t total_dof = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
-      const size_t total_lagr = nb_lag_conditions * num_face_dofs/m_msh.dimension;
 
       for(auto& cl : m_msh)
       {
@@ -205,23 +198,16 @@ public:
          m_solution_faces.push_back(vector_dynamic::Zero(num_face_dofs));
       }
 
-      for(size_t i = 0; i < nb_faces_dirichlet; i++){
-         // std::cout << "nb lag" << m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
-         // std::cout << "taille " << num_face_dofs << " vs " << num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)  << '\n';
-         m_solution_lagr.push_back(vector_dynamic::Zero(num_lagr_dofs * m_boundary_condition.nb_lag_conditions_faceI(i)));
-      }
-
-      total_dof_depl_static = m_msh.faces_size() * num_face_dofs;
+      const size_t nb_faces_dirichlet = m_boundary_condition.nb_faces_dirichlet();
+      total_dof_depl_static = (m_msh.faces_size() - nb_faces_dirichlet) * num_face_dofs;
 
       if(m_verbose){
          std::cout << "** Numbers of cells: " << m_msh.cells_size()  << std::endl;
          std::cout << "** Numbers of faces: " << m_msh.faces_size() << " ( boundary faces: "
          <<  m_msh.boundary_faces_size() << " )"  << std::endl;
-         std::cout << "** Numbers of dofs: " << total_dof + total_lagr  << std::endl;
-         std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
+         std::cout << "** Numbers of dofs: " << total_dof  << std::endl;
          std::cout << "** After static condensation: "  << std::endl;
-         std::cout << "** Numbers of dofs: " << total_dof_depl_static + total_lagr  << std::endl;
-         std::cout << "** including " << total_lagr << " Lagrange multipliers"  << std::endl;
+         std::cout << "** Numbers of dofs: " << total_dof_depl_static << std::endl;
       }
 
 //       //provisoire
@@ -236,10 +222,6 @@ public:
 //       {
 //          m_solution_faces[i].setConstant(1E-8);
 //       }
-//
-//       for(size_t i = 0; i < m_msh.boundary_faces_size(); i++){
-//          m_solution_lagr[i].setConstant(1.0);
-//      }
    }
 
    template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
@@ -254,8 +236,7 @@ public:
       NewtonRaphson_solver_hyperelasticity<bqdata_type>
          newton_solver(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
 
-      newton_solver.initialize(m_solution_cells, m_solution_faces,
-                                 m_solution_lagr, m_solution_data);
+      newton_solver.initialize(m_solution_cells, m_solution_faces, m_solution_data);
 
       newton_solver.verbose(m_verbose);
 
@@ -307,9 +288,9 @@ public:
          time_step step = list_step.front();
          const scalar_type current_time = step.time;
          if(m_verbose){
-            std::cout << "--------------------------------------------------------------------------------------------------------------------------------" << std::endl;
-            std::cout << "***************************************** Time : " << current_time << " sec (step: " << current_step
-            << "/" << total_step << ", sublevel: " << step.level << " ) ****************************************|" << std::endl;
+            std::cout << "----------------------------------------------------------------------------------------------" << std::endl;
+            std::cout << "|************************** Time : " << current_time << " sec (step: " << current_step
+            << "/" << total_step << ", sublevel: " << step.level << " ) **************************|" << std::endl;
          }
 
          //Create a load function for each time step
@@ -377,7 +358,7 @@ public:
             list_step.pop_front();
 
             // Save the solution
-            newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+            newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_data);
 
             // Export the solution
             if(time_saving){
@@ -778,49 +759,78 @@ public:
    void
    compute_deformed_CONT(const std::string& filename) const
    {
-      const size_t cell_degree = m_bqd.cell_degree();
-      const size_t num_cell_dofs = (m_bqd.cell_basis.range(0, cell_degree)).size();
+      const size_t num_cell_dofs = disk::howmany_dofs(m_bqd.cell_basis);
 
       visu::Gmesh gmsh(DIM);
       auto storage = m_msh.backend_storage();
 
+      const std::vector<double> vzero(3,0.0);
+      const size_t nb_nodes(m_msh.points_size());
+
+      //first(number of data at this node), second(cumulated value)
+      std::vector<std::pair<size_t, std::vector<scalar_type> > > value(nb_nodes, std::make_pair(0, vzero));
+
       size_t cell_i(0);
-      size_t nb_nodes(0);
       for (auto& cl : m_msh)
       {
          const vector_dynamic x = m_solution_cells.at(cell_i++);
+         const auto cell_nodes = visu::cell_nodes(m_msh, cl);
+
+         // Loop on the nodes of the cell
+         for (size_t i = 0; i < cell_nodes.size(); i++)
+         {
+            const auto point_ids = cell_nodes[i];
+            const auto pt = storage->points[point_ids];
+
+            const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
+
+            std::vector<scalar_type> depl(3, scalar_type{0});
+
+            // Compute displacement at node
+            for (size_t i = 0; i < num_cell_dofs; i += DIM){
+               for(size_t j = 0; j < DIM; j++){
+                  depl[j] += phi.at(i+j)(j) * x(i+j); // a voir
+               }
+            }
+
+            // Add displacement at node
+            value[point_ids].first++;
+            for(size_t j=0; j < DIM; j++){
+               value[point_ids].second[j] += depl[j];
+            }
+         }
+      }
+
+      // New coordinate
+      size_t i_node(0);
+      for (auto itor = m_msh.points_begin(); itor != m_msh.points_end(); itor++)
+      {
+         const auto pt = *itor;
+
+         std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
+         visu::init_coor(pt, coor);
+
+         for(size_t j = 0; j < DIM; j++)
+            coor[j] += value[i_node].second[j]/ double(value[i_node].first);
+
+         i_node++;
+         const visu::Node tmp_node(coor, i_node, 0);
+         gmsh.addNode(tmp_node);
+      }
+      const auto Nodes = gmsh.getNodes();
+
+      // Add new elements
+      for (auto& cl : m_msh)
+      {
          const auto cell_nodes = visu::cell_nodes(m_msh, cl);
          std::vector<visu::Node> new_nodes;
 
          // Loop on nodes of the cell
          for (size_t i = 0; i < cell_nodes.size(); i++)
          {
-            nb_nodes++;
             const auto point_ids = cell_nodes[i];
-            const auto pt = storage->points[point_ids];
 
-            const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
-
-            std::array<double, 3> coor = {double{0.0}, double{0.0}, double{0.0}};
-            std::array<double, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
-
-            // Compute displacement
-            visu::init_coor(pt, coor);
-            for (size_t i = 0; i < num_cell_dofs; i += DIM){
-               for(size_t j=0; j < DIM; j++){
-                  depl[j] += phi.at(i+j)(j) * x(i+j);
-               }
-            }
-
-            // Compute new coordinates
-            for(size_t j=0; j < DIM; j++)
-               coor[j] += depl[j];
-
-            // Save node
-            const visu::Node tmp_node(coor, nb_nodes, 0);
-            new_nodes.push_back(tmp_node);
-            gmsh.addNode(tmp_node);
-
+            new_nodes.push_back(Nodes[point_ids]);
          }
          // Add new element
          visu::add_element(gmsh, new_nodes);
@@ -958,8 +968,8 @@ public:
       auto storage = m_msh.backend_storage();
 
       gradrec_type gradrec(m_bqd);
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -1032,6 +1042,10 @@ public:
    void
    compute_continuous_VMIS(const std::string& filename) const
    {
+      projector_type proj(m_bqd);
+      const auto bqd = m_bqd;
+      const auto msh = m_msh;
+      const auto elas_param = m_elas_param;
       visu::Gmesh gmsh = visu::convertMesh(m_msh);
       auto storage = m_msh.backend_storage();
 
@@ -1042,8 +1056,8 @@ public:
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
 
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1056,8 +1070,21 @@ public:
             gradrec.compute(m_msh, cl, false);
             GT = gradrec.oper;
          }
-         const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
+
          const auto cell_nodes = visu::cell_nodes(m_msh, cl);
+         const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
+
+         auto sigma_computed = [msh, cl, GT_uTF, elas_param, bqd](const auto& pt) -> auto {
+            const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+            //const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+            const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+            const auto PK1 = law.compute_PK1(FT_iqn);
+            return disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
+         };
+
+         const auto proj_Cauchy_coeff = proj.compute_cell_grad(msh, cl, sigma_computed);
 
          // Loop on nodes
          for (size_t i = 0; i < cell_nodes.size(); i++)
@@ -1067,12 +1094,7 @@ public:
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
-            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
-
-            const auto PK1 = law.compute_PK1(FT_iqn);
-
-            const auto sigma = disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
+            const auto sigma = disk::hho::eval_gradient(proj_Cauchy_coeff, gphi);
 
             scalar_type vm(0.0);
 
@@ -1122,8 +1144,8 @@ public:
       size_t nb_nodes(gmsh.getNumberofNodes());
 
       gradrec_type gradrec(m_bqd);
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1325,8 +1347,8 @@ public:
       auto storage = m_msh.backend_storage();
 
       gradrec_type gradrec(m_bqd);
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       std::vector<visu::Data> data; //create data (not used)
       std::vector<visu::SubData> subdata; //create subdata to save soution at gauss point
@@ -1395,8 +1417,8 @@ public:
       //first(number of data at this node), second(cumulated value)
       std::vector<std::pair<size_t, scalar_type> > value(nb_nodes, std::make_pair(0, 0.0));
 
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1461,8 +1483,8 @@ public:
       size_t nb_nodes(gmsh.getNumberofNodes());
 
       gradrec_type gradrec(m_bqd);
-      //const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
-      const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+      //const CavitationLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
 
       size_t cell_i(0);
       for (auto& cl : m_msh)
@@ -1732,13 +1754,22 @@ public:
    compute_traction_Pk(const size_t& id) const
    {
       Hyperelasticity::discrete_traction_bq<bqdata_type> traction(m_bqd);
+      gradrec_type gradrec(m_bqd);
       size_t cell_i = 0;
 
       scalar_type ret(0);
-      scalar_type mesure(0);
 
       for (auto& cl : m_msh)
       {
+         matrix_dynamic GT;
+         if(m_rp.m_precomputation){
+            GT = m_gradient_precomputed[cell_i];
+         }
+         else{
+            gradrec.compute(m_msh, cl, false);
+            GT = gradrec.oper;
+         }
+
          const auto fcs = faces(m_msh, cl);
 
          for(size_t face_i = 0; face_i < fcs.size(); face_i++)
@@ -1753,7 +1784,7 @@ public:
                const size_t b_id = m_msh.boundary_id(face_id);
 
                if(b_id == id){
-                  traction.proj_grad_space(m_msh, cl, m_gradient_precomputed[cell_i],
+                  traction.proj_grad_space(m_msh, cl, GT,
                                    m_solution_data[cell_i], m_elas_param);
 
                   if(m_bqd.cell_degree() == m_bqd.grad_degree()){
@@ -1767,23 +1798,21 @@ public:
                      if(m_bqd.cell_degree() == m_bqd.grad_degree()){
                         const auto T_iqn = traction.eval_Pk_unstable(m_msh, cl, face_i, qp.point(), m_rp.m_beta);
                         const auto n = disk::normal(m_msh, cl, fc);
-                        ret += qp.weight() * std::abs(disk::mm_prod(T_iqn, n));
+                        ret += qp.weight() * disk::mm_prod(T_iqn, n);
                      }
                      else{
                         const auto T_iqn = traction.eval_Pk_stable(m_msh, cl, fc, qp.point());
                         const auto n = disk::normal(m_msh, cl, fc);
-                        ret += qp.weight() * std::abs(disk::mm_prod(T_iqn, n));
+                        ret += qp.weight() * disk::mm_prod(T_iqn, n);
                      }
                   }
-
-                  mesure += disk::measure(m_msh, fc);
                }
             }
          }
 
          cell_i++;
       }
-      return std::sqrt(ret);
+      return ret;
    }
 
    void save_traction(const std::vector<std::array<scalar_type,2>>& resu, const std::string& filename)
@@ -1951,4 +1980,36 @@ public:
       return depl;
    }
 
+
+   template<typename U = void, typename Solution>
+   typename std::enable_if<DIM == 3, U>::type
+   test_pt(const Solution& sol) const
+   {
+      point_type pt;
+      pt.x() = 0.5; pt.y() = 0.5; pt.z() = 0.5;
+
+      std::array<scalar_type, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
+
+      std::cout << "sol: " << sol(pt) << std::endl;
+
+      size_t cell_i = 0;
+      for (auto& cl : m_msh)
+      {
+         if(disk::is_inside(m_msh,cl,pt))
+         {
+            vector_dynamic x = m_solution_cells.at(cell_i++);
+            auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, pt);
+
+            // plot magnitude at node
+            for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
+               for(size_t j=0; j < DIM; j++)
+                  depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
+
+            std::cout << "depl: (" << depl[0] << " , " << depl[1] << " , " << depl[2] <<
+            " )" << std::endl;
+            break;
+         }
+         cell_i++;
+      }
+   }
 };

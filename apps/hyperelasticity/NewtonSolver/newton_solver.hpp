@@ -61,7 +61,7 @@ class NewtonRaphson_solver_hyperelasticity
    const mesh_type&                            m_msh;
 
    std::vector<vector_dynamic>         m_solution_data;
-   std::vector<vector_dynamic>         m_solution_cells, m_solution_faces, m_solution_lagr;
+   std::vector<vector_dynamic>         m_solution_cells, m_solution_faces;
 
    bool m_verbose;
    bool m_convergence;
@@ -88,7 +88,6 @@ public:
    void
    initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                const std::vector<vector_dynamic>& initial_solution_faces,
-               const std::vector<vector_dynamic>& initial_solution_lagr,
                const std::vector<vector_dynamic>& initial_solution)
    {
       m_solution_cells.clear();
@@ -99,9 +98,6 @@ public:
       m_solution_faces = initial_solution_faces;
       assert(m_msh.faces_size() == m_solution_faces.size());
 
-      m_solution_lagr.clear();
-      m_solution_lagr = initial_solution_lagr;
-
       m_solution_data.clear();
       m_solution_data = initial_solution;
       assert(m_msh.cells_size() == m_solution_data.size());
@@ -110,7 +106,7 @@ public:
 
    template<typename LoadIncrement, typename BoundaryConditionFunction, typename NeumannFunction>
    NewtonSolverInfo
-   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bf, const NeumannFunction& g,
+   compute( const LoadIncrement& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
             const std::vector<matrix_dynamic>& gradient_precomputed)
    {
       NewtonSolverInfo ni;
@@ -127,7 +123,7 @@ public:
       NewtonRaphson_step_hyperelasticity<BQData>
       newton_step(m_msh, m_bqd, m_rp, m_elas_param, m_boundary_condition);
 
-      newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+      newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_data);
       newton_step.verbose(m_verbose);
 
 
@@ -137,7 +133,7 @@ public:
          //Assemble lhs and rhs
          AssemblyInfo assembly_info;
          try {
-            assembly_info = newton_step.assemble(lf, bf, g, gradient_precomputed);
+            assembly_info = newton_step.assemble(lf, bcf, g, gradient_precomputed);
          }
          catch(const std::invalid_argument& ia){
             std::cerr << "Invalid argument: " << ia.what() << std::endl;
@@ -170,7 +166,7 @@ public:
          ni.updateSolveInfo(solve_info);
 
          // Postprocess and update
-         ni.m_assembly_info.m_time_postpro += newton_step.postprocess(bf);
+         ni.m_assembly_info.m_time_postpro += newton_step.postprocess(bcf);
 
          //Update iteration
          ni.m_iter++;
@@ -187,12 +183,12 @@ public:
          m_convergence = newton_step.test_convergence(1E-3, m_rp.m_iter_max, residu);
       if(m_convergence and m_rp.m_conditioning){
          newton_step.conditioning();
-         //newton_step.conditioning_full(lf, bf, g, gradient_precomputed);
+         newton_step.conditioning_full(lf, bcf, g, gradient_precomputed);
       }
 
 
       if(m_convergence)
-         newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_lagr, m_solution_data);
+         newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_data);
 
       tc.toc();
       ni.m_time_newton = tc.to_double();
@@ -204,7 +200,6 @@ public:
    void
    save_solutions( std::vector<vector_dynamic>& solution_cells,
                    std::vector<vector_dynamic>& solution_faces,
-                   std::vector<vector_dynamic>& solution_lagr,
                    std::vector<vector_dynamic>& solution) const
    {
       solution_cells.clear();
@@ -214,10 +209,6 @@ public:
       solution_faces.clear();
       solution_faces = m_solution_faces;
       assert(m_solution_faces.size() == solution_faces.size());
-
-      solution_lagr.clear();
-      solution_lagr = m_solution_lagr;
-      assert(m_solution_lagr.size() == solution_lagr.size());
 
       solution.clear();
       solution = m_solution_data;

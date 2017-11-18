@@ -299,7 +299,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 
    //DEBUT INDENTATION
 
-      //load and solutions
+   //   load and solutions
 //       auto load = [](const point<T,3>& p) -> result_type {
 //          T fx = 0.0;
 //          T fy = 0.0;
@@ -323,7 +323,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
 //          return result_type{fx,fy,fz};
 //       };
 //
-//       Define Boundary Conditions
+//     //  Define Boundary Conditions
 //
 //       BoundaryType N1;
 //       N1.id = 3;
@@ -485,13 +485,14 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, ParamRun<T>& rp, cons
    }
 
    std::cout << "Post-processing: " << std::endl;
-   std::string name = "Result_cave_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
+   std::string name = "Result_cav_k" + std::to_string(rp.m_cell_degree) + "_l" + std::to_string(rp.m_grad_degree)
    + "_b" + std::to_string(rp.m_beta) + "_s" + std::to_string(rp.m_stab) + "_";
    nl.compute_discontinuous_displacement(name + "sol_disc.msh");
    nl.compute_continuous_displacement(name +"sol_cont.msh");
    nl.compute_J_GP(name +"J_GP.msh");
    nl.compute_continuous_J(name +"J_cont.msh");
    nl.compute_discontinuous_J(name +"J_disc.msh");
+   nl.compute_deformed_CONT(name +"DEF_CONT.msh");
    try {
       nl.compute_discontinuous_VMIS(name +"VM_disc.msh");
    }
@@ -528,7 +529,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 1.0;
-    param.lambda = 1.0;
+    param.lambda = 499;
     param.type_law = 1;
 
     //Read Parameters

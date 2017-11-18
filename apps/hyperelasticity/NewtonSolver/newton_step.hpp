@@ -63,18 +63,17 @@ class NewtonRaphson_step_hyperelasticity
    typedef dynamic_vector<scalar_type>         vector_dynamic;
 
 
-   typedef disk::hho::gradient_reconstruction_vector_full_bq<BQData>               gradrec_type;
+   typedef disk::hho::gradient_reconstruction_vector_full_bq<BQData>    gradrec_type;
 
-   typedef disk::hho::displacement_reconstruction_elas_bq<BQData>                deplrec_type;
+   typedef disk::hho::displacement_reconstruction_elas_bq<BQData>       deplrec_type;
 
-   typedef Hyperelasticity::Hyperelasticity<BQData>                         hyperelasticity_type;
+   typedef Hyperelasticity::Hyperelasticity<BQData>                     hyperelasticity_type;
 
-   typedef disk::hho::elas_like_stabilization_PIKF_bq<BQData>                    stab_PIKF_type;
-   typedef disk::hho::elas_like_stabilization_bq<BQData>                         stab_HHO_type;
-   typedef disk::diffusion_like_static_condensation_bq<BQData>              statcond_type;
-   //typedef disk::hho::assembler_vector_bq<BQData>                             assembler_type;
-   typedef disk::hho::assembler_full_vector_bq<BQData>                        assembler_full_type;
-   typedef disk::hho::assembler_substitution_vector_bq<BQData>                assembler_type;
+   typedef disk::hho::elas_like_stabilization_PIKF_bq<BQData>           stab_PIKF_type;
+   typedef disk::hho::elas_like_stabilization_bq<BQData>                stab_HHO_type;
+   typedef disk::diffusion_like_static_condensation_bq<BQData>          statcond_type;
+   typedef disk::hho::assembler_full_substitution_vector_bq<BQData>     assembler_full_type;
+   typedef disk::hho::assembler_substitution_vector_bq<BQData>          assembler_type;
 
    typedef typename assembler_type::sparse_matrix_type       sparse_matrix_type;
    typedef typename assembler_type::vector_type              vector_type;
@@ -124,7 +123,6 @@ public:
    void
    initialize( const std::vector<vector_dynamic>& initial_solution_cells,
                const std::vector<vector_dynamic>& initial_solution_faces,
-               const std::vector<vector_dynamic>& initial_solution_lagr,
                const std::vector<vector_dynamic>& initial_solution)
    {
       m_solution_cells.clear();
@@ -573,7 +571,7 @@ public:
          std::cout.flags( f );
       }
 
-      error = std::min(relative_displ, relative_error);
+      error = std::max(relative_displ, relative_error);
 
       if(error <= epsilon ){
          return true;
@@ -587,7 +585,6 @@ public:
    void
    save_solutions( std::vector<vector_dynamic>& solution_cells,
                   std::vector<vector_dynamic>& solution_faces,
-                  std::vector<vector_dynamic>& solution_lagr,
                   std::vector<vector_dynamic>& solution) const
    {
       solution_cells.clear();
@@ -608,115 +605,112 @@ public:
       std::cout << "Condition number: " << largest_eigenvalue(m_system_matrix) << std::endl;
    }
 
-   // template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
-   // void conditioning_full(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
-   //                        const std::vector<matrix_dynamic>& gradient_precomputed) const
-   // {
-   //    // Assemble the lhs without static condensation
-   //    // Define function
-   //    gradrec_type gradrec(m_bqd);
-   //    stab_HHO_type stab_HHO(m_bqd);
-   //    hyperelasticity_type hyperelasticity(m_bqd);
-   //    deplrec_type deplrec(m_bqd);
-   //    stab_PIKF_type stab_PIKF(m_bqd);
-   //    assembler_full_type assembler_full(m_msh, m_bqd, m_boundary_condition);
-   //
-   //
-   //    size_t cell_i = 0;
-   //
-   //    for (auto& cl : m_msh)
-   //    {
-   //       // Gradient Reconstruction
-   //       matrix_dynamic GT;
-   //       if(m_rp.m_precomputation){
-   //          GT = gradient_precomputed[cell_i];
-   //       }
-   //       else{
-   //          gradrec.compute(m_msh, cl, false);
-   //          GT = gradrec.oper;
-   //       }
-   //
-   //       // Stabilisation
-   //       if(m_rp.m_stab){
-   //          switch (m_rp.m_stab_type) {
-   //             case PIKF:
-   //             {
-   //                stab_PIKF.compute(m_msh, cl);
-   //
-   //                break;
-   //             }
-   //             case HHO:
-   //             {
-   //                deplrec.compute(m_msh, cl);
-   //                stab_HHO.compute(m_msh, cl, deplrec.oper);
-   //
-   //                break;
-   //             }
-   //             case NOTHING:
-   //             {
-   //                break;
-   //             }
-   //             default:
-   //                throw std::invalid_argument("Unknown stabilization");
-   //          }
-   //       }
-   //
-   //       // Begin Assembly
-   //       // Build rhs and lhs
-   //
-   //       // Mechanical Computation
-   //       hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(cell_i), m_elas_param);
-   //       dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
-   //       dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
-   //
-   //       // Stabilisation Contribution
-   //       if(m_rp.m_stab){
-   //          switch (m_rp.m_stab_type) {
-   //             case PIKF:
-   //             {
-   //                assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
-   //                assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
-   //                assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(cell_i)).rows());
-   //                assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(cell_i)).cols());
-   //
-   //                lhs += m_rp.m_beta * stab_PIKF.data;
-   //                rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(cell_i);
-   //                break;
-   //             }
-   //             case HHO:
-   //             {
-   //                assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
-   //                assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
-   //                assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(cell_i)).rows());
-   //                assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(cell_i)).cols());
-   //
-   //                lhs += m_rp.m_beta * stab_HHO.data;
-   //                rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(cell_i);
-   //                break;
-   //             }
-   //             case NOTHING:
-   //             {
-   //                break;
-   //             }
-   //             default:
-   //                throw std::invalid_argument("Unknown stabilization");
-   //          }
-   //       }
-   //
-   //       std::pair<dynamic_matrix<scalar_type>, dynamic_vector<scalar_type>> spc(lhs, rhs);
-   //       assembler_full.assemble(m_msh, cl, spc);
-   //
-   //       cell_i++;
-   //    }
-   //
-   //    // Impose Boundary Conditions
-   //    assembler_full.impose_boundary_conditions_nl(m_msh, bcf, g, m_solution_faces, m_solution_lagr, m_boundary_condition);
-   //
-   //    // Assemble the global system
-   //    sparse_matrix_type     system_full_matrix;
-   //    vector_type            system_rhs_full;
-   //    assembler_full.finalize(system_full_matrix, system_rhs_full);
-   //
-   //    std::cout << "Condition number without static condensation: " << largest_eigenvalue(system_full_matrix) << std::endl;
-   // }
+   template<typename LoadFunction, typename BoundaryConditionFunction, typename NeumannFunction>
+   void conditioning_full(const LoadFunction& lf, const BoundaryConditionFunction& bcf, const NeumannFunction& g,
+                          const std::vector<matrix_dynamic>& gradient_precomputed) const
+   {
+      // Assemble the lhs without static condensation
+      // Define function
+      gradrec_type gradrec(m_bqd);
+      stab_HHO_type stab_HHO(m_bqd);
+      hyperelasticity_type hyperelasticity(m_bqd);
+      deplrec_type deplrec(m_bqd);
+      stab_PIKF_type stab_PIKF(m_bqd);
+      assembler_full_type assembler_full(m_msh, m_bqd, m_boundary_condition);
+
+
+      size_t cell_i = 0;
+
+      for (auto& cl : m_msh)
+      {
+         // Gradient Reconstruction
+         matrix_dynamic GT;
+         if(m_rp.m_precomputation){
+            GT = gradient_precomputed[cell_i];
+         }
+         else{
+            gradrec.compute(m_msh, cl, false);
+            GT = gradrec.oper;
+         }
+
+         // Stabilisation
+         if(m_rp.m_stab){
+            switch (m_rp.m_stab_type) {
+               case PIKF:
+               {
+                  stab_PIKF.compute(m_msh, cl);
+
+                  break;
+               }
+               case HHO:
+               {
+                  deplrec.compute(m_msh, cl);
+                  stab_HHO.compute(m_msh, cl, deplrec.oper);
+
+                  break;
+               }
+               case NOTHING:
+               {
+                  break;
+               }
+               default:
+                  throw std::invalid_argument("Unknown stabilization");
+            }
+         }
+
+         // Begin Assembly
+         // Build rhs and lhs
+
+         // Mechanical Computation
+         hyperelasticity.compute(m_msh, cl, lf, GT, m_solution_data.at(cell_i), m_elas_param);
+         dynamic_matrix<scalar_type> lhs = hyperelasticity.K_int;
+         dynamic_vector<scalar_type> rhs = hyperelasticity.RTF;
+
+         // Stabilisation Contribution
+         if(m_rp.m_stab){
+            switch (m_rp.m_stab_type) {
+               case PIKF:
+               {
+                  assert( hyperelasticity.K_int.rows() == stab_PIKF.data.rows());
+                  assert( hyperelasticity.K_int.cols() == stab_PIKF.data.cols());
+                  assert( hyperelasticity.RTF.rows() == (stab_PIKF.data * m_solution_data.at(cell_i)).rows());
+                  assert( hyperelasticity.RTF.cols() == (stab_PIKF.data * m_solution_data.at(cell_i)).cols());
+
+                  lhs += m_rp.m_beta * stab_PIKF.data;
+                  rhs -= m_rp.m_beta * stab_PIKF.data * m_solution_data.at(cell_i);
+                  break;
+               }
+               case HHO:
+               {
+                  assert( hyperelasticity.K_int.rows() == stab_HHO.data.rows());
+                  assert( hyperelasticity.K_int.cols() == stab_HHO.data.cols());
+                  assert( hyperelasticity.RTF.rows() == (stab_HHO.data * m_solution_data.at(cell_i)).rows());
+                  assert( hyperelasticity.RTF.cols() == (stab_HHO.data * m_solution_data.at(cell_i)).cols());
+
+                  lhs += m_rp.m_beta * stab_HHO.data;
+                  rhs -= m_rp.m_beta * stab_HHO.data * m_solution_data.at(cell_i);
+                  break;
+               }
+               case NOTHING:
+               {
+                  break;
+               }
+               default:
+                  throw std::invalid_argument("Unknown stabilization");
+            }
+         }
+
+         std::pair<dynamic_matrix<scalar_type>, dynamic_vector<scalar_type>> spc(lhs, rhs);
+         assembler_full.assemble_nl(m_msh, cl, spc, bcf, m_boundary_condition, m_solution_faces);
+
+         cell_i++;
+      }
+
+      // Assemble the global system
+      sparse_matrix_type     system_full_matrix;
+      vector_type            system_rhs_full;
+      assembler_full.finalize(system_full_matrix, system_rhs_full);
+
+      std::cout << "Condition number without static condensation: " << largest_eigenvalue(system_full_matrix) << std::endl;
+   }
 };

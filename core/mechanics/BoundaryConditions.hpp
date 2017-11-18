@@ -84,8 +84,8 @@ private:
             throw std::invalid_argument("This is a bug: face not found");
 
          const auto face_id = eid.second;
-         m_faces_is_dirichlet[face_id] = true;
-         m_type_boundary_dirichlet[face_id] = DirichletType::DIRICHLET;
+         m_faces_is_dirichlet(face_id) = true;
+         m_type_boundary_dirichlet(face_id) = DirichletType::DIRICHLET;
       }
    }
 
@@ -118,8 +118,8 @@ private:
                   m_faces_dirichlet[face] = std::make_pair(false, elem.boundary_type);
                   m_nb_faces_dirichlet--;
                   m_nb_faces_neumann++;
-                  m_faces_is_dirichlet[face_id] = false;
-                  m_faces_is_neumann[face_id] = true;
+                  m_faces_is_dirichlet(face_id) = false;
+                  m_faces_is_neumann(face_id) = true;
                   break;
                }
             }
@@ -163,7 +163,7 @@ private:
                         m_lagranges_info.push_back(info);
                         m_nb_lag += DIM;
                         m_faces_dirichlet[face].second = CLAMPED;
-                        m_type_boundary_dirichlet[face_id] = CLAMPED;
+                        m_type_boundary_dirichlet(face_id) = CLAMPED;
                         break;
                         // case DX:
                         // dirichlet_standart = false;
@@ -293,12 +293,12 @@ public:
 
    bool is_dirichlet_face(const size_t face_i) const
    {
-      return m_faces_is_dirichlet[face_i];
+      return m_faces_is_dirichlet(face_i);
    }
 
    bool is_neumann_face(const size_t face_i) const
    {
-      return m_faces_is_neumann[face_i];
+      return m_faces_is_neumann(face_i);
    }
 
    size_t boundary_type(const size_t face_i) const
@@ -308,7 +308,7 @@ public:
 
    size_t dirichlet_boundary_type(const size_t face_i) const
    {
-      return m_type_boundary_dirichlet[face_i];
+      return m_type_boundary_dirichlet(face_i);
    }
 
    size_t nb_lag_conditions_faceI(const size_t face_i) const
