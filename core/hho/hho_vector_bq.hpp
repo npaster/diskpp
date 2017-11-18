@@ -190,89 +190,99 @@ namespace hho{
          compute_gphi_n(const std::vector<static_matrix<scalar_type, DIM, DIM> > gphi,
                         const static_vector<scalar_type, DIM> n) const
          {
-            std::vector<static_vector<scalar_type, DIM> > ret;
-
-            ret.reserve(gphi.size());
-
-            for(size_t i = 0; i < gphi.size(); i++)
-            {
-               ret.push_back(mm_prod(gphi[i], n));
-            }
-
-            return ret;
-         }
-
-         template<int DIM>
-         matrix_type
-         compute_MG(const std::vector<static_matrix<scalar_type, DIM, DIM> > gphi) const
-         {
             const size_t grad_basis_size = gphi.size();
-            //const size_t grad_degree = m_bqd.grad_degree();
-            //const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
-            //const size_t DIM2 = DIM * DIM;
+            const size_t DIM2 = DIM * DIM;
 
-            matrix_type MG = matrix_type::Zero(grad_basis_size, grad_basis_size);
+            std::vector<static_vector<scalar_type, DIM> > gphi_n;
 
-//             // poly classique
-//
-//             size_t col = 0;
-//             for(size_t j = 0; j < poly_space; j += DIM2 ){
-//                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
-//                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-//                      for(size_t i = col; i < poly_space; i += DIM2){
-//                         MG(i,col) = gphi[i](l,k) * gphi[col](l,k);
-//                      }
-//                      col++;
-//                   }
-//                }
-//             }
+            static_vector<scalar_type, DIM> vzero = static_vector<scalar_type, DIM>::Zero();
 
-            // RT
-            for(std::size_t j = 0; j < grad_basis_size; j ++) {
-               for(std::size_t i = j; i < grad_basis_size; i ++) {
-                  MG(i,j) = mm_prod(gphi[i], gphi[j]);
+            gphi_n.reserve(gphi.size());
+
+            for(size_t i = 0; i < grad_basis_size; i += DIM2 ){
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  scalar_type val = gphi[i](0,0) * n(k);
+                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                     auto gn(vzero);
+                     gn(l) = val;
+                     gphi_n.push_back(gn);
+                  }
                }
             }
 
-            return MG;
+//             for(size_t i = 0; i < gphi.size(); i++)
+//             {
+//                gphi_n.push_back(mm_prod(gphi[i], n));
+//             }
+
+            return gphi_n;
+         }
+
+         template<int DIM>
+         void
+         compute_MG(matrix_type& MG, const std::vector<static_matrix<scalar_type, DIM, DIM> > gphi, const scalar_type weight) const
+         {
+            const size_t grad_basis_size = gphi.size();
+            const size_t grad_degree =  m_bqd.grad_degree();
+            const size_t poly_space = grad_basis_size;// DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+            const size_t DIM2 = DIM * DIM;
+
+//             // poly classique
+//
+            size_t col = 0;
+            for(size_t j = 0; j < poly_space; j += DIM2 ){
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                     for(size_t i = col; i < poly_space; i += DIM2){
+                        MG(i,col) += weight * gphi[i](l,k) * gphi[col](l,k);
+                     }
+                     col++;
+                  }
+               }
+            }
+
+            // RT
+//             for(std::size_t j = 0; j < grad_basis_size; j ++) {
+//                for(std::size_t i = j; i < grad_basis_size; i ++) {
+//                   MG(i,j) = mm_prod(gphi[i], gphi[j]);
+//                }
+//             }
+
          }
 
 
          template<int DIM>
-         matrix_type
-         compute_BG(const std::vector<static_matrix<scalar_type, DIM, DIM> > gphi,
-                    const std::vector<static_matrix<scalar_type, DIM, DIM> > cdphi) const
+         void
+         compute_BG(matrix_type& BG, const std::vector<static_matrix<scalar_type, DIM, DIM> > gphi,
+                    const std::vector<static_matrix<scalar_type, DIM, DIM> > cdphi, const scalar_type& weight) const
          {
             const size_t grad_basis_size = gphi.size();
             const size_t cell_basis_size = cdphi.size();
-            //const size_t grad_degree = m_bqd.grad_degree();
-            //const size_t poly_space = DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
-            //const size_t DIM2 = DIM * DIM;
+            const size_t grad_degree = m_bqd.grad_degree();
+            const size_t poly_space = grad_basis_size;//DIM * DIM * binomial(grad_degree-1 + DIM, grad_degree-1);
+            const size_t DIM2 = DIM * DIM;
 
-            matrix_type BG = matrix_type::Zero(grad_basis_size, cell_basis_size);
 
 //             // poly classique
 //
-//             size_t row = 0;
-//             for(size_t i = 0; i < poly_space; i += DIM2 ){
-//                for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
-//                   for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
-//                      for(size_t j = l; j < cell_basis_size; j += DIM){
-//                         BG(row,j) = gphi[row](l,k) * cdphi[j](l,k);
-//                      }
-//                      row++;
-//                   }
-//                }
-//             }
-
-            // RT
-            for(std::size_t i = 0; i < grad_basis_size; i ++) {
-               for(std::size_t j = 0; j < cell_basis_size; j ++) {
-                  BG(i,j) = mm_prod(gphi[i], cdphi[j]);
+            size_t row = 0;
+            for(size_t i = 0; i < poly_space; i += DIM2 ){
+               for(size_t k = 0; k < DIM; k++ ){//depend de l'ordre des bases
+                  for(size_t l = 0; l < DIM; l++ ){//depend de l'ordre des bases
+                     for(size_t j = l; j < cell_basis_size; j += DIM){
+                        BG(row,j) += weight * gphi[row](l,k) * cdphi[j](l,k);
+                     }
+                     row++;
+                  }
                }
             }
 
-            return BG;
+            // RT
+//             for(std::size_t i = 0; i < grad_basis_size; i ++) {
+//                for(std::size_t j = 0; j < cell_basis_size; j ++) {
+//                   BG(i,j) = mm_prod(gphi[i], cdphi[j]);
+//                }
+//             }
          }
 
       public:
@@ -318,7 +328,7 @@ namespace hho{
 
                tc.tic();
 
-               MG += qp.weight() * compute_MG(gphi);
+               compute_MG(MG, gphi, qp.weight());
             }
 
             const auto grad_cell_quadpoints = m_bqd.grad_cell_quadrature.integrate(msh, cl);
@@ -330,7 +340,7 @@ namespace hho{
                const auto dphi = m_bqd.cell_basis.eval_gradients(msh, cl, qp.point());
                assert(cell_basis_size == dphi.size());
 
-               BG.block(0,0, grad_basis_size, cell_basis_size) += qp.weight() * compute_BG(gphi, dphi);
+               compute_BG(BG, gphi, dphi, qp.weight());
 
                tc.toc();
                t_cons += tc.to_double();
@@ -614,7 +624,7 @@ namespace hho{
                }
             }
             matrix_type BRF   = matrix_type::Zero(face_basis_size, dsr.total_size());
-            
+
             const matrix_type I_F = matrix_type::Identity(face_basis_size, face_basis_size);
             const auto block_offset = current_face_range.min();
             BRF.block(0, block_offset, face_basis_size, face_basis_size) = I_F;
