@@ -292,6 +292,7 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp
       catch(const std::invalid_argument& ia){
          std::cerr << "Invalid argument: " << ia.what() << " in compute_l2_error_PK1" << std::endl;
       }
+      nl.test_pt(solution);
    }
 
    if(nl.verbose()){
@@ -539,10 +540,11 @@ void test_hexahedra_fvca6(const ParamRun<T>& rp, const ElasticityParameters& ela
 template< typename T>
 void test_tetrahedra_netgen(const ParamRun<T>& rp, const ElasticityParameters& elas_param)
 {
-   size_t runs = 4;
+   size_t runs = 5;
 
    std::vector<std::string> paths;
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet0.mesh");
+   paths.push_back("../diskpp/meshes/3D_tetras/netgen/cube336.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet1.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet2.mesh");
    paths.push_back("../diskpp/meshes/3D_tetras/netgen/fvca6_tet3.mesh");
