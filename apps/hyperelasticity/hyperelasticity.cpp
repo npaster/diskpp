@@ -138,7 +138,7 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
    };
 
    BoundaryType N1;
-   N1.id = 4;//4,11
+   N1.id = 3;//4,11 (3 ou 4 anneau)
    N1.boundary_type = FREE;
 
 //
@@ -215,19 +215,29 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>& msh, ParamRun<T>& rp, cons
          std::cerr << "Invalid argument: " << ia.what() << " in compute_l2_error_PK1" << std::endl;
       }
         std::cout << "Post-processing: " << std::endl;
-        nl.compute_discontinuous_displacement("depl_disc2D.msh");
-        nl.compute_continuous_displacement("depl_cont2D.msh");
-        nl.compute_deformed("def2D.msh");
-        nl.compute_J_GP("J_GP.msh");
-        nl.compute_continuous_J("J_cont.msh");
-        nl.compute_discontinuous_J("J_disc.msh");
+        // nl.compute_discontinuous_displacement("depl_disc2D.msh");
+        // nl.compute_continuous_displacement("depl_cont2D.msh");
+        // nl.compute_deformed("def2D.msh");
+        // nl.compute_deformed_CONT("def2D_cont.msh");
+        // nl.compute_J_GP("J_GP.msh");
+        // nl.compute_continuous_J("J_cont.msh");
+        // nl.compute_discontinuous_J("J_disc.msh");
         try {
-            nl.compute_discontinuous_VMIS("VM_disc.msh");
-            nl.compute_continuous_VMIS("VM_cont.msh");
-            nl.compute_VMIS_GP("VM_GP.msh");
-            nl.compute_l2error_VMIS_GP("VM_GP_error.msh", gradient);
-            nl.plot_analytical_VMIS("VM_true.msh", gradient);
+            // nl.compute_discontinuous_VMIS("VM_disc.msh");
+            // nl.compute_continuous_VMIS("VM_cont.msh");
+            // nl.compute_VMIS_GP("VM_GP.msh");
+            // nl.compute_l2error_VMIS_GP("VM_GP_error.msh", gradient);
+            // nl.plot_analytical_VMIS("VM_true.msh", gradient);
             nl.plot_annulus();
+            // nl.plot_annulus_nodes();
+            // nl.plot_annulus_inco_nodes();
+            // nl.plot_annulus_bary();
+            // nl.compute_discontinuous_Prr("Prr.msh", "Prr");
+            // nl.compute_discontinuous_Prr("Poo.msh", "Poo");
+            // nl.compute_PK1_GP("Prr_GP.msh", "Prr");
+            // nl.compute_PK1_GP("Poo_GP.msh", "Poo");
+            // nl.compute_PK1_GP("Pro_GP.msh", "Pro");
+            // nl.compute_PK1_GP("Por_GP.msh", "Por");
         }
         catch(const std::invalid_argument& ia){
            std::cerr << "Invalid argument: " << ia.what() << " in VMIS_cont" << std::endl;
@@ -515,7 +525,7 @@ int main(int argc, char **argv)
     ElasticityParameters param = ElasticityParameters();
 
     param.mu = 0.333;
-    param.lambda = 1;
+    param.lambda = 16.6644;
     param.type_law = 1;
 
     //Read Parameters
