@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <vector>
 #include <sstream>
+#include <iomanip>
 
 #include "config.h"
 
@@ -369,6 +370,7 @@ public:
                   this->compute_discontinuous_displacement(name + "DEPL_disc.msh");
                   this->compute_continuous_displacement(name +"DEPL_cont.msh");
                   this->compute_deformed(name +"DEF.msh");
+                  this->compute_deformed_CONT(name +"DEF_CONT.msh");
                   this->compute_J_GP(name +"J_GP.msh");
                   this->compute_continuous_J(name +"J_cont.msh");
                   this->compute_discontinuous_J(name +"J_disc.msh");
@@ -409,7 +411,7 @@ public:
             }
             //traction discrete
             //const auto traction = this->compute_traction_RT(1);
-            tab_traction.push_back({current_time, this->compute_traction_Pk(3)});
+            tab_traction.push_back({current_time, this->compute_traction_Pk(44)}); //21 cyl /3 cav / 44 bloc
          }
       }
 
@@ -1826,12 +1828,13 @@ public:
       }
 
       output << "time" << "\t" << "traction" << std::endl;
+      std::cout << "time" << "\t" << "traction" << std::endl;
 
       for(size_t i = 0; i < resu.size(); i++)
       {
          output << "(" << (resu[i])[0] << " , " << (resu[i])[1] << ")";
+         std::cout << "(" << (resu[i])[0] << " , " << (resu[i])[1] << ")" << std::endl;
       }
-
 
       output.close();
    }
@@ -1981,16 +1984,36 @@ public:
    }
 
 
-   template<typename U = void, typename Solution>
-   typename std::enable_if<DIM == 3, U>::type
-   test_pt(const Solution& sol) const
+   template<typename Solution, typename Gradient>
+   void
+   test_pt(const Solution& sol, const Gradient& grad) const
    {
+         std::ios::fmtflags f( std::cout.flags() );
+      std::cout.precision(8);
+      std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
       point_type pt;
       pt.x() = 0.5; pt.y() = 0.5; pt.z() = 0.5;
 
-      std::array<scalar_type, 3> depl = {double{0.0}, double{0.0}, double{0.0}};
+ gradrec_type gradrec(m_bqd);
+       projector_type proj(m_bqd);
+      const auto bqd = m_bqd;
+      const auto msh = m_msh;
+      const auto elas_param = m_elas_param;
+      static_vector<scalar_type, 3> depl = static_vector<scalar_type, 3>::Zero();
 
       std::cout << "sol: " << sol(pt) << std::endl;
+      std::cout << "sol_norm: " << sol(pt).norm() << std::endl;
+
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
+      const auto GT1 = grad(pt);
+      const auto FT = disk::mechanics::convertGtoF(GT1);
+
+      const auto PK1 = law.compute_PK1(FT);
+std::cout << "G: " << GT1 << std::endl;
+std::cout << "F: " << FT << std::endl;
+      std::cout << "PK1: " << PK1 << std::endl;
+      std::cout << "PK1_norm: " << PK1.norm() << std::endl;
 
       size_t cell_i = 0;
       for (auto& cl : m_msh)
@@ -2003,13 +2026,156 @@ public:
             // plot magnitude at node
             for (size_t k = 0; k < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); k += DIM)
                for(size_t j=0; j < DIM; j++)
-                  depl[j] += phi.at(k+j)(j) * x(k+j); // a voir
+                  depl(j) += phi.at(k+j)(j) * x(k+j); // a voir
 
-            std::cout << "depl: (" << depl[0] << " , " << depl[1] << " , " << depl[2] <<
-            " )" << std::endl;
+            std::cout << "depl: " << depl << std::endl;
+            std::cout << "depl_norm: " << depl.norm() << std::endl;
+
+matrix_dynamic GT;
+         if(m_rp.m_precomputation){
+            GT = m_gradient_precomputed[cell_i];
+         }
+         else{
+            gradrec.compute(m_msh, cl, false);
+            GT = gradrec.oper;
+         }
+         const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
+      auto sigma_computed = [msh, cl, GT_uTF, elas_param, bqd](const auto& pt) -> auto {
+            const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+            //const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+            const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+            return law.compute_PK1(FT_iqn);
+         };
+
+         const auto proj_PK1_coeff = proj.compute_cell_grad(msh, cl, sigma_computed);
+
+auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
+            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+
+            const auto PK1c = disk::hho::eval_gradient(proj_PK1_coeff, gphi);
+            std::cout << "Gc: " << GT_iqn << std::endl;
+std::cout << "Fc: " << FT_iqn << std::endl;
+            std::cout << "PK1c: " << PK1c << std::endl;
+            std::cout << "PK1c_norm: " << PK1c.norm() << std::endl;
+
+            std::cout << "error depl: " << (depl-sol(pt)).norm() << std::endl;
+            std::cout << "error PK1: " << (PK1-PK1c).norm() << std::endl;
             break;
          }
          cell_i++;
       }
    }
+
+void
+plot_annulus()
+{
+      gradrec_type gradrec(m_bqd);
+      const NeoHookeanLaw<scalar_type>  law(m_elas_param.mu, m_elas_param.lambda, m_elas_param.type_law);
+
+      std::ofstream output;
+      output.open("ur.dat", std::ofstream::out | std::ofstream::trunc);
+
+      if (!output.is_open())
+      {
+         std::cerr << "Unable to open file " << "ur.dat" << std::endl;
+      }
+
+      std::ofstream output2;
+      output2.open("Prr.dat", std::ofstream::out | std::ofstream::trunc);
+
+      if (!output2.is_open())
+      {
+         std::cerr << "Unable to open file " << "Prr.dat" << std::endl;
+      }
+
+      std::ofstream output3;
+      output3.open("Poo.dat", std::ofstream::out | std::ofstream::trunc);
+
+      if (!output3.is_open())
+      {
+         std::cerr << "Unable to open file " << "Poo.dat" << std::endl;
+      }
+
+      output  <<"#R" << "\t" << "ur" << std::endl;
+      output2  << "#R" << "\t" << "PK1rr" << std::endl;
+      output3  << "#R" << "\t" << "PK1oo" << std::endl;
+
+      size_t cell_i = 0;
+      for (auto& cl : m_msh)
+      {
+            matrix_dynamic GT;
+         if(m_rp.m_precomputation){
+            GT = m_gradient_precomputed[cell_i];
+         }
+         else{
+            gradrec.compute(m_msh, cl, false);
+            GT = gradrec.oper;
+         }
+         const vector_dynamic GT_uTF = GT * m_solution_data.at(cell_i);
+
+         const auto grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
+         for (auto& qp : grad_quadpoints)
+         {
+            if(qp.point().x() > 0 && qp.point().y() > 0){
+                  const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
+                  const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+                  const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+                  const auto PK1 = law.compute_PK1(FT_iqn);
+
+                  static_vector<scalar_type, DIM> er = static_vector<scalar_type, DIM>::Zero();
+                  er(0) = qp.point().x(); er(1) = qp.point().y();
+                  if(DIM==3) er(2) = 0;
+                  const auto R = er.norm();
+                  er /= R;
+                  const auto PK1rr = er.dot(PK1*er);
+                  output2 <<  R << "\t" << PK1rr << std::endl;
+
+                  static_vector<scalar_type, DIM> e0 = static_vector<scalar_type, DIM>::Zero();
+                  e0(0) = -er(1);
+                  e0(1) = er(0);
+                  if(DIM==3) e0(2) = 0.0;
+                  const auto PK1oo = e0.dot(PK1*e0);
+                  output3  << R << "\t" << PK1oo << std::endl;
+            }
+            break;
+         }
+
+         const vector_dynamic x = m_solution_cells.at(cell_i);
+         const auto qps = m_bqd.cell_quadrature.integrate(m_msh, cl);
+         for (auto& qp : qps)
+         {
+               if(qp.point().x() > 0 && qp.point().y() > 0){
+                  const auto phi = m_bqd.cell_basis.eval_functions(m_msh, cl, qp.point());
+                              // Compute displacement
+                  vector_dynamic depl;
+                  depl.resize(DIM);
+                  for (size_t i = 0; i < m_bqd.cell_basis.range(0, m_bqd.cell_degree()).size(); i += DIM){
+                  for(size_t j = 0; j < DIM; j++){
+                        depl(j) += phi.at(i+j)(j) * x(i+j);
+                  }
+                  }
+
+                  static_vector<scalar_type, DIM> er = static_vector<scalar_type, DIM>::Zero();
+                  er(0) = qp.point().x(); er(1) = qp.point().y();
+                  if(DIM==3) er(2) = 0.0;
+                  const auto R = er.norm();
+                  er /= R;
+                  const auto ur = depl.dot(er);
+                  output <<  R << "\t" << ur << std::endl;
+               }
+
+            break;
+         }
+
+            cell_i++;
+      }
+
+       output.close();
+        output2.close();
+        output3.close();
+}
+
 };

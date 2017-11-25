@@ -326,8 +326,8 @@ public:
       const auto bqd = m_bqd;
       const vector_type GT_uTF = GT * uTF;
       auto PK1 = [msh, cl, GT_uTF, elas_param, bqd](const point_type& pt) -> auto {
-         //const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
-         const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
+         //const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
          const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
          const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
          const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
