@@ -26,70 +26,36 @@
 
 namespace disk {
 
-   namespace hho{
-
-      template<typename T, int DIM>
-      static_matrix<T,DIM, DIM>
-      eval_gradient(const dynamic_vector<T>& gradrec_coeff,
-                    const std::vector<static_matrix<T,DIM, DIM> >& base_grad)
-      {
-         static_matrix<T,DIM, DIM> ret = static_matrix<T,DIM, DIM>::Zero();
-         assert(gradrec_coeff.size() == base_grad.size());
-
-         for(size_t i = 0; i < base_grad.size(); i++){
-            ret += gradrec_coeff(i) * base_grad[i];
-         }
-
-         return ret;
-      }
-
-      template<typename T, int DIM>
-      static_vector<T,DIM>
-      eval_gradient(const dynamic_vector<T>& gradrec_coeff,
-                    const std::vector<static_vector<T,DIM> >& base_grad)
-      {
-         static_vector<T,DIM> ret = static_vector<T,DIM>::Zero();
-         assert(gradrec_coeff.size() == base_grad.size());
-
-         for(size_t i = 0; i < base_grad.size(); i++){
-            ret += gradrec_coeff(i) * base_grad[i];
-         }
-
-         return ret;
-      }
+namespace hho {
 
 
+template<typename T, int DIM>
+static_matrix<T, DIM, DIM>
+eval(const dynamic_vector<T>& tab_coeff, const std::vector<static_matrix<T, DIM, DIM>>& base)
+{
+   static_matrix<T, DIM, DIM> ret = static_matrix<T, DIM, DIM>::Zero();
+   assert(tab_coeff.size() == base.size());
 
-      template<typename T, int DIM>
-      static_matrix<T,DIM, DIM>
-      eval(const dynamic_vector<T>& tab_coeff,
-            const std::vector<static_matrix<T,DIM, DIM> >& base)
-      {
-         static_matrix<T,DIM, DIM> ret = static_matrix<T,DIM, DIM>::Zero();
-         assert(tab_coeff.size() == base.size());
+   for (size_t i = 0; i < base.size(); i++) {
+      ret += tab_coeff(i) * base[i];
+   }
 
-         for(size_t i = 0; i < base.size(); i++){
-            ret += tab_coeff(i) * base[i];
-         }
+   return ret;
+}
 
-         return ret;
-      }
+template<typename T, int DIM>
+static_vector<T, DIM>
+eval(const dynamic_vector<T>& tab_coeff, const std::vector<static_vector<T, DIM>>& base)
+{
+   static_vector<T, DIM> ret = static_vector<T, DIM>::Zero();
+   assert(tab_coeff.size() == base.size());
 
-      template<typename T, int DIM>
-      static_vector<T,DIM>
-      eval(const dynamic_vector<T>& tab_coeff,
-                    const std::vector<static_vector<T,DIM> >& base)
-      {
-         static_vector<T,DIM> ret = static_vector<T,DIM>::Zero();
-         assert(tab_coeff.size() == base.size());
+   for (size_t i = 0; i < base.size(); i++) {
+      ret += tab_coeff(i) * base[i];
+   }
 
-         for(size_t i = 0; i < base.size(); i++){
-            ret += tab_coeff(i) * base[i];
-         }
-
-         return ret;
-      }
-
+   return ret;
+}
 
 /*
       //compute mass matrix
@@ -129,8 +95,8 @@ namespace disk {
                const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
                for (auto& qp : cell_quadpoints)
                {
-               const matrix_type cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
-                  assert(cphi.rows() == num_cell_dofs);
+               const matrix_type cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0,
+   cell_degree); assert(cphi.rows() == num_cell_dofs);
 
                   mass += qp.weight() * cphi * cphi.transpose();
                }
@@ -148,8 +114,8 @@ namespace disk {
                const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
                for (auto& qp : face_quadpoints)
                {
-                  const matrix_type fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
-                  assert(fphi.rows() == num_face_dofs);
+                  const matrix_type fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0,
+   face_degree); assert(fphi.rows() == num_face_dofs);
 
                   mass += qp.weight() * fphi * fphi.transpose();
                }
@@ -233,14 +199,16 @@ namespace disk {
       //cell mass matrix
       template<typename BQData>
       dynamic_matrix<typename BQData::mesh_type::scalar_type>
-      mass_matrix(const typename BQData::mesh_type& msh, const typename BQData::mesh_type::cell_type& cl, const BQData& bqd)
-      { return priv::mass_matrix_F<BQData, typename BQData::cell_basis_type>::impl(msh, cl, bqd); }
+      mass_matrix(const typename BQData::mesh_type& msh, const typename
+   BQData::mesh_type::cell_type& cl, const BQData& bqd) { return priv::mass_matrix_F<BQData,
+   typename BQData::cell_basis_type>::impl(msh, cl, bqd); }
 
       //face mass matrix
       template<typename BQData>
       dynamic_matrix<typename BQData::mesh_type::scalar_type>
-      mass_matrix(const typename BQData::mesh_type& msh, const typename BQData::mesh_type::face_type& fc, const BQData& bqd)
-      { return priv::mass_matrix_F<BQData, typename BQData::cell_basis_type>::impl(msh, fc, bqd); }*/
+      mass_matrix(const typename BQData::mesh_type& msh, const typename
+   BQData::mesh_type::face_type& fc, const BQData& bqd) { return priv::mass_matrix_F<BQData,
+   typename BQData::cell_basis_type>::impl(msh, fc, bqd); }*/
 
-   } // hho namespace
+} // hho namespace
 } // disk namespace

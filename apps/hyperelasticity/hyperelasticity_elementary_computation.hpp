@@ -236,7 +236,7 @@ namespace Hyperelasticity {
             assert(grad_basis_size == gphi.size());
 
             // Compute local gradient and norm
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             //Compute bahavior
@@ -329,7 +329,7 @@ public:
          const NeoHookeanLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
          //const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda, elas_param.type_law);
          const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
-         const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+         const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
          const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
          return law.compute_PK1(FT_iqn);
       };
@@ -365,7 +365,7 @@ public:
       const size_t grad_basis_size = (m_bqd.grad_basis.range(0, grad_degree)).size();
 
       const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, pt);
-      const auto PK1 = disk::hho::eval_gradient(m_proj_PK1_coeff, gphi);
+      const auto PK1 = disk::hho::eval(m_proj_PK1_coeff, gphi);
 
       const auto n = normal(msh, cl, fc);
 
@@ -385,7 +385,7 @@ public:
       const size_t face_basis_size = howmany_dofs(m_bqd.face_basis);
 
       const auto gphi = m_bqd.grad_basis.eval_functions(msh, cl, pt);
-      const auto PK1 = disk::hho::eval_gradient(m_proj_PK1_coeff, gphi);
+      const auto PK1 = disk::hho::eval(m_proj_PK1_coeff, gphi);
 
       const auto fcs = faces(msh, cl);
       const auto fc = fcs[face_i];
@@ -416,7 +416,7 @@ public:
          const size_t grad_basis_size = (bqd.grad_basis.range(0, grad_degree)).size();
 
          const auto gphi = bqd.grad_basis.eval_functions(msh, cl, pt);
-         const auto PK1 = disk::hho::eval_gradient(proj_P, gphi);
+         const auto PK1 = disk::hho::eval(proj_P, gphi);
 
          return disk::mm_prod(PK1, n);
       };

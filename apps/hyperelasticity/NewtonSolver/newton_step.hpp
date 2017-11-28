@@ -488,7 +488,7 @@ public:
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
 
             // Compute local gradient and norm
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const scalar_type energy = law.compute_energy(FT_iqn);

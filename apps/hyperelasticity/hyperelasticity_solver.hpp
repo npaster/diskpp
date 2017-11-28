@@ -533,11 +533,11 @@ class hyperelasticity_solver
 
          for (auto& qp : grad_quadpoints) {
             const auto        gphi        = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto        GT_iqn      = disk::hho::eval_gradient(GTu, gphi);
+            const auto        GT_iqn      = disk::hho::eval(GTu, gphi);
             const auto        FT_iqn      = disk::mechanics::convertGtoF(GT_iqn);
             const scalar_type energy_comp = law.compute_energy(FT_iqn);
 
-            const auto        GT_true     = disk::hho::eval_gradient(true_dof, gphi);
+            const auto        GT_true     = disk::hho::eval(true_dof, gphi);
             const auto        FT_true     = disk::mechanics::convertGtoF(GT_true);
             const scalar_type energy_true = law.compute_energy(FT_true);
 
@@ -577,11 +577,11 @@ class hyperelasticity_solver
 
          for (auto& qp : grad_quadpoints) {
             const auto gphi     = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn   = disk::hho::eval_gradient(GTu, gphi);
+            const auto GT_iqn   = disk::hho::eval(GTu, gphi);
             const auto FT_iqn   = disk::mechanics::convertGtoF(GT_iqn);
             const auto PK1_comp = law.compute_PK1(FT_iqn);
 
-            const auto GT_true  = disk::hho::eval_gradient(true_dof, gphi);
+            const auto GT_true  = disk::hho::eval(true_dof, gphi);
             const auto FT_true  = disk::mechanics::convertGtoF(GT_true);
             const auto PK1_true = law.compute_PK1(FT_true);
 
@@ -928,7 +928,7 @@ class hyperelasticity_solver
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
@@ -987,7 +987,7 @@ class hyperelasticity_solver
          // Loop on nodes
          for (auto& qp : qps) {
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
@@ -1070,7 +1070,7 @@ class hyperelasticity_solver
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
@@ -1152,7 +1152,7 @@ class hyperelasticity_solver
             // const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda,
             // elas_param.type_law);
             const auto gphi   = bqd.grad_basis.eval_functions(msh, cl, pt);
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto PK1    = law.compute_PK1(FT_iqn);
             return disk::mechanics::convertPK1toCauchy(PK1, FT_iqn);
@@ -1167,7 +1167,7 @@ class hyperelasticity_solver
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto sigma = disk::hho::eval_gradient(proj_Cauchy_coeff, gphi);
+            const auto sigma = disk::hho::eval(proj_Cauchy_coeff, gphi);
 
             scalar_type vm(0.0);
 
@@ -1238,7 +1238,7 @@ class hyperelasticity_solver
          // Loop on nodes
          for (auto& qp : qps) {
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             const auto PK1 = law.compute_PK1(FT_iqn);
@@ -1307,7 +1307,7 @@ class hyperelasticity_solver
          // Loop on nodes
          for (auto& qp : qps) {
             const auto gphi    = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn  = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn  = disk::hho::eval(GT_uTF, gphi);
             const auto GT_true = grad(qp.point());
             const auto FT_iqn  = disk::mechanics::convertGtoF(GT_iqn);
             const auto FT_true = disk::mechanics::convertGtoF(GT_true);
@@ -1453,7 +1453,7 @@ class hyperelasticity_solver
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn  = FT_iqn.determinant();
 
@@ -1514,7 +1514,7 @@ class hyperelasticity_solver
 
             const auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn  = FT_iqn.determinant();
 
@@ -1574,7 +1574,7 @@ class hyperelasticity_solver
          // Loop on nodes
          for (auto& qp : qps) {
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto J_iqn  = FT_iqn.determinant();
 
@@ -1627,7 +1627,7 @@ class hyperelasticity_solver
          // Loop on nodes
          for (auto& qp : qps) {
             const auto gphi    = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn  = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn  = disk::hho::eval(GT_uTF, gphi);
             const auto GT_true = grad(qp.point());
             const auto FT_iqn  = disk::mechanics::convertGtoF(GT_iqn);
             const auto FT_true = disk::mechanics::convertGtoF(GT_true);
@@ -1722,7 +1722,7 @@ class hyperelasticity_solver
 
             auto gphi = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
 
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
             auto PK1 = law.compute_PK1(FT_iqn);
@@ -1947,7 +1947,7 @@ class hyperelasticity_solver
 
             // compute grad_quadpoints
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-            const auto GT_iqn = disk::hho::eval_gradient(GTu, gphi);
+            const auto GT_iqn = disk::hho::eval(GTu, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             // compute er and eo
             vector_dynamic er;
@@ -2108,7 +2108,7 @@ class hyperelasticity_solver
                // const CavitationLaw<scalar_type>  law(elas_param.mu, elas_param.lambda,
                // elas_param.type_law);
                const auto gphi   = bqd.grad_basis.eval_functions(msh, cl, pt);
-               const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+               const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
                const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
                return law.compute_PK1(FT_iqn);
             };
@@ -2116,10 +2116,10 @@ class hyperelasticity_solver
             const auto proj_PK1_coeff = proj.compute_cell_grad(msh, cl, sigma_computed);
 
             auto       gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
 
-            const auto PK1c = disk::hho::eval_gradient(proj_PK1_coeff, gphi);
+            const auto PK1c = disk::hho::eval(proj_PK1_coeff, gphi);
             std::cout << "Gc: " << GT_iqn << std::endl;
             std::cout << "Fc: " << FT_iqn << std::endl;
             std::cout << "PK1c: " << PK1c << std::endl;
@@ -2167,7 +2167,7 @@ class hyperelasticity_solver
             const auto pt        = storage->points[point_ids];
 
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto PK1    = law.compute_PK1(FT_iqn);
 
@@ -2292,7 +2292,7 @@ class hyperelasticity_solver
             const auto pt        = storage->points[point_ids];
 
             const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, pt);
-            const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+            const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
             const auto PK1    = law.compute_PK1_inco(FT_iqn);
 
@@ -2438,7 +2438,7 @@ class hyperelasticity_solver
          for (auto& qp : grad_quadpoints) {
             if (qp.point().x() > 0 && qp.point().y() > 0) {
                const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-               const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+               const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
                const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
                const auto PK1    = law.compute_PK1(FT_iqn);
 
@@ -2542,7 +2542,7 @@ class hyperelasticity_solver
              const auto           grad_quadpoints = m_bqd.grad_quadrature.integrate(m_msh, cl);
              for (auto& qp : grad_quadpoints) {
                 const auto gphi   = m_bqd.grad_basis.eval_functions(m_msh, cl, qp.point());
-                const auto GT_iqn = disk::hho::eval_gradient(GT_uTF, gphi);
+                const auto GT_iqn = disk::hho::eval(GT_uTF, gphi);
                 const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
                 const auto PK1    = law.compute_PK1(FT_iqn);
 
