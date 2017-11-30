@@ -26,6 +26,7 @@
 #include "hho/hho_bq.hpp"
 #include "hho/hho_vector_bq.hpp"
 #include "hho/projector.hpp"
+#include "hho/static_condensation.hpp"
 
 #include "timecounter.h"
 
@@ -78,9 +79,9 @@ class vector_laplacian_solver
 
    typedef disk::hho::gradient_reconstruction_bq<bqdata_type> gradrec_type;
 
-   typedef disk::diffusion_like_static_condensation_bq<bqdata_type> statcond_type;
-   typedef disk::hho::assembler_bq<bqdata_type>                     assembler_type;
-   typedef disk::hho::projector_bq<bqdata_type>                     projector_type;
+   typedef disk::hho::static_condensation_bq<bqdata_type> statcond_type;
+   typedef disk::hho::assembler_bq<bqdata_type>           assembler_type;
+   typedef disk::hho::projector_bq<bqdata_type>           projector_type;
 
    typename assembler_type::sparse_matrix_type m_system_matrix;
    typename assembler_type::vector_type        m_system_rhs, m_system_solution;
