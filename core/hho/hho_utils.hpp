@@ -85,5 +85,208 @@ eval(const dynamic_vector<T>& tab_coeff, const std::vector<static_vector<T, DIM>
    return ret;
 }
 
+namespace priv {
+// compute_rhs
+template<typename BQData, typename BasisType, typename Function>
+struct compute_rhs_face_F
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::face        face_type;
+
+   static void impl(const mesh_type& msh,
+                    const face_type& fc,
+                    const Function&  func,
+                    const BQData&    bqd)
+   {
+      static_assert(sizeof(BQData) == -1, "BQData not known in compute_rhs_face_F");
+   }
+};
+
+// scaled_monomial_scalar_basis
+template<typename BQData, typename Function>
+struct compute_rhs_face_F<
+  BQData,
+  scaled_monomial_scalar_basis<typename BQData::mesh_type, typename BQData::face_type>,
+  Function>
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::face        face_type;
+   typedef dynamic_vector<scalar_type>     vector_type;
+   typedef dynamic_matrix<scalar_type>     matrix_type;
+
+   static vector_type impl(const mesh_type& msh,
+                           const face_type& fc,
+                           const Function&  func,
+                           const BQData&    bqd)
+   {
+      const auto face_degree   = bqd.face_degree();
+      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+
+      vector_type vec = vector_type::Zero(num_face_dofs);
+
+      const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
+      for (auto& qp : face_quadpoints) {
+         const matrix_type fphi =
+           bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
+         assert(fphi.rows() == num_face_dofs);
+
+         vec += qp.weight() * fphi * func(qp.point());
+      }
+
+      return vec;
+   }
+};
+
+// scaled_monomial_vector_basis
+template<typename BQData, typename Function>
+struct compute_rhs_face_F<
+  BQData,
+  scaled_monomial_vector_basis<typename BQData::mesh_type, typename BQData::face_type>,
+  Function>
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::face        face_type;
+   typedef dynamic_vector<scalar_type>     vector_type;
+
+   static vector_type impl(const mesh_type& msh,
+                           const face_type& fc,
+                           const Function&  func,
+                           const BQData&    bqd)
+   {
+      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+
+      vector_type vec = vector_type::Zero(num_face_dofs);
+
+      const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
+      for (auto& qp : face_quadpoints) {
+         const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point());
+         assert(fphi.size() == num_face_dofs);
+
+         const auto fval = func(qp.point());
+         for (size_t i = 0; i < num_face_dofs; i++) {
+            vec(i) += qp.weight() * mm_prod(fphi[i], fval);
+         }
+      }
+
+      return vec;
+   }
+};
+
+template<typename BQData, typename BasisType, typename Function>
+struct compute_rhs_cell_F
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::cell        cell_type;
+
+   static void impl(const mesh_type& msh,
+                    const cell_type& cl,
+                    const Function&  func,
+                    const BQData&    bqd)
+   {
+      static_assert(sizeof(BQData) == -1, "BQData not known in compute_rhs_cell_F");
+   }
+};
+
+// scaled_monomial_scalar_basis
+template<typename BQData, typename Function>
+struct compute_rhs_cell_F<
+  BQData,
+  scaled_monomial_scalar_basis<typename BQData::mesh_type, typename BQData::cell_type>,
+  Function>
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::cell        cell_type;
+   typedef dynamic_vector<scalar_type>     vector_type;
+
+   static vector_type impl(const mesh_type& msh,
+                           const cell_type& cl,
+                           const Function&  func,
+                           const BQData&    bqd)
+   {
+      const auto cell_degree   = bqd.cell_degree();
+      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+
+      vector_type vec = vector_type::Zero(num_cell_dofs);
+
+      const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
+      for (auto& qp : cell_quadpoints) {
+         const vector_type cphi =
+           bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
+         assert(cphi.rows() == num_cell_dofs);
+
+         vec += qp.weight() * cphi * func(qp.point());
+      }
+
+      return vec;
+   }
+};
+
+// scaled_monomial_vector_basis
+template<typename BQData, typename Function>
+struct compute_rhs_cell_F<
+  BQData,
+  scaled_monomial_vector_basis<typename BQData::mesh_type, typename BQData::cell_type>,
+  Function>
+{
+   typedef typename BQData::mesh_type      mesh_type;
+   typedef typename mesh_type::scalar_type scalar_type;
+   typedef typename mesh_type::cell        cell_type;
+   typedef dynamic_vector<scalar_type>     vector_type;
+
+   static vector_type impl(const mesh_type& msh,
+                           const cell_type& cl,
+                           const Function&  func,
+                           const BQData&    bqd)
+   {
+      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+
+      vector_type vec = vector_type::Zero(num_cell_dofs);
+
+      const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
+      for (auto& qp : cell_quadpoints) {
+         const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
+         assert(cphi.size() == num_cell_dofs);
+
+         const auto feval = func(qp.point());
+         for (size_t i = 0; i < num_cell_dofs; i++) {
+            vec(i) += qp.weight() * mm_prod(cphi[i], feval);
+         }
+      }
+
+      return vec;
+   }
+};
+
+} // namespace priv
+
+// face compute_rhs
+template<typename BQData, typename Function>
+dynamic_vector<typename BQData::mesh_type::scalar_type>
+compute_rhs(const typename BQData::mesh_type& msh,
+            const typename BQData::face_type& fc,
+            const Function&                   func,
+            const BQData&                     bqd)
+{
+   return priv::compute_rhs_face_F<BQData, typename BQData::face_basis_type, Function>::impl(
+     msh, fc, func, bqd);
+}
+
+// cell compute_rhs
+template<typename BQData, typename Function>
+dynamic_vector<typename BQData::mesh_type::scalar_type>
+compute_rhs(const typename BQData::mesh_type& msh,
+            const typename BQData::cell_type& cl,
+            const Function&                   func,
+            const BQData&                     bqd)
+{
+   return priv::compute_rhs_cell_F<BQData, typename BQData::cell_basis_type, Function>::impl(
+     msh, cl, func, bqd);
+}
+
 } // hho namespace
 } // disk namespace

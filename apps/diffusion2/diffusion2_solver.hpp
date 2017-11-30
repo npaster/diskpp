@@ -61,7 +61,7 @@ class diffusion_solver
 
    typedef disk::hho::gradient_reconstruction_bq<bqdata_type>               gradrec_type;
    typedef disk::diffusion_like_static_condensation_bq<bqdata_type>    statcond_type;
-   typedef disk::hho::assembler2_bq<bqdata_type> assembler_type;
+   typedef disk::hho::assembler_bq<bqdata_type> assembler_type;
 
    size_t m_cell_degree, m_face_degree, m_grad_degree;
 
