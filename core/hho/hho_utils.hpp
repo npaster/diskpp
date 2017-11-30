@@ -97,7 +97,8 @@ struct compute_rhs_face_F
    static void impl(const mesh_type& msh,
                     const face_type& fc,
                     const Function&  func,
-                    const BQData&    bqd)
+                    const BQData&    bqd,
+                    const size_t&    degree)
    {
       static_assert(sizeof(BQData) == -1, "BQData not known in compute_rhs_face_F");
    }
@@ -119,18 +120,17 @@ struct compute_rhs_face_F<
    static vector_type impl(const mesh_type& msh,
                            const face_type& fc,
                            const Function&  func,
-                           const BQData&    bqd)
+                           const BQData&    bqd,
+                           const size_t&    degree)
    {
-      const auto face_degree   = bqd.face_degree();
-      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+      const auto face_basis_size = bqd.face_basis.range(0, degree).size();
 
-      vector_type vec = vector_type::Zero(num_face_dofs);
+      vector_type vec = vector_type::Zero(face_basis_size);
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
-         const matrix_type fphi =
-           bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
-         assert(fphi.rows() == num_face_dofs);
+         const matrix_type fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, degree);
+         assert(fphi.rows() == face_basis_size);
 
          vec += qp.weight() * fphi * func(qp.point());
       }
@@ -154,19 +154,20 @@ struct compute_rhs_face_F<
    static vector_type impl(const mesh_type& msh,
                            const face_type& fc,
                            const Function&  func,
-                           const BQData&    bqd)
+                           const BQData&    bqd,
+                           const size_t&    degree)
    {
-      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+      const auto face_basis_size = bqd.face_basis.range(0, degree).size();
 
-      vector_type vec = vector_type::Zero(num_face_dofs);
+      vector_type vec = vector_type::Zero(face_basis_size);
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
          const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point());
-         assert(fphi.size() == num_face_dofs);
+         assert(fphi.size() == face_basis_size);
 
          const auto fval = func(qp.point());
-         for (size_t i = 0; i < num_face_dofs; i++) {
+         for (size_t i = 0; i < face_basis_size; i++) {
             vec(i) += qp.weight() * mm_prod(fphi[i], fval);
          }
       }
@@ -185,7 +186,8 @@ struct compute_rhs_cell_F
    static void impl(const mesh_type& msh,
                     const cell_type& cl,
                     const Function&  func,
-                    const BQData&    bqd)
+                    const BQData&    bqd,
+                    const size_t&    degree)
    {
       static_assert(sizeof(BQData) == -1, "BQData not known in compute_rhs_cell_F");
    }
@@ -206,18 +208,17 @@ struct compute_rhs_cell_F<
    static vector_type impl(const mesh_type& msh,
                            const cell_type& cl,
                            const Function&  func,
-                           const BQData&    bqd)
+                           const BQData&    bqd,
+                           const size_t&    degree)
    {
-      const auto cell_degree   = bqd.cell_degree();
-      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+      const auto cell_basis_size = bqd.cell_basis.range(0, degree).size();
 
-      vector_type vec = vector_type::Zero(num_cell_dofs);
+      vector_type vec = vector_type::Zero(cell_basis_size);
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
-         const vector_type cphi =
-           bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
-         assert(cphi.rows() == num_cell_dofs);
+         const vector_type cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, degree);
+         assert(cphi.rows() == cell_basis_size);
 
          vec += qp.weight() * cphi * func(qp.point());
       }
@@ -241,19 +242,20 @@ struct compute_rhs_cell_F<
    static vector_type impl(const mesh_type& msh,
                            const cell_type& cl,
                            const Function&  func,
-                           const BQData&    bqd)
+                           const BQData&    bqd,
+                           const size_t&    degree)
    {
-      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+      const auto cell_basis_size = bqd.cell_basis.range(0, degree).size();
 
-      vector_type vec = vector_type::Zero(num_cell_dofs);
+      vector_type vec = vector_type::Zero(cell_basis_size);
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
          const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
-         assert(cphi.size() == num_cell_dofs);
+         assert(cphi.size() == cell_basis_size);
 
          const auto feval = func(qp.point());
-         for (size_t i = 0; i < num_cell_dofs; i++) {
+         for (size_t i = 0; i < cell_basis_size; i++) {
             vec(i) += qp.weight() * mm_prod(cphi[i], feval);
          }
       }
@@ -270,10 +272,12 @@ dynamic_vector<typename BQData::mesh_type::scalar_type>
 compute_rhs(const typename BQData::mesh_type& msh,
             const typename BQData::face_type& fc,
             const Function&                   func,
-            const BQData&                     bqd)
+            const BQData&                     bqd,
+            int                               degree = -1)
 {
+   if (degree < 0) degree = bqd.face_degree();
    return priv::compute_rhs_face_F<BQData, typename BQData::face_basis_type, Function>::impl(
-     msh, fc, func, bqd);
+     msh, fc, func, bqd, degree);
 }
 
 // cell compute_rhs
@@ -282,10 +286,12 @@ dynamic_vector<typename BQData::mesh_type::scalar_type>
 compute_rhs(const typename BQData::mesh_type& msh,
             const typename BQData::cell_type& cl,
             const Function&                   func,
-            const BQData&                     bqd)
+            const BQData&                     bqd,
+            int                               degree = -1)
 {
+   if (degree < 0) degree = bqd.cell_degree();
    return priv::compute_rhs_cell_F<BQData, typename BQData::cell_basis_type, Function>::impl(
-     msh, cl, func, bqd);
+     msh, cl, func, bqd, degree);
 }
 
 } // hho namespace

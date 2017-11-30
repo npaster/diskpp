@@ -37,7 +37,10 @@ struct mass_matrix_face_F
    typedef typename mesh_type::scalar_type scalar_type;
    typedef typename mesh_type::face        face_type;
 
-   static void impl(const mesh_type& msh, const face_type& fc, const BQData& bqd)
+   static void impl(const mesh_type& msh,
+                    const face_type& fc,
+                    const BQData&    bqd,
+                    const size_t     degree)
    {
       static_assert(sizeof(BQData) == -1, "BQData not known in mass_matrix_face_F");
    }
@@ -54,18 +57,19 @@ struct mass_matrix_face_F<
    typedef typename mesh_type::face        face_type;
    typedef dynamic_matrix<scalar_type>     matrix_type;
 
-   static matrix_type impl(const mesh_type& msh, const face_type& fc, const BQData& bqd)
+   static matrix_type impl(const mesh_type& msh,
+                           const face_type& fc,
+                           const BQData&    bqd,
+                           const size_t     degree)
    {
-      const auto face_degree   = bqd.face_degree();
-      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+      const auto face_basis_size = bqd.face_basis.range(0, degree).size();
 
-      matrix_type mass = matrix_type::Zero(num_face_dofs, num_face_dofs);
+      matrix_type mass = matrix_type::Zero(face_basis_size, face_basis_size);
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
-         const matrix_type fphi =
-           bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, face_degree);
-         assert(fphi.rows() == num_face_dofs);
+         const matrix_type fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, degree);
+         assert(fphi.rows() == face_basis_size);
 
          mass += qp.weight() * fphi * fphi.transpose();
       }
@@ -85,26 +89,29 @@ struct mass_matrix_face_F<
    typedef typename mesh_type::face        face_type;
    typedef dynamic_matrix<scalar_type>     matrix_type;
 
-   static matrix_type impl(const mesh_type& msh, const face_type& fc, const BQData& bqd)
+   static matrix_type impl(const mesh_type& msh,
+                           const face_type& fc,
+                           const BQData&    bqd,
+                           const size_t     degree)
    {
-      const auto num_face_dofs = howmany_dofs(bqd.face_basis);
+      const auto face_basis_size = bqd.face_basis.range(0, degree).size();
 
-      matrix_type mass = matrix_type::Zero(num_face_dofs, num_face_dofs);
+      matrix_type mass = matrix_type::Zero(face_basis_size, face_basis_size);
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
          const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point());
-         assert(fphi.size() == num_face_dofs);
+         assert(fphi.size() == face_basis_size);
 
-         for (size_t j = 0; j < num_face_dofs; j++) {
-            for (size_t i = j; i < num_face_dofs; i++) {
+         for (size_t j = 0; j < face_basis_size; j++) {
+            for (size_t i = j; i < face_basis_size; i++) {
                mass(i, j) += qp.weight() * mm_prod(fphi[i], fphi[j]);
             }
          }
       }
 
       // lower part
-      for (size_t j = 0; j < num_face_dofs; j++) {
+      for (size_t j = 0; j < face_basis_size; j++) {
          for (size_t i = 0; i < j; i++) {
             mass(i, j) = mass(j, i);
          }
@@ -121,7 +128,10 @@ struct mass_matrix_cell_F
    typedef typename mesh_type::scalar_type scalar_type;
    typedef typename mesh_type::cell        cell_type;
 
-   static void impl(const mesh_type& msh, const cell_type& cl, const BQData& bqd)
+   static void impl(const mesh_type& msh,
+                    const cell_type& cl,
+                    const BQData&    bqd,
+                    const size_t     degree)
    {
       static_assert(sizeof(BQData) == -1, "BQData not known in mass_matrix_cell_F");
    }
@@ -138,18 +148,19 @@ struct mass_matrix_cell_F<
    typedef typename mesh_type::cell        cell_type;
    typedef dynamic_matrix<scalar_type>     matrix_type;
 
-   static matrix_type impl(const mesh_type& msh, const cell_type& cl, const BQData& bqd)
+   static matrix_type impl(const mesh_type& msh,
+                           const cell_type& cl,
+                           const BQData&    bqd,
+                           const size_t     degree)
    {
-      const auto cell_degree   = bqd.cell_degree();
-      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+      const auto cell_basis_size = bqd.cell_basis.range(0, degree).size();
 
-      matrix_type mass = matrix_type::Zero(num_cell_dofs, num_cell_dofs);
+      matrix_type mass = matrix_type::Zero(cell_basis_size, cell_basis_size);
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
-         const matrix_type cphi =
-           bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, cell_degree);
-         assert(cphi.rows() == num_cell_dofs);
+         const matrix_type cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, degree);
+         assert(cphi.rows() == cell_basis_size);
 
          mass += qp.weight() * cphi * cphi.transpose();
       }
@@ -170,26 +181,29 @@ struct mass_matrix_cell_F<
    typedef typename mesh_type::cell        cell_type;
    typedef dynamic_matrix<scalar_type>     matrix_type;
 
-   static matrix_type impl(const mesh_type& msh, const cell_type& cl, const BQData& bqd)
+   static matrix_type impl(const mesh_type& msh,
+                           const cell_type& cl,
+                           const BQData&    bqd,
+                           const size_t     degree)
    {
-      const auto num_cell_dofs = howmany_dofs(bqd.cell_basis);
+      const auto cell_basis_size = bqd.cell_basis.range(0, degree).size();
 
-      matrix_type mass = matrix_type::Zero(num_cell_dofs, num_cell_dofs);
+      matrix_type mass = matrix_type::Zero(cell_basis_size, cell_basis_size);
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
          const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
-         assert(cphi.size() == num_cell_dofs);
+         assert(cphi.size() == cell_basis_size);
 
-         for (size_t j = 0; j < num_cell_dofs; j++) {
-            for (size_t i = j; i < num_cell_dofs; i++) {
+         for (size_t j = 0; j < cell_basis_size; j++) {
+            for (size_t i = j; i < cell_basis_size; i++) {
                mass(i, j) += qp.weight() * mm_prod(cphi[i], cphi[j]);
             }
          }
       }
 
       // lower part
-      for (size_t j = 0; j < num_cell_dofs; j++) {
+      for (size_t j = 0; j < cell_basis_size; j++) {
          for (size_t i = 0; i < j; i++) {
             mass(i, j) = mass(j, i);
          }
@@ -206,9 +220,12 @@ template<typename BQData>
 dynamic_matrix<typename BQData::mesh_type::scalar_type>
 mass_matrix(const typename BQData::mesh_type& msh,
             const typename BQData::face_type& fc,
-            const BQData&                     bqd)
+            const BQData&                     bqd,
+            int                               degree = -1)
 {
-   return priv::mass_matrix_face_F<BQData, typename BQData::face_basis_type>::impl(msh, fc, bqd);
+   if (degree < 0) degree = bqd.face_degree();
+   return priv::mass_matrix_face_F<BQData, typename BQData::face_basis_type>::impl(
+     msh, fc, bqd, degree);
 }
 
 // cell mass matrix
@@ -216,9 +233,12 @@ template<typename BQData>
 dynamic_matrix<typename BQData::mesh_type::scalar_type>
 mass_matrix(const typename BQData::mesh_type& msh,
             const typename BQData::cell_type& cl,
-            const BQData&                     bqd)
+            const BQData&                     bqd,
+            int                               degree = -1)
 {
-   return priv::mass_matrix_cell_F<BQData, typename BQData::cell_basis_type>::impl(msh, cl, bqd);
+   if (degree < 0) degree = bqd.cell_degree();
+   return priv::mass_matrix_cell_F<BQData, typename BQData::cell_basis_type>::impl(
+     msh, cl, bqd, degree);
 }
 
 } // hho namespace
