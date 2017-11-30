@@ -35,28 +35,6 @@
 
 namespace disk {
 
-template<typename CellBasisType, typename CellQuadType, typename Mesh, typename Function>
-dynamic_vector<typename Mesh::scalar_type>
-compute_rhs(const Mesh& msh, const typename Mesh::cell& cl, const Function& f, size_t degree)
-{
-   typedef dynamic_vector<typename Mesh::scalar_type> vector_type;
-
-   auto cell_basis = CellBasisType(degree);
-   auto cell_quad  = CellQuadType(2 * degree);
-
-   vector_type ret = vector_type::Zero(cell_basis.size());
-
-   auto cell_quadpoints = cell_quad.integrate(msh, cl);
-   for (auto& qp : cell_quadpoints) {
-      auto phi  = cell_basis.eval_functions(msh, cl, qp.point());
-      auto fval = f(qp.point());
-      for (size_t i = 0; i < cell_basis.size(); i++)
-         ret(i) += qp.weight() * mm_prod(fval, phi[i]);
-   }
-
-   return ret;
-}
-
 template<typename Mesh,
          typename CellBasisType,
          typename CellQuadType,
