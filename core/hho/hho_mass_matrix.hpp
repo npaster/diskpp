@@ -100,7 +100,7 @@ struct mass_matrix_face_F<
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
-         const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point());
+         const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, degree);
          assert(fphi.size() == face_basis_size);
 
          for (size_t j = 0; j < face_basis_size; j++) {
@@ -192,7 +192,7 @@ struct mass_matrix_cell_F<
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
-         const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
+         const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, degree);
          assert(cphi.size() == cell_basis_size);
 
          for (size_t j = 0; j < cell_basis_size; j++) {

@@ -163,7 +163,7 @@ struct compute_rhs_face_F<
 
       const auto face_quadpoints = bqd.face_quadrature.integrate(msh, fc);
       for (auto& qp : face_quadpoints) {
-         const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point());
+         const auto fphi = bqd.face_basis.eval_functions(msh, fc, qp.point(), 0, degree);
          assert(fphi.size() == face_basis_size);
 
          const auto fval = func(qp.point());
@@ -251,7 +251,7 @@ struct compute_rhs_cell_F<
 
       const auto cell_quadpoints = bqd.cell_quadrature.integrate(msh, cl);
       for (auto& qp : cell_quadpoints) {
-         const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point());
+         const auto cphi = bqd.cell_basis.eval_functions(msh, cl, qp.point(), 0, degree);
          assert(cphi.size() == cell_basis_size);
 
          const auto feval = func(qp.point());
