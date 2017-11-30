@@ -390,7 +390,7 @@ class assembler_by_elimination_bq
 };
 
 template<typename BQData>
-class assembler_substitution_vector_bq
+class assembler_by_elimination_mechanics_bq
 {
    typedef typename BQData::mesh_type      mesh_type;
    typedef typename mesh_type::scalar_type scalar_type;
@@ -416,30 +416,11 @@ class assembler_substitution_vector_bq
    vector_type         rhs;
    std::vector<size_t> face_compress_map, face_expand_map;
 
-   assembler_substitution_vector_bq() = delete;
+   assembler_by_elimination_mechanics_bq() = delete;
 
-   assembler_substitution_vector_bq(const mesh_type& msh, const BQData& bqd)
-     : m_bqd(bqd)
-   {
-      m_num_unknowns = howmany_dofs(m_bqd.face_basis) * msh.internal_faces_size();
-      matrix         = sparse_matrix_type(m_num_unknowns, m_num_unknowns);
-      rhs            = vector_type::Zero(m_num_unknowns);
-
-      face_compress_map.resize(msh.faces_size());
-      face_expand_map.resize(msh.internal_faces_size());
-      size_t fn = 0, fi = 0;
-      for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++, fi++) {
-         if (msh.is_boundary(*itor)) continue;
-
-         face_compress_map.at(fi) = fn;
-         face_expand_map.at(fn)   = fi;
-         fn++;
-      }
-   }
-
-   assembler_substitution_vector_bq(const mesh_type&          msh,
-                                    const BQData&             bqd,
-                                    const BoundaryConditions& boundary_conditions)
+   assembler_by_elimination_mechanics_bq(const mesh_type&          msh,
+                                         const BQData&             bqd,
+                                         const BoundaryConditions& boundary_conditions)
      : m_bqd(bqd)
    {
       m_num_unknowns = howmany_dofs(m_bqd.face_basis) *
@@ -609,47 +590,6 @@ class assembler_substitution_vector_bq
 
       return ret;
    }
-
-   template<typename Function>
-   vector_type expand_solution(const mesh_type&   msh,
-                               const vector_type& solution,
-                               const Function&    bc)
-   {
-      const auto face_basis_size    = howmany_dofs(m_bqd.face_basis);
-      const auto num_internal_faces = msh.internal_faces_size();
-
-      vector_type ret = vector_type::Zero(face_basis_size * msh.faces_size());
-      size_t      cfacenum(0);
-
-      projector_type projector(m_bqd);
-
-      for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++) {
-         if (msh.is_boundary(*itor)) {
-            auto bfc = *itor;
-            auto eid = find_element_id(msh.faces_begin(), msh.faces_end(), bfc);
-            if (!eid.first) throw std::invalid_argument("This is a bug: face not found");
-
-            const auto face_id = eid.second;
-
-            const auto face_offset                        = face_id * face_basis_size;
-            ret.block(face_offset, 0, face_basis_size, 1) = projector.compute_face(msh, bfc, bc);
-         } else {
-            const size_t src_block_offset = cfacenum * face_basis_size;
-            const size_t dst_block_offset = face_expand_map.at(cfacenum) * face_basis_size;
-            const size_t block_size       = face_basis_size;
-            ret.block(dst_block_offset, 0, block_size, 1) =
-              solution.block(src_block_offset, 0, block_size, 1);
-
-            cfacenum++;
-         }
-      }
-
-      return ret;
-   }
-
-   template<typename Function>
-   void impose_boundary_conditions(const mesh_type& msh, const Function& bc)
-   {}
 
    // ne marche pas
    template<typename NeumannFunction>

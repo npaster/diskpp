@@ -48,18 +48,18 @@ class basis_quadrature_data /* this name really sucks */
    face_basis_type face_basis;
    cell_quad_type  cell_quadrature;
    face_quad_type  face_quadrature;
-   face_quad_type  face_max_quadrature;
+   face_quad_type  face_trace_quadrature;
 
  private:
    size_t m_cell_degree, m_face_degree;
 
    void init(void)
    {
-      cell_basis          = cell_basis_type(m_cell_degree, m_cell_degree + 1);
-      face_basis          = face_basis_type(m_face_degree);
-      cell_quadrature     = cell_quad_type(2 * (m_cell_degree + 1));
-      face_quadrature     = face_quad_type(2 * m_face_degree);
-      face_max_quadrature = face_quad_type(2 * std::max(m_face_degree, m_cell_degree + 1));
+      cell_basis            = cell_basis_type(m_cell_degree, m_cell_degree + 1);
+      face_basis            = face_basis_type(m_face_degree);
+      cell_quadrature       = cell_quad_type(2 * (m_cell_degree + 1));
+      face_quadrature       = face_quad_type(2 * m_face_degree);
+      face_trace_quadrature = face_quad_type(m_face_degree + m_cell_degree + 1);
    }
 
  public:
@@ -107,6 +107,7 @@ class basis_quadrature_data_full /* this name really sucks */
    face_basis_type face_basis;
    cell_quad_type  cell_quadrature;
    face_quad_type  face_quadrature;
+   face_quad_type  face_trace_quadrature;
    grad_basis_type grad_basis;
    cell_quad_type  grad_quadrature;
 
@@ -119,14 +120,15 @@ class basis_quadrature_data_full /* this name really sucks */
 
    void init(void)
    {
-      cell_basis           = cell_basis_type(m_cell_degree);
-      face_basis           = face_basis_type(m_face_degree);
-      grad_basis           = grad_basis_type(m_grad_degree);
-      cell_quadrature      = cell_quad_type(2 * m_cell_degree);
-      face_quadrature      = face_quad_type(2 * m_face_degree);
-      grad_quadrature      = cell_quad_type(2 * m_grad_degree);
-      grad_cell_quadrature = cell_quad_type(m_grad_degree + m_cell_degree);
-      grad_face_quadrature = face_quad_type(m_grad_degree + m_face_degree);
+      cell_basis            = cell_basis_type(m_cell_degree);
+      face_basis            = face_basis_type(m_face_degree);
+      grad_basis            = grad_basis_type(m_grad_degree);
+      cell_quadrature       = cell_quad_type(2 * m_cell_degree);
+      face_quadrature       = face_quad_type(2 * m_face_degree);
+      grad_quadrature       = cell_quad_type(2 * m_grad_degree);
+      face_trace_quadrature = face_quad_type(m_face_degree + m_cell_degree + 1);
+      grad_cell_quadrature  = cell_quad_type(m_grad_degree + m_cell_degree);
+      grad_face_quadrature  = face_quad_type(m_grad_degree + m_face_degree);
       grad_face_max_quadrature =
         face_quad_type(m_grad_degree + std::max(m_face_degree, m_cell_degree));
    }
