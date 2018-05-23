@@ -11,7 +11,7 @@ set(diskpp_VERSION_MINOR 0)
 set(diskpp_VERSION_PATCH 0)
 
 # Additional modules path for cmake
-set (CMAKE_MODULE_PATH 
+set (CMAKE_MODULE_PATH
      ${CMAKE_MODULE_PATH}
      ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -78,3 +78,7 @@ install(TARGETS diskpp LIBRARY DESTINATION lib)
 install(DIRECTORY meshes DESTINATION share)
 
 add_subdirectory(apps)
+
+include(DiskConfigureTesting)
+# automatic tests
+enable_testing()
