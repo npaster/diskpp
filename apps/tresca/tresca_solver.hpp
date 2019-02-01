@@ -145,7 +145,7 @@ class tresca_solver
         {
             /////// Gradient Reconstruction /////////
             const auto gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
-            m_gradient_precomputed.push_back(gr.second);
+            m_gradient_precomputed.push_back(gr.first);
 
             if (m_rp.m_stab)
             {

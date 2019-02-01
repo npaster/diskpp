@@ -32,11 +32,11 @@ class AssemblyInfo
   public:
     size_t m_linear_system_size;
     double m_time_assembly;
-    double m_time_gradrec, m_time_statcond, m_time_stab, m_time_elem, m_time_law, m_time_postpro;
+    double m_time_gradrec, m_time_statcond, m_time_stab, m_time_elem, m_time_law, m_time_postpro, m_time_contact;
 
     AssemblyInfo() :
       m_linear_system_size(0), m_time_assembly(0.0), m_time_gradrec(0.0), m_time_statcond(0.0), m_time_stab(0.0),
-      m_time_elem(0.0), m_time_law(0.0), m_time_postpro(0.0)
+      m_time_elem(0.0), m_time_law(0.0), m_time_postpro(0.0), m_time_contact(0.0)
     {
     }
 };
@@ -75,6 +75,7 @@ class NewtonSolverInfo
         m_assembly_info.m_time_elem += assembly_info.m_time_elem;
         m_assembly_info.m_time_law += assembly_info.m_time_law;
         m_assembly_info.m_time_postpro += assembly_info.m_time_postpro;
+        m_assembly_info.m_time_contact += assembly_info.m_time_contact;
     }
 
     void
@@ -94,6 +95,7 @@ class NewtonSolverInfo
         std::cout << "****** Stabilisation: " << m_assembly_info.m_time_stab << " sec" << std::endl;
         std::cout << "****** Mechanical computation: " << m_assembly_info.m_time_elem << " sec" << std::endl;
         std::cout << "       *** Behavior computation: " << m_assembly_info.m_time_law << " sec" << std::endl;
+        std::cout << "       *** Contact computation: " << m_assembly_info.m_time_contact << " sec" << std::endl;
         std::cout << "****** Static condensation: " << m_assembly_info.m_time_statcond << " sec" << std::endl;
         std::cout << "****** Postprocess time: " << m_assembly_info.m_time_postpro << " sec" << std::endl;
         std::cout << "**** Solver time: " << m_solve_info.m_time_solve << " sec" << std::endl;
@@ -134,6 +136,8 @@ class SolverInfo
         std::cout << "****** Elementary computation: " << m_newton_info.m_assembly_info.m_time_elem << " sec"
                   << std::endl;
         std::cout << "       *** Behavior computation: " << m_newton_info.m_assembly_info.m_time_law << " sec"
+                  << std::endl;
+        std::cout << "       *** Contact computation: " << m_newton_info.m_assembly_info.m_time_contact << " sec"
                   << std::endl;
         std::cout << "****** Static condensation: " << m_newton_info.m_assembly_info.m_time_statcond << " sec"
                   << std::endl;

@@ -1083,7 +1083,8 @@ static_condensation_impl(const Mesh&                                            
                          const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
                          const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs,
                          const size_t                                                     num_cell_dofs,
-                         const size_t                                                     num_face_dofs)
+                         const size_t                                                     num_face_dofs,
+                         bool                                                             sym_matrix = true)
 {
     using matrix_type = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
     using vector_type = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -1120,14 +1121,31 @@ static_condensation_impl(const Mesh&                                            
         faces_rhs = rhs.tail(num_faces_dofs);
     }
 
-    const auto K_TT_ldlt = K_TT.ldlt();
-    if (K_TT_ldlt.info() != Eigen::Success)
+    if(sym_matrix)
     {
-        throw std::invalid_argument("static condensation: K_TT is not positive definite");
+        const auto K_TT_ldlt = K_TT.ldlt();
+        if (K_TT_ldlt.info() != Eigen::Success)
+        {
+            throw std::invalid_argument("static condensation: K_TT is not positive definite");
+        }
+
+        const matrix_type AL = K_TT_ldlt.solve(K_TF);
+        const vector_type bL = K_TT_ldlt.solve(cell_rhs);
+
+        const matrix_type AC = K_FF - K_FT * AL;
+        const vector_type bC = faces_rhs - K_FT * bL;
+
+        return std::make_tuple(std::make_pair(AC, bC), AL, bL);
     }
 
-    const matrix_type AL = K_TT_ldlt.solve(K_TF);
-    const vector_type bL = K_TT_ldlt.solve(cell_rhs);
+    const auto K_TT_lu = K_TT.lu();
+    // if (K_TT_lu.info() != Eigen::Success)
+    // {
+    //     throw std::invalid_argument("static condensation: K_TT is not positive definite");
+    // }
+
+    const matrix_type AL = K_TT_lu.solve(K_TF);
+    const vector_type bL = K_TT_lu.solve(cell_rhs);
 
     const matrix_type AC = K_FF - K_FT * AL;
     const vector_type bC = faces_rhs - K_FT * bL;
@@ -1178,27 +1196,31 @@ static_decondensation_impl(const Mesh&                                          
 // static condensation for primal scalar problem like diffusion
 template<typename Mesh, typename T>
 auto
-make_scalar_static_condensation_withMatrix(const Mesh&                                                 msh,
-                                      const typename Mesh::cell_type&                                  cl,
-                                      const hho_degree_info&                                           hdi,
-                                      const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
-                                      const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs)
+make_scalar_static_condensation_withMatrix(const Mesh&                                                      msh,
+                                           const typename Mesh::cell_type&                                  cl,
+                                           const hho_degree_info&                                           hdi,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs,
+                                           bool sym_matrix = true)
+
 {
     const auto num_cell_dofs = scalar_basis_size(hdi.cell_degree(), Mesh::dimension);
     const auto num_face_dofs = scalar_basis_size(hdi.face_degree(), Mesh::dimension - 1);
 
-    return priv::static_condensation_impl(msh, cl, lhs, rhs, num_cell_dofs, num_face_dofs);
+    return priv::static_condensation_impl(msh, cl, lhs, rhs, num_cell_dofs, num_face_dofs, sym_matrix);
 }
 
 template<typename Mesh, typename T>
 auto
-make_scalar_static_condensation(const Mesh&                                                 msh,
-                           const typename Mesh::cell_type&                                  cl,
-                           const hho_degree_info&                                           hdi,
-                           const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
-                           const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs)
+make_scalar_static_condensation(const Mesh&                                                      msh,
+                                const typename Mesh::cell_type&                                  cl,
+                                const hho_degree_info&                                           hdi,
+                                const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
+                                const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs,
+                                bool                                                             sym_matrix = true)
+
 {
-    return std::get<0>(make_scalar_static_condensation_withMatrix(msh, cl, hdi, lhs, rhs));
+    return std::get<0>(make_scalar_static_condensation_withMatrix(msh, cl, hdi, lhs, rhs, sym_matrix));
 }
 
 // static decondensation for primal scalar problem
@@ -1236,27 +1258,31 @@ make_scalar_static_decondensation_withMatrix(const typename Eigen::Matrix<T, Eig
 // static condensation for primal vectorial problem like elasticity
 template<typename Mesh, typename T>
 auto
-make_vector_static_condensation_withMatrix(const Mesh&                                                 msh,
-                                      const typename Mesh::cell_type&                                  cl,
-                                      const hho_degree_info&                                           hdi,
-                                      const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
-                                      const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs)
+make_vector_static_condensation_withMatrix(const Mesh&                                                      msh,
+                                           const typename Mesh::cell_type&                                  cl,
+                                           const hho_degree_info&                                           hdi,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs,
+                                           bool sym_matrix = true)
+
 {
     const auto num_cell_dofs = vector_basis_size(hdi.cell_degree(), Mesh::dimension, Mesh::dimension);
     const auto num_face_dofs = vector_basis_size(hdi.face_degree(), Mesh::dimension - 1, Mesh::dimension);
 
-    return priv::static_condensation_impl(msh, cl, lhs, rhs, num_cell_dofs, num_face_dofs);
+    return priv::static_condensation_impl(msh, cl, lhs, rhs, num_cell_dofs, num_face_dofs, sym_matrix);
 }
 
 template<typename Mesh, typename T>
 auto
-make_vector_static_condensation(const Mesh&                                                 msh,
-                           const typename Mesh::cell_type&                                  cl,
-                           const hho_degree_info&                                           hdi,
-                           const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
-                           const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs)
+make_vector_static_condensation(const Mesh&                                                      msh,
+                                const typename Mesh::cell_type&                                  cl,
+                                const hho_degree_info&                                           hdi,
+                                const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
+                                const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs,
+                                bool                                                             sym_matrix = true)
+
 {
-    return std::get<0>(make_vector_static_condensation_withMatrix(msh, cl, hdi, lhs, rhs));
+    return std::get<0>(make_vector_static_condensation_withMatrix(msh, cl, hdi, lhs, rhs, sym_matrix));
 }
 
 // static decondensation for primal vector problem

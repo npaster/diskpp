@@ -673,7 +673,7 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
         size_t     deg    = 0;
         if (basis_degree > 2)
             deg = basis_degree - 2;
-        const auto beg    = scalar_basis_size(deg, 2);
+        const auto beg    = scalar_basis_size(basis_degree - 2, 2);
         const auto offset = vector_basis.size();
 
         // compute x P^(k-1)_H (monomial of degree exactly k - 1)
@@ -698,7 +698,7 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
         size_t     deg    = 0;
         if (basis_degree > 2)
             deg = basis_degree - 2;
-        const auto beg    = scalar_basis_size(deg, 2);
+        const auto beg    = scalar_basis_size(basis_degree - 2, 2);
         const auto offset = vector_basis.size();
 
         /// compute P^(k-1)_H + x.grad(P^(k-1)_H) (monomial of degree exactly k - 1)

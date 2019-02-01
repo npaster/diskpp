@@ -83,9 +83,34 @@ class NewtonRaphson_step_tresca
     std::vector<vector_type> m_postprocess_data, m_solution_data;
     std::vector<vector_type> m_solution_cells, m_solution_faces;
 
+    std::vector<bool> m_has_contact_faces;
+
     scalar_type m_F_int;
 
     bool m_verbose;
+
+    void
+    make_contact_face()
+    {
+        // cells with contact faces
+        m_has_contact_faces.clear();
+        m_has_contact_faces.assign(m_msh.cells_size(), false);
+
+        size_t i = 0;
+        for (auto& cl : m_msh)
+        {
+            const auto fcs = faces(m_msh, cl);
+            for (auto& fc : fcs)
+            {
+                if (m_bnd.is_contact_face(fc))
+                {
+                    m_has_contact_faces[i] = true;
+                    continue;
+                }
+            }
+            i++;
+        }
+    }
 
   public:
     NewtonRaphson_step_tresca(const mesh_type&    msh,
@@ -103,6 +128,8 @@ class NewtonRaphson_step_tresca
         m_bL.resize(m_msh.cells_size());
 
         m_assembler = disk::make_mechanics_assembler(m_msh, m_hdi, m_bnd);
+
+        make_contact_face();
     }
 
     bool
@@ -140,7 +167,7 @@ class NewtonRaphson_step_tresca
              const std::vector<matrix_type>& gradient_precomputed,
              const std::vector<matrix_type>& stab_precomputed)
     {
-        elem_type    elem(m_msh, m_hdi, m_material_data);
+        elem_type    elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
         AssemblyInfo ai;
 
         // set RHS to zero
@@ -164,25 +191,10 @@ class NewtonRaphson_step_tresca
             else
             {
                 const auto gradrec_full = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
-                ET                      = gradrec_full.second;
+                ET                      = gradrec_full.first;
             }
             tc.toc();
             ai.m_time_gradrec += tc.to_double();
-
-            // Begin Assembly
-            // Build rhs and lhs
-
-            // Mechanical Computation
-
-            tc.tic();
-            elem.compute(cl, lf, ET, m_solution_data.at(cell_i));
-
-            matrix_type lhs = elem.K_int;
-            vector_type rhs = elem.RTF;
-            m_F_int += elem.F_int.squaredNorm();
-
-            tc.toc();
-            ai.m_time_elem += tc.to_double();
 
             // Stabilisation Contribution
             tc.tic();
@@ -220,16 +232,29 @@ class NewtonRaphson_step_tresca
                         default: throw std::invalid_argument("Unknown stabilization");
                     }
                 }
-
-                lhs += m_rp.m_beta * stab;
-                rhs -= m_rp.m_beta * stab * m_solution_data.at(cell_i);
             }
             tc.toc();
             ai.m_time_stab += tc.to_double();
 
+            // Begin Assembly
+            // Build rhs and lhs
+
+            // Mechanical Computation
+
+            tc.tic();
+            elem.compute(cl, lf, ET, stab, m_solution_data.at(cell_i), m_has_contact_faces[cell_i]);
+
+            matrix_type lhs = elem.K_int;
+            vector_type rhs = elem.RTF;
+            m_F_int += elem.F_int.squaredNorm();
+
+            tc.toc();
+            ai.m_time_elem += tc.to_double();
+            ai.m_time_contact += elem.time_contact;
+
             // Static Condensation
             tc.tic();
-            const auto scnp = make_vector_static_condensation_withMatrix(m_msh, cl, m_hdi, lhs, rhs);
+            const auto scnp = make_vector_static_condensation_withMatrix(m_msh, cl, m_hdi, lhs, rhs, false);
 
             m_AL[cell_i] = std::get<1>(scnp);
             m_bL[cell_i] = std::get<2>(scnp);

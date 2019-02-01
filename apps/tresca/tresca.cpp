@@ -54,14 +54,24 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     typedef static_matrix<T, 2, 2>                     result_grad_type;
     typedef disk::BoundaryConditions<mesh_type, false> Bnd_type;
 
-    auto load = [material_data](const point<T, 2>& p) -> result_type { return result_type{0, -1}; };
+    auto load = [material_data](const point<T, 2>& p) -> result_type { return result_type{0, 0}; };
 
-    auto solution = [material_data](const point<T, 2>& p) -> result_type { return result_type{1, 0}; };
+    auto solution = [material_data](const point<T, 2>& p) -> result_type { return result_type{0, 0}; };
 
     auto gradient = [material_data](const point<T, 2>& p) -> result_grad_type { return result_grad_type::Zero(); };
 
     Bnd_type bnd(msh);
-    bnd.addDirichletEverywhere(solution);
+    //bnd.addDirichletEverywhere(solution);
+
+
+    // Cook with quadrilaterals
+    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    auto un   = [material_data](const point<T, 2>& p) -> result_type { return result_type{1.0, 0}; };
+    auto trac = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0.1125}; };
+
+    bnd.addContactBC(disk::SIGNORINI, 8);
+    bnd.addDirichletBC(disk::DIRICHLET, 3, un);
+    //bnd.addNeumannBC(disk::NEUMANN, 8, trac);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
 
@@ -86,48 +96,48 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     nl.compute_discontinuous_deformed("deformed2D_disc.msh");
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-void
-run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
-{
-    typedef Mesh<T, 3, Storage>                        mesh_type;
-    typedef static_vector<T, 3>                        result_type;
-    typedef static_matrix<T, 3, 3>                     result_grad_type;
-    typedef disk::BoundaryConditions<mesh_type, false> Bnd_type;
+// template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
+// void
+// run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+// {
+//     typedef Mesh<T, 3, Storage>                        mesh_type;
+//     typedef static_vector<T, 3>                        result_type;
+//     typedef static_matrix<T, 3, 3>                     result_grad_type;
+//     typedef disk::BoundaryConditions<mesh_type, false> Bnd_type;
 
-    auto load = [material_data](const point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
+//     auto load = [material_data](const point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
 
-    auto solution = [material_data](const point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
+//     auto solution = [material_data](const point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
 
-    auto gradient = [material_data](const point<T, 3>& p) -> result_grad_type { return result_grad_type::Zero(); };
+//     auto gradient = [material_data](const point<T, 3>& p) -> result_grad_type { return result_grad_type::Zero(); };
 
-    Bnd_type bnd(msh);
-    // bnd.addDirichletEverywhere(solution);
+//     Bnd_type bnd(msh);
+//     // bnd.addDirichletEverywhere(solution);
 
-    // Solver
+//     // Solver
 
-    tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
+//     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
 
-    if (nl.verbose())
-    {
-        std::cout << "Solving the problem ..." << '\n';
-    }
+//     if (nl.verbose())
+//     {
+//         std::cout << "Solving the problem ..." << '\n';
+//     }
 
-    SolverInfo solve_info = nl.compute(load);
+//     SolverInfo solve_info = nl.compute(load);
 
-    if (nl.verbose())
-    {
-        solve_info.printInfo();
-    }
+//     if (nl.verbose())
+//     {
+//         solve_info.printInfo();
+//     }
 
-    nl.compute_discontinuous_displacement("depl3D_disc.msh");
-    nl.compute_continuous_displacement("depl3D_cont.msh");
-    // nl.compute_discontinuous_stress("stress3D_disc.msh");
-    // nl.compute_continuous_stress("stress3D_cont.msh");
-    // nl.compute_stress_GP("stress3D_GP.msh");
-    nl.compute_continuous_deformed("deformed3D_cont.msh");
-    nl.compute_discontinuous_deformed("deformed3D_disc.msh");
-}
+//     nl.compute_discontinuous_displacement("depl3D_disc.msh");
+//     nl.compute_continuous_displacement("depl3D_cont.msh");
+//     // nl.compute_discontinuous_stress("stress3D_disc.msh");
+//     // nl.compute_continuous_stress("stress3D_cont.msh");
+//     // nl.compute_stress_GP("stress3D_GP.msh");
+//     nl.compute_continuous_deformed("deformed3D_cont.msh");
+//     nl.compute_discontinuous_deformed("deformed3D_disc.msh");
+// }
 
 int
 main(int argc, char** argv)
@@ -144,7 +154,7 @@ main(int argc, char** argv)
     // Elasticity Parameters
     disk::MaterialData<RealType> material_data;
 
-    RealType E  = 1;
+    RealType E  = 200;
     RealType nu = 0.3;
 
     material_data.setMu(E, nu);

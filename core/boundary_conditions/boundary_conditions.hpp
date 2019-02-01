@@ -7,7 +7,7 @@
  *  /_\/_\/_\/_\   methods.
  *
  * This file is copyright of the following authors:
- * Nicolas Pignet (C) 2018                      nicolas.pignet@enpc.fr
+ * Nicolas Pignet (C) 2018, 2019                 nicolas.pignet@enpc.fr
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -180,6 +180,7 @@ class BoundaryConditions
 {
   public:
     typedef MeshType                                                                                      mesh_type;
+    typedef typename mesh_type::face_type                                                                 face_type;
     typedef typename mesh_type::coordinate_type                                                           scalar_type;
     typedef point<scalar_type, mesh_type::dimension>                                                      point_type;
     typedef typename priv::FunctionType<scalar_type, mesh_type::dimension, ScalarBoundary>::function_type function_type;
@@ -366,9 +367,21 @@ class BoundaryConditions
     }
 
     bool
+    is_dirichlet_face(const face_type& fc) const
+    {
+        return is_dirichlet_face(m_msh.lookup(fc));
+    }
+
+    bool
     is_neumann_face(const size_t face_i) const
     {
         return std::get<0>(m_faces_is_neumann.at(face_i));
+    }
+
+    bool
+    is_neumann_face(const face_type& fc) const
+    {
+        return is_neumann_face(m_msh.lookup(fc));
     }
 
     bool
@@ -378,9 +391,21 @@ class BoundaryConditions
     }
 
     bool
+    is_robin_face(const face_type& fc) const
+    {
+        return is_robin_face(m_msh.lookup(fc));
+    }
+
+    bool
     is_contact_face(const size_t face_i) const
     {
         return std::get<0>(m_faces_is_contact.at(face_i));
+    }
+
+    bool
+    is_contact_face(const face_type& fc) const
+    {
+        return is_contact_face(m_msh.lookup(fc));
     }
 
     size_t
@@ -390,9 +415,21 @@ class BoundaryConditions
     }
 
     size_t
+    dirichlet_boundary_type(const face_type& fc) const
+    {
+        return dirichlet_boundary_type(m_msh.lookup(fc));
+    }
+
+    size_t
     neumann_boundary_type(const size_t face_i) const
     {
         return std::get<1>(m_faces_is_neumann.at(face_i));
+    }
+
+    size_t
+    neumann_boundary_type(const face_type& fc) const
+    {
+        return neumann_boundary_type(m_msh.lookup(fc));
     }
 
     size_t
@@ -402,9 +439,21 @@ class BoundaryConditions
     }
 
     size_t
+    robin_boundary_type(const face_type& fc) const
+    {
+        return robin_boundary_type(m_msh.lookup(fc));
+    }
+
+    size_t
     contact_boundary_type(const size_t face_i) const
     {
         return std::get<1>(m_faces_is_contact.at(face_i));
+    }
+
+    size_t
+    contact_boundary_type(const face_type& fc) const
+    {
+        return contact_boundary_type(m_msh.lookup(fc));
     }
 
     size_t
@@ -414,15 +463,33 @@ class BoundaryConditions
     }
 
     size_t
+    dirichlet_boundary_id(const face_type& fc) const
+    {
+        return dirichlet_boundary_id(m_msh.lookup(fc));
+    }
+
+    size_t
     neumann_boundary_id(const size_t face_i) const
     {
         return std::get<2>(m_faces_is_neumann.at(face_i));
     }
 
     size_t
+    neumann_boundary_id(const face_type& fc) const
+    {
+        return neumann_boundary_id(m_msh.lookup(fc));
+    }
+
+    size_t
     robin_boundary_id(const size_t face_i) const
     {
         return std::get<2>(m_faces_is_robin.at(face_i));
+    }
+
+    size_t
+    robin_boundary_id(const face_type& fc) const
+    {
+        return robin_boundary_id(m_msh.lookup(fc));
     }
 
     auto
@@ -442,6 +509,12 @@ class BoundaryConditions
     }
 
     auto
+    dirichlet_boundary_func(const face_type& fc) const
+    {
+        return dirichlet_boundary_func(m_msh.lookup(fc));
+    }
+
+    auto
     neumann_boundary_func(const size_t face_i) const
     {
         if (!is_neumann_face(face_i))
@@ -455,6 +528,12 @@ class BoundaryConditions
         auto rfunc = [ func, factor ](const point_type& p) -> auto { return priv::bnd_product(factor, func(p)); };
 
         return rfunc;
+    }
+
+    auto
+    neumann_boundary_func(const face_type& fc) const
+    {
+        return neumann_boundary_func(m_msh.lookup(fc));
     }
 
     auto
@@ -473,6 +552,12 @@ class BoundaryConditions
             return disk::priv::inner_product(factor, func(p));
         };
         return rfunc;
+    }
+
+    auto
+    robin_boundary_func(const face_type& fc) const
+    {
+        return robin_boundary_func(m_msh.lookup(fc));
     }
 
     void
