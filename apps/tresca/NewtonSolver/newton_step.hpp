@@ -52,12 +52,12 @@ namespace MK
 template<typename MeshType>
 class NewtonRaphson_step_tresca
 {
-    typedef MeshType                                   mesh_type;
-    typedef typename mesh_type::coordinate_type        scalar_type;
-    typedef ParamRun<scalar_type>                      param_type;
-    typedef typename disk::hho_degree_info             hdi_type;
-    typedef disk::BoundaryConditions<mesh_type, false> bnd_type;
-    typedef disk::MaterialData<scalar_type>            material_type;
+    typedef MeshType                                    mesh_type;
+    typedef typename mesh_type::coordinate_type         scalar_type;
+    typedef ParamRun<scalar_type>                       param_type;
+    typedef typename disk::hho_degree_info              hdi_type;
+    typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
+    typedef disk::MaterialData<scalar_type>             material_type;
 
     const static int dimension = mesh_type::dimension;
 
@@ -99,16 +99,7 @@ class NewtonRaphson_step_tresca
         size_t i = 0;
         for (auto& cl : m_msh)
         {
-            const auto fcs = faces(m_msh, cl);
-            for (auto& fc : fcs)
-            {
-                if (m_bnd.is_contact_face(fc))
-                {
-                    m_has_contact_faces[i] = true;
-                    continue;
-                }
-            }
-            i++;
+            m_has_contact_faces[i++] = m_bnd.cell_has_contact_faces(cl);
         }
     }
 
@@ -190,7 +181,7 @@ class NewtonRaphson_step_tresca
             }
             else
             {
-                const auto gradrec_full = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
+                const auto gradrec_full = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd);
                 ET                      = gradrec_full.first;
             }
             tc.toc();
@@ -211,22 +202,22 @@ class NewtonRaphson_step_tresca
                 {
                     switch (m_rp.m_stab_type)
                     {
-                        case HHO:
-                        {
-                            const auto recons_scalar = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                            stab = make_vector_hho_stabilization(m_msh, cl, recons_scalar.first, m_hdi);
-                            break;
-                        }
+                        // case HHO:
+                        // {
+                        //     const auto recons_scalar = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
+                        //     stab = make_vector_hho_stabilization(m_msh, cl, recons_scalar.first, m_hdi);
+                        //     break;
+                        // }
                         case HDG:
                         {
-                            stab = make_vector_hdg_stabilization(m_msh, cl, m_hdi);
+                            stab = make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd);
                             break;
                         }
-                        case DG:
-                        {
-                            stab = make_vector_dg_stabilization(m_msh, cl, m_hdi);
-                            break;
-                        }
+                        // case DG:
+                        // {
+                        //     stab = make_vector_dg_stabilization(m_msh, cl, m_hdi);
+                        //     break;
+                        // }
                         case NO: { break;
                         }
                         default: throw std::invalid_argument("Unknown stabilization");
@@ -254,7 +245,7 @@ class NewtonRaphson_step_tresca
 
             // Static Condensation
             tc.tic();
-            const auto scnp = make_vector_static_condensation_withMatrix(m_msh, cl, m_hdi, lhs, rhs, false);
+            const auto scnp = make_vector_static_condensation_withMatrix(m_msh, cl, m_hdi, m_bnd, lhs, rhs);
 
             m_AL[cell_i] = std::get<1>(scnp);
             m_bL[cell_i] = std::get<2>(scnp);
@@ -316,9 +307,9 @@ class NewtonRaphson_step_tresca
         for (auto& cl : m_msh)
         {
             // Extract the solution
-            const auto fcs             = faces(m_msh, cl);
+            const auto fcs             = m_bnd.faces_without_contact(cl);
             const auto num_faces       = fcs.size();
-            const auto total_faces_dof = num_faces * fbs;
+            const auto total_faces_dof = fcs.size() * fbs;
 
             vector_type xFs = vector_type::Zero(total_faces_dof);
 
@@ -329,17 +320,12 @@ class NewtonRaphson_step_tresca
                 xFs.segment(face_i * fbs, fbs) = solF.segment(face_id * fbs, fbs);
             }
 
-            const vector_type xT = m_bL[cell_i] - m_AL[cell_i] * xFs;
-
-            assert(xT.size() == cbs);
-            assert(m_solution_data.at(cell_i).size() == xT.size() + xFs.size());
             // Update element U^{i+1} = U^i + delta U^i ///
-            (m_solution_data.at(cell_i)).segment(0, cbs) += xT;
-            (m_solution_data.at(cell_i)).segment(cbs, total_faces_dof) += xFs;
+            m_solution_data.at(cell_i) +=
+              disk::make_vector_static_decondensation_withMatrix(m_AL[cell_i], m_bL[cell_i], xFs);
 
             // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
-            assert(m_solution_cells.at(cell_i).size() == cbs);
-            m_solution_cells.at(cell_i) += xT;
+            m_solution_cells.at(cell_i) += m_solution_data.at(cell_i).head(cbs);
 
             // std::cout << "KT_F " << m_AL[cell_i].norm() << std::endl;
             // std::cout << "sol_F" << std::endl;

@@ -175,11 +175,12 @@ struct imposed_dofs<false>
 // ScalarBoundary = true for scalar problem like diffusion
 // ScalarBoundary = false for vectorial problem like linear_elasticity
 
-template<typename MeshType, bool ScalarBoundary = true>
+template<typename MeshType, bool ScalarBoundary>
 class BoundaryConditions
 {
   public:
     typedef MeshType                                                                                      mesh_type;
+    typedef typename mesh_type::cell_type                                                                 cell_type;
     typedef typename mesh_type::face_type                                                                 face_type;
     typedef typename mesh_type::coordinate_type                                                           scalar_type;
     typedef point<scalar_type, mesh_type::dimension>                                                      point_type;
@@ -492,6 +493,104 @@ class BoundaryConditions
         return robin_boundary_id(m_msh.lookup(fc));
     }
 
+    bool
+    cell_has_dirichlet_faces(const cell_type& cl) const
+    {
+        const auto fcs = faces(m_msh, cl);
+
+        for (auto& fc : fcs)
+        {
+            if (is_dirichlet_face(fc))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool
+    cell_has_robin_faces(const cell_type& cl) const
+    {
+        const auto fcs = faces(m_msh, cl);
+
+        for (auto& fc : fcs)
+        {
+            if (is_robin_face(fc))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool
+    cell_has_contact_faces(const cell_type& cl) const
+    {
+        const auto fcs = faces(m_msh, cl);
+
+        for (auto& fc : fcs)
+        {
+            if (is_contact_face(fc))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool
+    cell_has_neumann_faces(const cell_type& cl) const
+    {
+        const auto fcs = faces(m_msh, cl);
+
+        for(auto& fc : fcs)
+        {
+            if(is_neumann_face(fc))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    size_t
+    howmany_contact_faces(const cell_type& cl) const
+    {
+        const auto fcs = faces(m_msh, cl);
+        size_t       nb  = 0;
+
+        for (auto& fc : fcs)
+        {
+            if (is_contact_face(fc))
+            {
+                nb++;
+            }
+        }
+
+        return nb;
+    }
+
+    std::vector<face_type>
+    faces_without_contact(const cell_type& cl) const
+    {
+        const auto             fcs = faces(m_msh, cl);
+        std::vector<face_type> ret;
+
+        for (auto& fc : fcs)
+        {
+            if (!is_contact_face(fc))
+            {
+                ret.push_back(fc);
+            }
+        }
+
+        return ret;
+    }
+
     auto
     dirichlet_boundary_func(const size_t face_i) const
     {
@@ -588,4 +687,9 @@ class BoundaryConditions
     }
 };
 
+template<typename MeshType>
+using scalar_boundary_conditions = BoundaryConditions<MeshType, true>;
+
+template<typename MeshType>
+using vector_boundary_conditions = BoundaryConditions<MeshType, false>;
 } // end disk

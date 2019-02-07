@@ -37,19 +37,255 @@
 namespace MK
 {
 
+template<typename Mesh>
+std::pair<Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>,
+          Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>>
+make_matrix_symmetric_gradrec(const Mesh&                                   msh,
+                              const typename Mesh::cell_type&               cl,
+                              const disk::hho_degree_info&                  di,
+                              const disk::vector_boundary_conditions<Mesh>& bnd)
+{
+    using T = typename Mesh::coordinate_type;
+    typedef Matrix<T, Dynamic, Dynamic> matrix_type;
+
+    const size_t N = Mesh::dimension;
+
+    const auto graddeg = di.grad_degree();
+    const auto celdeg  = di.cell_degree();
+    const auto facdeg  = di.face_degree();
+
+    const auto gb = make_sym_matrix_monomial_basis(msh, cl, graddeg);
+    const auto cb = make_vector_monomial_basis(msh, cl, celdeg);
+
+    const auto gbs = disk::sym_matrix_basis_size(graddeg, Mesh::dimension, Mesh::dimension);
+    const auto cbs = disk::vector_basis_size(celdeg, Mesh::dimension, Mesh::dimension);
+    const auto fbs = disk::vector_basis_size(facdeg, Mesh::dimension - 1, Mesh::dimension);
+
+    const auto fcs       = bnd.faces_without_contact(cl);
+    const auto num_faces = fcs.size();
+
+    matrix_type gr_lhs = matrix_type::Zero(gbs, gbs);
+    matrix_type gr_rhs = matrix_type::Zero(gbs, cbs + num_faces * fbs);
+
+    // this is very costly to build it
+    const auto qps = integrate(msh, cl, 2 * graddeg);
+
+    size_t dec = 0;
+    if (N == 3)
+        dec = 6;
+    else if (N == 2)
+        dec = 3;
+    else
+        std::logic_error("Expected 3 >= dim > 1");
+
+    for (auto& qp : qps)
+    {
+        const auto gphi = gb.eval_functions(qp.point());
+
+        for (size_t j = 0; j < gbs; j++)
+        {
+            const auto qp_gphi_j = disk::priv::inner_product(qp.weight(), gphi[j]);
+            for (size_t i = j; i < gbs; i += dec)
+                gr_lhs(i, j) += disk::priv::inner_product(gphi[i], qp_gphi_j);
+        }
+    }
+
+    // upper part
+    for (size_t j = 0; j < gbs; j++)
+        for (size_t i = 0; i < j; i++)
+            gr_lhs(i, j) = gr_lhs(j, i);
+
+    // compute rhs
+    if (celdeg > 0)
+    {
+        const auto qpc = integrate(msh, cl, graddeg + celdeg - 1);
+        for (auto& qp : qpc)
+        {
+            const auto gphi    = gb.eval_functions(qp.point());
+            const auto dphi    = cb.eval_sgradients(qp.point());
+            const auto qp_dphi = disk::priv::inner_product(qp.weight(), dphi);
+
+            gr_rhs.block(0, 0, gbs, cbs) += disk::priv::outer_product(gphi, qp_dphi);
+
+        } // end qp
+    }
+
+    for (size_t i = 0; i < fcs.size(); i++)
+    {
+        const auto fc = fcs[i];
+        const auto n  = normal(msh, cl, fc);
+        const auto fb = make_vector_monomial_basis(msh, fc, facdeg);
+
+        const auto qps_f = integrate(msh, fc, graddeg + std::max(celdeg, facdeg));
+        for (auto& qp : qps_f)
+        {
+            const auto cphi = cb.eval_functions(qp.point());
+            const auto gphi = gb.eval_functions(qp.point());
+            const auto fphi = fb.eval_functions(qp.point());
+
+            const auto qp_gphi_n = disk::priv::inner_product(gphi, disk::priv::inner_product(qp.weight(), n));
+            gr_rhs.block(0, cbs + i * fbs, gbs, fbs) += disk::priv::outer_product(qp_gphi_n, fphi);
+            gr_rhs.block(0, 0, gbs, cbs) -= disk::priv::outer_product(qp_gphi_n, cphi);
+        }
+    }
+
+    matrix_type oper = gr_lhs.ldlt().solve(gr_rhs);
+    matrix_type data = gr_rhs.transpose() * oper;
+
+    return std::make_pair(oper, data);
+}
+
+template<typename Mesh>
+Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>
+make_scalar_hdg_stabilization(const Mesh&                                   msh,
+                              const typename Mesh::cell_type&               cl,
+                              const disk::hho_degree_info&                  di,
+                              const disk::vector_boundary_conditions<Mesh>& bnd)
+{
+    using T = typename Mesh::coordinate_type;
+    typedef Matrix<T, Dynamic, Dynamic> matrix_type;
+
+    const auto celdeg = di.cell_degree();
+    const auto facdeg = di.face_degree();
+
+    const auto cbs = disk::scalar_basis_size(celdeg, Mesh::dimension);
+    const auto fbs = disk::scalar_basis_size(facdeg, Mesh::dimension - 1);
+
+    const auto fcs        = bnd.faces_without_contact(cl);
+    const auto num_faces  = fcs.size();
+    const auto total_dofs = cbs + num_faces * fbs;
+
+    matrix_type       data = matrix_type::Zero(total_dofs, total_dofs);
+    const matrix_type If   = matrix_type::Identity(fbs, fbs);
+
+    auto cb = make_scalar_monomial_basis(msh, cl, celdeg);
+
+    for (size_t i = 0; i < num_faces; i++)
+    {
+        const auto fc = fcs[i];
+        const auto h  = diameter(msh, fc);
+        auto       fb = make_scalar_monomial_basis(msh, fc, facdeg);
+
+        matrix_type oper  = matrix_type::Zero(fbs, total_dofs);
+        matrix_type tr    = matrix_type::Zero(fbs, total_dofs);
+        matrix_type mass  = make_mass_matrix(msh, fc, fb);
+        matrix_type trace = matrix_type::Zero(fbs, cbs);
+
+        oper.block(0, cbs + i * fbs, fbs, fbs) = -If;
+
+        const auto qps = integrate(msh, fc, facdeg + celdeg);
+        for (auto& qp : qps)
+        {
+            const auto c_phi = cb.eval_functions(qp.point());
+            const auto f_phi = fb.eval_functions(qp.point());
+
+            assert(c_phi.rows() == cbs);
+            assert(f_phi.rows() == fbs);
+            assert(c_phi.cols() == f_phi.cols());
+
+            trace += disk::priv::outer_product(disk::priv::inner_product(qp.weight(), f_phi), c_phi);
+        }
+
+        tr.block(0, cbs + i * fbs, fbs, fbs) = -mass;
+        tr.block(0, 0, fbs, cbs)             = trace;
+
+        oper.block(0, 0, fbs, cbs) = mass.ldlt().solve(trace);
+        data += oper.transpose() * tr * (1. / h);
+
+        // std::cout << data << std::endl;
+    }
+
+    return data;
+}
+
+template<typename Mesh>
+Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>
+make_vector_hdg_stabilization(const Mesh&                                   msh,
+                              const typename Mesh::cell_type&               cl,
+                              const disk::hho_degree_info&                  di,
+                              const disk::vector_boundary_conditions<Mesh>& bnd)
+{
+    const auto hdg_scalar_stab = make_scalar_hdg_stabilization(msh, cl, di, bnd);
+
+    return disk::priv::compute_lhs_vector(msh, cl, di, hdg_scalar_stab, bnd);
+}
+
+template<typename Mesh, typename T>
+auto
+make_vector_static_condensation_withMatrix(const Mesh&                                                      msh,
+                                           const typename Mesh::cell_type&                                  cl,
+                                           const disk::hho_degree_info&                                     di,
+                                           const disk::vector_boundary_conditions<Mesh>&                    bnd,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& lhs,
+                                           const typename Eigen::Matrix<T, Eigen::Dynamic, 1>&              rhs)
+{
+    using matrix_type = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+    using vector_type = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+
+    const auto num_cell_dofs = disk::vector_basis_size(di.cell_degree(), Mesh::dimension, Mesh::dimension);
+    const auto num_face_dofs = disk::vector_basis_size(di.face_degree(), Mesh::dimension - 1, Mesh::dimension);
+
+    const auto fcs            = bnd.faces_without_contact(cl);
+    const auto num_faces      = fcs.size();
+    const auto num_faces_dofs = num_faces * num_face_dofs;
+    const auto num_total_dofs = num_cell_dofs + num_faces_dofs;
+
+    assert(lhs.rows() == lhs.cols());
+    assert(lhs.cols() == num_total_dofs);
+
+    if ((rhs.size() != num_cell_dofs) && (rhs.size() != num_total_dofs))
+    {
+        throw std::invalid_argument("static condensation: incorrect size of the rhs");
+    }
+
+    const matrix_type K_TT = lhs.topLeftCorner(num_cell_dofs, num_cell_dofs);
+    const matrix_type K_TF = lhs.topRightCorner(num_cell_dofs, num_faces_dofs);
+    const matrix_type K_FT = lhs.bottomLeftCorner(num_faces_dofs, num_cell_dofs);
+    const matrix_type K_FF = lhs.bottomRightCorner(num_faces_dofs, num_faces_dofs);
+
+    assert(K_TT.cols() == num_cell_dofs);
+    assert(K_TT.cols() + K_TF.cols() == lhs.cols());
+    assert(K_TT.rows() + K_FT.rows() == lhs.rows());
+    assert(K_TF.rows() + K_FF.rows() == lhs.rows());
+    assert(K_FT.cols() + K_FF.cols() == lhs.cols());
+
+    const vector_type cell_rhs  = rhs.head(num_cell_dofs);
+    vector_type       faces_rhs = vector_type::Zero(num_faces_dofs);
+
+    if (rhs.size() == num_total_dofs)
+    {
+        faces_rhs = rhs.tail(num_faces_dofs);
+    }
+
+    const auto K_TT_lu = K_TT.lu();
+    // if (K_TT_lu.info() != Eigen::Success)
+    // {
+    //     throw std::invalid_argument("static condensation: K_TT is not positive definite");
+    // }
+
+    const matrix_type AL = K_TT_lu.solve(K_TF);
+    const vector_type bL = K_TT_lu.solve(cell_rhs);
+
+    const matrix_type AC = K_FF - K_FT * AL;
+    const vector_type bC = faces_rhs - K_FT * bL;
+
+    return std::make_tuple(std::make_pair(AC, bC), AL, bL);
+}
+
+
 template<typename MeshType>
 class tresca
 {
   private:
-    typedef MeshType                                   mesh_type;
-    typedef typename mesh_type::coordinate_type        scalar_type;
-    typedef typename mesh_type::cell                   cell_type;
-    typedef typename mesh_type::face                   face_type;
-    typedef point<scalar_type, mesh_type::dimension>   point_type;
-    typedef disk::MaterialData<scalar_type>            material_type;
-    typedef typename disk::hho_degree_info             hdi_type;
-    typedef ParamRun<scalar_type>                      param_type;
-    typedef disk::BoundaryConditions<mesh_type, false> bnd_type;
+    typedef MeshType                                    mesh_type;
+    typedef typename mesh_type::coordinate_type         scalar_type;
+    typedef typename mesh_type::cell                    cell_type;
+    typedef typename mesh_type::face                    face_type;
+    typedef point<scalar_type, mesh_type::dimension>    point_type;
+    typedef disk::MaterialData<scalar_type>             material_type;
+    typedef typename disk::hho_degree_info              hdi_type;
+    typedef ParamRun<scalar_type>                       param_type;
+    typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
 
     const static int dimension = mesh_type::dimension;
 
@@ -441,7 +677,7 @@ class tresca
     {
         timecounter tc;
 
-        const auto fcs       = faces(m_msh, cl);
+        const auto fcs       = m_bnd.faces_without_contact(cl);
         const auto num_faces = fcs.size();
         num_total_dofs       = cell_basis_size + num_faces * face_basis_size;
 

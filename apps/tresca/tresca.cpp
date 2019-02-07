@@ -52,7 +52,7 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     typedef Mesh<T, 2, Storage>                        mesh_type;
     typedef static_vector<T, 2>                        result_type;
     typedef static_matrix<T, 2, 2>                     result_grad_type;
-    typedef disk::BoundaryConditions<mesh_type, false> Bnd_type;
+    typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
     auto load = [material_data](const point<T, 2>& p) -> result_type { return result_type{0, 0}; };
 
@@ -140,7 +140,7 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
 //     typedef Mesh<T, 3, Storage>                        mesh_type;
 //     typedef static_vector<T, 3>                        result_type;
 //     typedef static_matrix<T, 3, 3>                     result_grad_type;
-//     typedef disk::BoundaryConditions<mesh_type, false> Bnd_type;
+//     typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
 //     auto load = [material_data](const point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
 

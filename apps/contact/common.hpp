@@ -126,7 +126,7 @@ full_offset(const Mesh& msh, const hho_degree_info& hdi)
 template<typename Mesh>
 auto
 make_is_contact_vector(const Mesh& msh,
-                const disk::BoundaryConditions<Mesh>& bnd)
+                const disk::scalar_boundary_conditions<Mesh>& bnd)
 {
     //cells with contact faces
     auto num_cells = msh.cells_size();
@@ -157,7 +157,7 @@ template<typename T>
 static_matrix<T, 3, 3>
 make_fem_nitsche(const disk::simplicial_mesh<T, 2>& msh,
         const typename disk::simplicial_mesh<T, 2>::cell& cl,
-        const disk::BoundaryConditions<disk::simplicial_mesh<T, 2>>& bnd,
+        const disk::scalar_boundary_conditions<disk::simplicial_mesh<T, 2>>& bnd,
         const T & gamma_0,
         const T & theta)
 {
@@ -192,7 +192,7 @@ make_hho_nitsche(const Mesh&                                                    
                  const Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>&       rec,
                  const typename Mesh::coordinate_type&                                 gamma_0,
                  const typename Mesh::coordinate_type&                                 theta,
-                 const disk::BoundaryConditions<Mesh>&                                 bnd)
+                 const disk::scalar_boundary_conditions<Mesh>&                                 bnd)
 {
     using T = typename Mesh::coordinate_type;
     const size_t DIM = Mesh::dimension;
@@ -237,7 +237,7 @@ template<typename T>
 static_matrix<T, 3, 3>
 make_fem_heaviside(const disk::simplicial_mesh<T, 2>& msh,
         const typename disk::simplicial_mesh<T, 2>::cell& cl,
-        const disk::BoundaryConditions<disk::simplicial_mesh<T, 2>>& bnd,
+        const disk::scalar_boundary_conditions<disk::simplicial_mesh<T, 2>>& bnd,
         const T & gamma_0,
         const T & theta,
         const static_vector<T,3>& uloc)
@@ -287,7 +287,7 @@ make_hho_heaviside_other(const Mesh& msh, const typename Mesh::cell_type& cl,
             const Matrix<T, Dynamic, Dynamic>& rec,
             const T & gamma_0,
             const T& theta,
-            const disk::BoundaryConditions<Mesh>& bnd,
+            const disk::scalar_boundary_conditions<Mesh>& bnd,
             const Matrix<T, Dynamic, 1>& uloc)
 {
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -360,7 +360,7 @@ make_hho_heaviside(const Mesh& msh, const typename Mesh::cell_type& cl,
             const Matrix<T, Dynamic, Dynamic>& rec,
             const T & gamma_0,
             const T& theta,
-            const disk::BoundaryConditions<Mesh>& bnd,
+            const disk::scalar_boundary_conditions<Mesh>& bnd,
             const Matrix<T, Dynamic, 1>& uloc)
 {
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -430,7 +430,7 @@ make_hho_heaviside_faces(const Mesh& msh, const typename Mesh::cell_type& cl,
             const Matrix<T, Dynamic, Dynamic>& rec,
             const T & gamma_0,
             const T& theta,
-            const disk::BoundaryConditions<Mesh>& bnd,
+            const disk::scalar_boundary_conditions<Mesh>& bnd,
             const Matrix<T, Dynamic, 1>& uloc)
 {
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -503,7 +503,7 @@ make_hho_heaviside_trace(const Mesh& msh, const typename Mesh::cell_type& cl,
             const Matrix<T, Dynamic, Dynamic>& rec,
             const T & gamma_0,
             const T& theta,
-            const disk::BoundaryConditions<Mesh>& bnd,
+            const disk::scalar_boundary_conditions<Mesh>& bnd,
             const Matrix<T, Dynamic, 1>& uloc)
 {
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -574,7 +574,7 @@ template <typename T>
 static_vector<T, 3>
 make_fem_negative(const disk::simplicial_mesh<T, 2>& msh,
     const typename disk::simplicial_mesh<T, 2>::cell& cl,
-    const disk::BoundaryConditions<disk::simplicial_mesh<T, 2>>& bnd,
+    const disk::scalar_boundary_conditions<disk::simplicial_mesh<T, 2>>& bnd,
     const T & gamma_0,
     const T & theta,
     const static_vector<T, 3>& uloc)
@@ -626,7 +626,7 @@ make_hho_negative(const Mesh&                                                   
                   const Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>&       rec,
                   const typename Mesh::coordinate_type&                                 gamma_0,
                   const typename Mesh::coordinate_type&                                 theta,
-                  const disk::BoundaryConditions<Mesh>&                                 bnd,
+                  const disk::scalar_boundary_conditions<Mesh>&                                 bnd,
                   const Matrix<typename Mesh::coordinate_type, Dynamic, 1>&             uloc)
 {
     using T = typename Mesh::coordinate_type;
@@ -694,7 +694,7 @@ make_hho_negative_faces(const Mesh&                                             
                         const Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>&             rec,
                         const typename Mesh::coordinate_type&                                       gamma_0,
                         const typename Mesh::coordinate_type&                                       theta,
-                        const disk::BoundaryConditions<Mesh>& bnd,
+                        const disk::scalar_boundary_conditions<Mesh>& bnd,
                         const Matrix<typename Mesh::coordinate_type, Dynamic, 1>&                   uloc)
 {
     using T = typename Mesh::coordinate_type;
@@ -760,7 +760,7 @@ make_hho_negative_trace(const Mesh&                                             
                         const Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>&             rec,
                         const typename Mesh::coordinate_type&                                       gamma_0,
                         const typename Mesh::coordinate_type&                                       theta,
-                        const disk::BoundaryConditions<Mesh>& bnd,
+                        const disk::scalar_boundary_conditions<Mesh>& bnd,
                         const Matrix<typename Mesh::coordinate_type, Dynamic, 1>&                   uloc)
 {
     using T = typename Mesh::coordinate_type;
@@ -831,7 +831,7 @@ std::pair<Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>,
 make_hho_contact_scalar_laplacian(const Mesh&                           msh,
                                   const typename Mesh::cell_type&       cl,
                                   const hho_degree_info&                di,
-                                  const disk::BoundaryConditions<Mesh>& bnd)
+                                  const disk::scalar_boundary_conditions<Mesh>& bnd)
 {
     using T = typename Mesh::coordinate_type;
     const size_t DIM = Mesh::dimension;

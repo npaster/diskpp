@@ -54,7 +54,7 @@ public:
     template<typename Function>
     auto
     solve_faces(const Mesh&  msh, const Function& rhs_fun,
-            const disk::BoundaryConditions<Mesh>& bnd)
+            const disk::scalar_boundary_conditions<Mesh>& bnd)
     {
 
         hho_degree_info      hdi(ap.degree); //Also allow (degree + 1, degree)
@@ -203,7 +203,7 @@ public:
     template<typename Function>
     auto
     solve_cells(const Mesh&  msh, const Function& rhs_fun,
-            const disk::BoundaryConditions<Mesh>& bnd)
+            const disk::scalar_boundary_conditions<Mesh>& bnd)
     {
 
         hho_degree_info      hdi(ap.degree +1, ap.degree); //Not allow (degree, degree)
@@ -374,7 +374,7 @@ public:
 
 
     hho_newton_solver(const Mesh& msh,
-                    const disk::BoundaryConditions<Mesh>& bnd,
+                    const disk::scalar_boundary_conditions<Mesh>& bnd,
                     const algorithm_parameters<T>& alg_par):
                     ap(alg_par)
     {
@@ -398,7 +398,7 @@ run_signorini(  const Mesh& msh, const algorithm_parameters<T>& ap)
         return 0.;
     };
 
-    typedef disk::BoundaryConditions<Mesh> boundary_type;
+    typedef disk::scalar_boundary_conditions<Mesh> boundary_type;
     boundary_type  bnd(msh);
 
     /*--------------------------------------------------------------------------

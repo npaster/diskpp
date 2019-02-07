@@ -70,7 +70,7 @@ class tresca_solver
     typedef dynamic_matrix<scalar_type> matrix_type;
     typedef dynamic_vector<scalar_type> vector_type;
 
-    typedef disk::BoundaryConditions<mesh_type, false> bnd_type;
+    typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
 
     typename disk::hho_degree_info m_hdi;
     bnd_type                       m_bnd;
@@ -108,7 +108,7 @@ class tresca_solver
 
         for (auto& cl : m_msh)
         {
-            const auto fcs       = faces(m_msh, cl);
+            const auto fcs       = m_bnd.faces_without_contact(cl);
             const auto num_faces = fcs.size();
             m_solution_data.push_back(vector_type::Zero(num_cell_dofs + num_faces * num_face_dofs));
             m_solution_cells.push_back(vector_type::Zero(num_cell_dofs));
@@ -145,29 +145,29 @@ class tresca_solver
         for (auto& cl : m_msh)
         {
             /////// Gradient Reconstruction /////////
-            const auto gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
+            const auto gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd);
             m_gradient_precomputed.push_back(gr.first);
 
             if (m_rp.m_stab)
             {
                 switch (m_rp.m_stab_type)
                 {
-                    case HHO:
-                    {
-                        const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                        m_stab_precomputed.push_back(make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi));
-                        break;
-                    }
+                    // case HHO:
+                    // {
+                    //     const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
+                    //     m_stab_precomputed.push_back(make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi));
+                    //     break;
+                    // }
                     case HDG:
                     {
-                        m_stab_precomputed.push_back(make_vector_hdg_stabilization(m_msh, cl, m_hdi));
+                        m_stab_precomputed.push_back(MK::make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd));
                         break;
                     }
-                    case DG:
-                    {
-                        m_stab_precomputed.push_back(make_vector_dg_stabilization(m_msh, cl, m_hdi));
-                        break;
-                    }
+                    // case DG:
+                    // {
+                    //     m_stab_precomputed.push_back(make_vector_dg_stabilization(m_msh, cl, m_hdi));
+                    //     break;
+                    // }
                     case NO: { break;
                     }
                     default: throw std::invalid_argument("Unknown stabilization");
