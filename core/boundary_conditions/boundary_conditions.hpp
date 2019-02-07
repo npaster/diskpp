@@ -334,7 +334,7 @@ class BoundaryConditions
     size_t
     nb_faces_boundary() const
     {
-        return m_dirichlet_faces + m_neumann_faces + m_robin_faces;
+        return m_dirichlet_faces + m_neumann_faces + m_robin_faces + m_contact_faces;
     }
 
     size_t

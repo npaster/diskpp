@@ -58,19 +58,53 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
 
     auto solution = [material_data](const point<T, 2>& p) -> result_type { return result_type{0, 0}; };
 
-    auto gradient = [material_data](const point<T, 2>& p) -> result_grad_type { return result_grad_type::Zero(); };
+    // auto load = [material_data](const point<T, 2>& p) -> result_type {
+    //     const T lambda = material_data.getLambda();
+    //     const T mu     = material_data.getMu();
+
+    //     T fx =
+    //       lambda * cos(M_PI * (p.x() + p.y())) -
+    //       2.0 * mu *
+    //         ((4 * lambda + 4) * sin(2 * M_PI * p.y()) * cos(2 * M_PI * p.x()) + sin(M_PI * p.x()) * sin(M_PI * p.y())) +
+    //       2.0 * mu *
+    //         (2.0 * lambda * sin(2 * M_PI * p.y()) + 2.0 * sin(2 * M_PI * p.y()) + 0.5 * cos(M_PI * (p.x() + p.y())));
+    //     T fy =
+    //       lambda * cos(M_PI * (p.x() + p.y())) +
+    //       2.0 * mu *
+    //         ((4 * lambda + 4) * sin(2 * M_PI * p.x()) * cos(2 * M_PI * p.y()) - sin(M_PI * p.x()) * sin(M_PI * p.y())) -
+    //       2.0 * mu *
+    //         (2.0 * lambda * sin(2 * M_PI * p.x()) + 2.0 * sin(2 * M_PI * p.x()) - 0.5 * cos(M_PI * (p.x() + p.y())));
+
+    //     return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy};
+    // };
+
+    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
+    //     T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    //     T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+    //     return result_type{fx, fy};
+    // };
+
 
     Bnd_type bnd(msh);
     //bnd.addDirichletEverywhere(solution);
 
+    // Bostan2
+    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -0.2}; };
+
+    bnd.addContactBC(disk::SIGNORINI, 6);
+    bnd.addDirichletBC(disk::DIRICHLET, 10, depl);
 
     // Cook with quadrilaterals
-    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    auto un   = [material_data](const point<T, 2>& p) -> result_type { return result_type{1.0, 0}; };
-    auto trac = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0.1125}; };
+    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    // auto un   = [material_data](const point<T, 2>& p) -> result_type { return result_type{1.0, 0}; };
+    // auto trac = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0.1125}; };
 
-    bnd.addContactBC(disk::SIGNORINI, 8);
-    bnd.addDirichletBC(disk::DIRICHLET, 3, un);
+    // bnd.addContactBC(disk::SIGNORINI, 8);
+    // bnd.addDirichletBC(disk::DIRICHLET, 3, un);
     //bnd.addNeumannBC(disk::NEUMANN, 8, trac);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
@@ -85,15 +119,18 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     if (nl.verbose())
     {
         solve_info.printInfo();
+        std::cout << "average diameter: " << average_diameter(msh) << std::endl;
+        std::cout << "error: " << nl.compute_l2_displacement_error(solution) << std::endl;
     }
 
     nl.compute_discontinuous_displacement("depl2D_disc.msh");
     nl.compute_continuous_displacement("depl2D_cont.msh");
-    // nl.compute_discontinuous_stress("stress2D_disc.msh");
-    // nl.compute_continuous_stress("stress2D_cont.msh");
-    // nl.compute_stress_GP("stress2D_GP.msh");
+    nl.compute_discontinuous_stress("stress2D_disc.msh");
+    nl.compute_continuous_stress("stress2D_cont.msh");
+    nl.compute_stress_GP("stress2D_GP.msh");
     nl.compute_continuous_deformed("deformed2D_cont.msh");
     nl.compute_discontinuous_deformed("deformed2D_disc.msh");
+    nl.contact_quantities("contact.dat");
 }
 
 // template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -154,11 +191,13 @@ main(int argc, char** argv)
     // Elasticity Parameters
     disk::MaterialData<RealType> material_data;
 
-    RealType E  = 200;
+    RealType E  = 1000;
     RealType nu = 0.3;
 
     material_data.setMu(E, nu);
     material_data.setLambda(E, nu);
+    // material_data.setMu(1.0);
+    // material_data.setLambda(1000.0);
 
     int ch;
 

@@ -35,6 +35,7 @@
 
 #include "Informations.hpp"
 #include "NewtonSolver/newton_solver.hpp"
+#include "NewtonSolver/tresca_elementary_computation.hpp"
 #include "Parameters.hpp"
 
 #include "boundary_conditions/boundary_conditions.hpp"
@@ -241,6 +242,7 @@ class tresca_solver
         {
             m_hdi.info_degree();
             m_rp.infos();
+            m_bnd.boundary_info();
         }
 
         init();
@@ -427,7 +429,7 @@ class tresca_solver
 
         const auto cbs      = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
         const int  diff_deg = m_hdi.face_degree() - m_hdi.cell_degree();
-        const int  di       = std::max(diff_deg, 0);
+        const int  di       = std::max(diff_deg, 1);
 
         int cell_i = 0;
 
@@ -557,208 +559,189 @@ class tresca_solver
         nodedata.saveNodeData(filename, gmsh);
     }
 
-    // void
-    // compute_stress_GP(const std::string& filename) const
-    // {
-    //     gmsh::Gmesh gmsh = disk::convertMesh(post_mesh);
+    void
+    compute_stress_GP(const std::string& filename) const
+    {
+        gmsh::Gmesh gmsh = disk::convertMesh(post_mesh);
 
-    //     std::vector<gmsh::Data>    data;    // create data (not used)
-    //     std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
-    //     size_t                     nb_nodes(gmsh.getNumberofNodes());
+        std::vector<gmsh::Data>    data;    // create data (not used)
+        std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
+        size_t                     nb_nodes(gmsh.getNumberofNodes());
 
-    //     const size_t grad_degree   = m_hdi.grad_degree();
+        const size_t                grad_degree = m_hdi.grad_degree();
+        const MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
 
-    //     int cell_i = 0;
-    //     for (auto& cl : m_msh)
-    //     {
-    //         const auto     law_quadpoints = m_law.getCellIVs(cell_i).getIVs();
-    //         const auto     uTF            = m_solution_data.at(cell_i);
-    //         matrix_type gr;
-    //         if (m_rp.m_precomputation)
-    //         {
-    //             gr = m_gradient_precomputed.at(cell_i);
-    //         }
-    //         else
-    //         {
-    //             gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
-    //         }
-    //         const vector_type GTuTF = gr * uTF;
-    //         auto                 gb    = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
+        int cell_i = 0;
+        for (auto& cl : m_msh)
+        {
+            const auto  qps = integrate(m_msh, cl, 2 * grad_degree);
+            const auto  uTF = m_solution_data.at(cell_i);
+            matrix_type gr;
+            if (m_rp.m_precomputation)
+            {
+                gr = m_gradient_precomputed.at(cell_i);
+            }
+            else
+            {
+                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
+            }
+            const vector_type ETuTF = gr * uTF;
+            const auto        gb    = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
 
-    //         // Loop on nodes
-    //         for (auto& qp : law_quadpoints)
-    //         {
-    //             const auto gphi   = gb.eval_functions(qp.point());
-    //             const auto GT_iqn = disk::eval(GTuTF, gphi);
-    //             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
-    //             const auto FT_iqn_3D = disk::convertMatrix3DwithOne(FT_iqn);
+            // Loop on nodes
+            for (auto& qp : qps)
+            {
+                const auto                stress = elem.eval_stress(ETuTF, gb, qp.point());
+                const std::vector<double> tens   = disk::convertToVectorGmsh(stress);
 
-    //             const auto                P      = qp.compute_stress3D(material_data);
-    //             const auto                stress = disk::mechanics::convertPK1toCauchy(P, FT_iqn_3D);
-    //             const std::vector<double> tens   = disk::convertToVectorGmsh(stress);
+                // Add GP
+                // Create a node at gauss point
+                nb_nodes++;
+                const gmsh::Node    new_node = disk::convertPoint(qp.point(), nb_nodes);
+                const gmsh::SubData sdata(tens, new_node);
+                subdata.push_back(sdata); // add subdata
+            }
+            cell_i++;
+        }
 
-    //             // Add GP
-    //             // Create a node at gauss point
-    //             nb_nodes++;
-    //             const gmsh::Node    new_node = disk::convertPoint(qp.point(), nb_nodes);
-    //             const gmsh::SubData sdata(tens, new_node);
-    //             subdata.push_back(sdata); // add subdata
-    //         }
-    //         cell_i++;
-    //     }
+        // Save
+        gmsh::NodeData nodedata(9, 0.0, "Stress_GP", data, subdata); // create and init a nodedata view
 
-    //     // Save
-    //     gmsh::NodeData nodedata(9, 0.0, "Stress_GP", data, subdata); // create and init a nodedata view
+        nodedata.saveNodeData(filename, gmsh); // save the view
+    }
 
-    //     nodedata.saveNodeData(filename, gmsh); // save the view
-    // }
+    void
+    compute_discontinuous_stress(const std::string& filename) const
+    {
+        gmsh::Gmesh gmsh(dimension);
+        auto        storage = m_msh.backend_storage();
 
-    // void
-    // compute_discontinuous_stress(const std::string& filename) const
-    // {
-    //     gmsh::Gmesh gmsh(dimension);
-    //     auto        storage = m_msh.backend_storage();
+        std::vector<gmsh::Data>          data;    // create data (not used)
+        const std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
 
-    //     std::vector<gmsh::Data>          data;    // create data (not used)
-    //     const std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
+        const size_t                grad_degree = m_hdi.grad_degree();
+        const MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
 
-    //     const auto   material_data = m_law.getMaterialData();
-    //     const size_t grad_degree   = m_hdi.grad_degree();
+        int    cell_i   = 0;
+        size_t nb_nodes = 0;
+        for (auto& cl : m_msh)
+        {
+            const auto  uTF = m_solution_data.at(cell_i);
+            matrix_type gr;
+            if (m_rp.m_precomputation)
+            {
+                gr = m_gradient_precomputed.at(cell_i);
+            }
+            else
+            {
+                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
+            }
+            const vector_type       ETuTF      = gr * uTF;
+            const auto              gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
+            const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
+            std::vector<gmsh::Node> new_nodes;
 
-    //     int    cell_i   = 0;
-    //     size_t nb_nodes = 0;
-    //     for (auto& cl : m_msh)
-    //     {
-    //         const auto     uTF = m_solution_data.at(cell_i);
-    //         matrix_type gr;
-    //         if (m_rp.m_precomputation)
-    //         {
-    //             gr = m_gradient_precomputed.at(cell_i);
-    //         }
-    //         else
-    //         {
-    //             gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
-    //         }
-    //         const vector_type    GTuTF        = gr * uTF;
-    //         auto                    gb           = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
-    //         const auto              law_cell     = m_law.getCellIVs(cell_i);
-    //         const vector_type    stress_coeff = law_cell.projectStressOnCell(m_msh, cl, m_hdi, material_data);
-    //         const auto              cell_nodes   = disk::cell_nodes(m_msh, cl);
-    //         std::vector<gmsh::Node> new_nodes;
+            // loop on the nodes of the cell
+            for (int i = 0; i < cell_nodes.size(); i++)
+            {
+                nb_nodes++;
+                const auto point_ids = cell_nodes[i];
+                const auto pt        = storage->points[point_ids];
 
-    //         // loop on the nodes of the cell
-    //         for (int i = 0; i < cell_nodes.size(); i++)
-    //         {
-    //             nb_nodes++;
-    //             const auto point_ids = cell_nodes[i];
-    //             const auto pt        = storage->points[point_ids];
+                const auto stress = elem.eval_stress(ETuTF, gb, pt);
 
-    //             const auto gphi   = gb.eval_functions(pt);
-    //             const auto GT_iqn = disk::eval(GTuTF, gphi);
-    //             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+                const std::vector<double>   tens = disk::convertToVectorGmsh(stress);
+                const std::array<double, 3> coor = disk::init_coor(pt);
 
-    //             const auto P      = disk::eval(stress_coeff, gphi);
-    //             const auto stress = disk::mechanics::convertPK1toCauchy(P, FT_iqn);
+                // Add a node
+                const gmsh::Node tmp_node(coor, nb_nodes, 0);
+                new_nodes.push_back(tmp_node);
+                gmsh.addNode(tmp_node);
 
-    //             const std::vector<double>   tens = disk::convertToVectorGmsh(stress);
-    //             const std::array<double, 3> coor = disk::init_coor(pt);
+                const gmsh::Data datatmp(nb_nodes, tens);
+                data.push_back(datatmp);
+            }
 
-    //             // Add a node
-    //             const gmsh::Node tmp_node(coor, nb_nodes, 0);
-    //             new_nodes.push_back(tmp_node);
-    //             gmsh.addNode(tmp_node);
+            // Add new element
+            disk::add_element(gmsh, new_nodes);
+            cell_i++;
+        }
 
-    //             const gmsh::Data datatmp(nb_nodes, tens);
-    //             data.push_back(datatmp);
-    //         }
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(9, 0.0, "stress_node_disc", data, subdata);
 
-    //         // Add new element
-    //         disk::add_element(gmsh, new_nodes);
-    //         cell_i++;
-    //     }
+        // Save the view
+        nodedata.saveNodeData(filename, gmsh);
+    }
 
-    //     // Create and init a nodedata view
-    //     gmsh::NodeData nodedata(9, 0.0, "stress_node_disc", data, subdata);
+    void
+    compute_continuous_stress(const std::string& filename) const
+    {
+        gmsh::Gmesh gmsh    = disk::convertMesh(post_mesh);
+        auto        storage = post_mesh.mesh().backend_storage();
 
-    //     // Save the view
-    //     nodedata.saveNodeData(filename, gmsh);
-    // }
+        const static_matrix<scalar_type, dimension, dimension> vzero =
+          static_matrix<scalar_type, dimension, dimension>::Zero();
 
-    // void
-    // compute_continuous_stress(const std::string& filename) const
-    // {
-    //     gmsh::Gmesh gmsh    = disk::convertMesh(post_mesh);
-    //     auto        storage = post_mesh.mesh().backend_storage();
+        const size_t nb_nodes(gmsh.getNumberofNodes());
 
-    //     const static_matrix<scalar_type, dimension, dimension> vzero =
-    //       static_matrix<scalar_type, dimension, dimension>::Zero();
+        // first(number of data at this node), second(cumulated value)
+        std::vector<std::pair<size_t, static_matrix<scalar_type, dimension, dimension>>> value(
+          nb_nodes, std::make_pair(0, vzero));
 
-    //     const size_t nb_nodes(gmsh.getNumberofNodes());
+        const size_t                grad_degree = m_hdi.grad_degree();
+        const MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
 
-    //     // first(number of data at this node), second(cumulated value)
-    //     std::vector<std::pair<size_t, static_matrix<scalar_type, dimension, dimension>>> value(
-    //       nb_nodes, std::make_pair(0, vzero));
+        int cell_i = 0;
 
-    //     const auto   material_data = m_law.getMaterialData();
-    //     const size_t grad_degree   = m_hdi.grad_degree();
+        for (auto& cl : m_msh)
+        {
+            const auto  uTF = m_solution_data.at(cell_i);
+            matrix_type gr;
+            if (m_rp.m_precomputation)
+            {
+                gr = m_gradient_precomputed.at(cell_i);
+            }
+            else
+            {
+                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
+            }
+            const vector_type ETuTF      = gr * uTF;
+            const auto        gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
+            const auto        cell_nodes = post_mesh.nodes_cell(cell_i);
 
-    //     int cell_i = 0;
+            // Loop on the nodes of the cell
+            for (auto& point_id : cell_nodes)
+            {
+                const auto pt = storage->points[point_id];
 
-    //     for (auto& cl : m_msh)
-    //     {
-    //         const auto     uTF = m_solution_data.at(cell_i);
-    //         matrix_type gr;
-    //         if (m_rp.m_precomputation)
-    //         {
-    //             gr = m_gradient_precomputed.at(cell_i);
-    //         }
-    //         else
-    //         {
-    //             gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
-    //         }
-    //         const vector_type GTuTF        = gr * uTF;
-    //         auto                 gb           = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
-    //         const auto           law_cell     = m_law.getCellIVs(cell_i);
-    //         const vector_type stress_coeff = law_cell.projectStressOnCell(m_msh, cl, m_hdi, material_data);
-    //         const auto           cell_nodes   = post_mesh.nodes_cell(cell_i);
+                const auto stress = elem.eval_stress(ETuTF, gb, pt);
 
-    //         // Loop on the nodes of the cell
-    //         for (auto& point_id : cell_nodes)
-    //         {
-    //             const auto pt = storage->points[point_id];
+                value[point_id].first++;
+                value[point_id].second += stress;
+            }
+            cell_i++;
+        }
 
-    //             const auto gphi   = gb.eval_functions(pt);
-    //             const auto GT_iqn = disk::eval(GTuTF, gphi);
-    //             const auto FT_iqn = disk::mechanics::convertGtoF(GT_iqn);
+        std::vector<gmsh::Data>    data;    // create data
+        std::vector<gmsh::SubData> subdata; // create subdata
+        data.reserve(nb_nodes);             // data has a size of nb_node
 
-    //             const auto P      = disk::eval(stress_coeff, gphi);
-    //             const auto stress = disk::mechanics::convertPK1toCauchy(P, FT_iqn);
+        // Compute the average value and save it
+        for (int i_node = 0; i_node < value.size(); i_node++)
+        {
+            const static_matrix<scalar_type, dimension, dimension> stress_avr =
+              value[i_node].second / double(value[i_node].first);
 
-    //             value[point_id].first++;
-    //             value[point_id].second += stress;
-    //         }
-    //         cell_i++;
-    //     }
+            const gmsh::Data tmp_data(i_node + 1, disk::convertToVectorGmsh(stress_avr));
+            data.push_back(tmp_data);
+        }
 
-    //     std::vector<gmsh::Data>    data;    // create data
-    //     std::vector<gmsh::SubData> subdata; // create subdata
-    //     data.reserve(nb_nodes);             // data has a size of nb_node
-
-    //     // Compute the average value and save it
-    //     for (int i_node = 0; i_node < value.size(); i_node++)
-    //     {
-    //         const static_matrix<scalar_type, dimension, dimension> stress_avr =
-    //           value[i_node].second / double(value[i_node].first);
-
-    //         const gmsh::Data tmp_data(i_node + 1, disk::convertToVectorGmsh(stress_avr));
-    //         data.push_back(tmp_data);
-    //     }
-
-    //     // Create and init a nodedata view
-    //     gmsh::NodeData nodedata(9, 0.0, "stress_node_cont", data, subdata);
-    //     // Save the view
-    //     nodedata.saveNodeData(filename, gmsh);
-    // }
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(9, 0.0, "stress_node_cont", data, subdata);
+        // Save the view
+        nodedata.saveNodeData(filename, gmsh);
+    }
 
     void
     compute_continuous_deformed(const std::string& filename) const
@@ -876,5 +859,76 @@ class tresca_solver
         }
         // Save mesh
         gmsh.writeGmesh(filename, 2);
+    }
+
+    void
+    contact_quantities(const std::string& filename) const
+    {
+        std::ofstream output;
+        output.open(filename, std::ofstream::out | std::ofstream::trunc);
+
+        if (!output.is_open())
+        {
+            std::cerr << "Unable to open file " << filename << std::endl;
+        }
+
+        output << "#x"
+               << "\t"
+               << "y"
+               << "\t"
+               << "u_n"
+               << "\t"
+               << "sigma_nn"
+               << "\t"
+               << "phi_n_1" << std::endl;
+
+        const size_t grad_degree = m_hdi.grad_degree();
+
+        MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
+
+        int cell_i = 0;
+        for (auto& cl : m_msh)
+        {
+            const auto  uTF = m_solution_data.at(cell_i);
+            matrix_type gr;
+            if (m_rp.m_precomputation)
+            {
+                gr = m_gradient_precomputed.at(cell_i);
+            }
+            else
+            {
+                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
+            }
+            const matrix_type ET     = gr;
+            const vector_type ET_uTF = ET * uTF;
+            const auto        gb     = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
+            const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+
+            const auto fcs = faces(m_msh, cl);
+            for (auto& fc : fcs)
+            {
+                if (m_bnd.is_contact_face(fc))
+                {
+                    const auto n       = normal(m_msh, cl, fc);
+                    const auto qp_deg  = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
+                    const auto qps     = integrate(m_msh, fc, 2 * qp_deg);
+                    const auto hF      = diameter(m_msh, fc);
+                    const auto gamma_F = m_rp.m_gamma_0 / hF;
+
+                    for (auto& qp : qps)
+                    {
+                        const scalar_type phi_n_1_u  = elem.eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const scalar_type uT_n_u     = elem.eval_uT_n(cb, uTF, n, qp.point());
+                        const scalar_type sigma_nn_u = elem.eval_sigma_nn(ET, gb, uTF, n, qp.point());
+
+                        output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
+                               << "\t" << phi_n_1_u << std ::endl;
+                    }
+                }
+            }
+
+            cell_i++;
+        }
+        output.close();
     }
 };
