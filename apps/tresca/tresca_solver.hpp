@@ -46,7 +46,7 @@
 
 #include "output/gmshConvertMesh.hpp"
 #include "output/gmshDisk.hpp"
-#include "output/postMesh.hpp"
+#include "output/gmsh_io.hpp"
 
 #include "timecounter.h"
 
@@ -77,7 +77,7 @@ class tresca_solver
     const mesh_type&               m_msh;
     material_type                  m_material_data;
 
-    disk::PostMesh<mesh_type> post_mesh;
+    disk::gmsh_io<mesh_type> gmesh_io;
 
     std::vector<vector_type> m_solution_data;
     std::vector<vector_type> m_solution_cells, m_solution_faces;
@@ -236,7 +236,7 @@ class tresca_solver
         m_hdi = disk::hho_degree_info(cell_degree, face_degree, grad_degree);
 
         // compute mesh for post-processing
-        post_mesh = disk::PostMesh<mesh_type>(m_msh);
+        gmesh_io = disk::gmsh_io<mesh_type>(m_msh);
 
         if (m_verbose)
         {
@@ -454,115 +454,31 @@ class tresca_solver
     void
     compute_discontinuous_displacement(const std::string& filename) const
     {
-        const auto cell_degree = m_hdi.cell_degree();
-
-        gmsh::Gmesh gmsh(dimension);
-        auto        storage = m_msh.backend_storage();
-
-        std::vector<gmsh::Data>          data;    // create data (not used)
-        const std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
-
-        int cell_i   = 0;
-        int nb_nodes = 0;
-        for (auto& cl : m_msh)
-        {
-            auto                    cb         = disk::make_vector_monomial_basis(m_msh, cl, cell_degree);
-            const vector_type       x          = m_solution_cells.at(cell_i++);
-            const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
-            std::vector<gmsh::Node> new_nodes;
-
-            // loop on the nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
-            {
-                nb_nodes++;
-                const auto point_ids = cell_nodes[i];
-                const auto pt        = storage->points[point_ids];
-
-                const auto phi  = cb.eval_functions(pt);
-                const auto depl = disk::eval(x, phi);
-
-                const std::vector<double>   deplv = disk::convertToVectorGmsh(depl);
-                const std::array<double, 3> coor  = disk::init_coor(pt);
-
-                // Add a node
-                const gmsh::Node tmp_node(coor, nb_nodes, 0);
-                new_nodes.push_back(tmp_node);
-                gmsh.addNode(tmp_node);
-
-                const gmsh::Data datatmp(nb_nodes, deplv);
-                data.push_back(datatmp);
-            }
-            // Add new element
-            disk::add_element(gmsh, new_nodes);
-        }
-
-        // Create and init a nodedata view
-        gmsh::NodeData nodedata(3, 0.0, "depl_node_disc", data, subdata);
-
-        // Save the view
-        nodedata.saveNodeData(filename, gmsh);
+        gmesh_io.save_vector_hho_solution_discontinuous(filename, m_msh, m_hdi, m_solution_data);
     }
 
     void
     compute_continuous_displacement(const std::string& filename) const
     {
-        const auto cell_degree = m_hdi.cell_degree();
+        gmesh_io.save_vector_hho_solution_continuous(filename, m_msh, m_hdi, m_solution_data);
+    }
 
-        gmsh::Gmesh gmsh    = disk::convertMesh(post_mesh);
-        auto        storage = post_mesh.mesh().backend_storage();
+    void
+    compute_continuous_deformed(const std::string& filename) const
+    {
+        gmesh_io.save_vector_hho_deformed_continuous(filename, m_msh, m_hdi, m_solution_data);
+    }
 
-        const static_vector<scalar_type, dimension> vzero = static_vector<scalar_type, dimension>::Zero();
-
-        const size_t nb_nodes(gmsh.getNumberofNodes());
-
-        // first(number of data at this node), second(cumulated value)
-        std::vector<std::pair<size_t, static_vector<scalar_type, dimension>>> value(nb_nodes, std::make_pair(0, vzero));
-
-        int cell_i = 0;
-        for (auto& cl : m_msh)
-        {
-            auto              cb         = disk::make_vector_monomial_basis(m_msh, cl, cell_degree);
-            const vector_type x          = m_solution_cells.at(cell_i);
-            const auto        cell_nodes = post_mesh.nodes_cell(cell_i);
-
-            // Loop on the nodes of the cell
-            for (auto& point_id : cell_nodes)
-            {
-                const auto pt = storage->points[point_id];
-
-                const auto phi  = cb.eval_functions(pt);
-                const auto depl = disk::eval(x, phi);
-
-                // Add displacement at node
-                value[point_id].first++;
-                value[point_id].second += depl;
-            }
-            cell_i++;
-        }
-
-        std::vector<gmsh::Data>    data;    // create data
-        std::vector<gmsh::SubData> subdata; // create subdata
-        data.reserve(nb_nodes);             // data has a size of nb_node
-
-        // Compute the average value and save it
-        for (int i_node = 0; i_node < value.size(); i_node++)
-        {
-            const static_vector<scalar_type, dimension> depl_avr = value[i_node].second / double(value[i_node].first);
-
-            const gmsh::Data tmp_data(i_node + 1, disk::convertToVectorGmsh(depl_avr));
-            data.push_back(tmp_data);
-        }
-
-        // Create and init a nodedata view
-        gmsh::NodeData nodedata(3, 0.0, "depl_node_cont", data, subdata);
-        // Save the view
-        nodedata.saveNodeData(filename, gmsh);
+    void
+    compute_discontinuous_deformed(const std::string& filename) const
+    {
+        gmesh_io.save_vector_hho_deformed_discontinuous(filename, m_msh, m_hdi, m_solution_data);
     }
 
     void
     compute_stress_GP(const std::string& filename) const
     {
-        gmsh::Gmesh gmsh = disk::convertMesh(post_mesh);
+        const gmsh::Gmesh& gmsh = gmesh_io.gmesh();
 
         std::vector<gmsh::Data>    data;    // create data (not used)
         std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
@@ -677,8 +593,8 @@ class tresca_solver
     void
     compute_continuous_stress(const std::string& filename) const
     {
-        gmsh::Gmesh gmsh    = disk::convertMesh(post_mesh);
-        auto        storage = post_mesh.mesh().backend_storage();
+        const gmsh::Gmesh& gmsh    = gmesh_io.gmesh();
+        auto               storage = gmesh_io.post_mesh().mesh().backend_storage();
 
         const static_matrix<scalar_type, dimension, dimension> vzero =
           static_matrix<scalar_type, dimension, dimension>::Zero();
@@ -708,7 +624,7 @@ class tresca_solver
             }
             const vector_type ETuTF      = gr * uTF;
             const auto        gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
-            const auto        cell_nodes = post_mesh.nodes_cell(cell_i);
+            const auto        cell_nodes = gmesh_io.post_mesh().nodes_cell(cell_i);
 
             // Loop on the nodes of the cell
             for (auto& point_id : cell_nodes)
@@ -741,124 +657,6 @@ class tresca_solver
         gmsh::NodeData nodedata(9, 0.0, "stress_node_cont", data, subdata);
         // Save the view
         nodedata.saveNodeData(filename, gmsh);
-    }
-
-    void
-    compute_continuous_deformed(const std::string& filename) const
-    {
-        const auto cell_degree = m_hdi.cell_degree();
-
-        gmsh::Gmesh gmsh(dimension);
-        auto        storage = m_msh.backend_storage();
-
-        const static_vector<scalar_type, dimension> vzero = static_vector<scalar_type, dimension>::Zero();
-        const size_t                                nb_nodes(m_msh.points_size());
-
-        // first(number of data at this node), second(cumulated value)
-        std::vector<std::pair<size_t, static_vector<scalar_type, dimension>>> value(nb_nodes, std::make_pair(0, vzero));
-
-        int cell_i = 0;
-        for (auto& cl : m_msh)
-        {
-            auto              cb         = disk::make_vector_monomial_basis(m_msh, cl, cell_degree);
-            const vector_type x          = m_solution_cells.at(cell_i++);
-            const auto        cell_nodes = disk::cell_nodes(m_msh, cl);
-
-            // Loop on the nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
-            {
-                const auto point_ids = cell_nodes[i];
-                const auto pt        = storage->points[point_ids];
-
-                const auto phi  = cb.eval_functions(pt);
-                const auto depl = disk::eval(x, phi);
-
-                // Add displacement at node
-                value[point_ids].first++;
-                value[point_ids].second += depl;
-            }
-        }
-
-        // New coordinate
-        int i_node = 0;
-        for (auto itor = m_msh.points_begin(); itor != m_msh.points_end(); itor++)
-        {
-            const auto            pt   = *itor;
-            std::array<double, 3> coor = disk::init_coor(pt);
-
-            const static_vector<scalar_type, dimension> depl_avr = value[i_node].second / double(value[i_node].first);
-
-            for (int j = 0; j < dimension; j++)
-                coor[j] += depl_avr(j);
-
-            i_node++;
-            const gmsh::Node tmp_node(coor, i_node, 0);
-            gmsh.addNode(tmp_node);
-        }
-        const auto Nodes = gmsh.getNodes();
-
-        // Add new elements
-        for (auto& cl : m_msh)
-        {
-            const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
-            std::vector<gmsh::Node> new_nodes;
-
-            // Loop on nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
-            {
-                const auto point_ids = cell_nodes[i];
-
-                new_nodes.push_back(Nodes[point_ids]);
-            }
-            // Add new element
-            disk::add_element(gmsh, new_nodes);
-        }
-        // Save mesh
-        gmsh.writeGmesh(filename, 2);
-    }
-
-    void
-    compute_discontinuous_deformed(const std::string& filename) const
-    {
-        const auto cell_degree = m_hdi.cell_degree();
-
-        gmsh::Gmesh gmsh(dimension);
-        auto        storage = m_msh.backend_storage();
-
-        int    cell_i   = 0;
-        size_t nb_nodes = 0;
-        for (auto& cl : m_msh)
-        {
-            auto                    cb         = disk::make_vector_monomial_basis(m_msh, cl, cell_degree);
-            const vector_type       x          = m_solution_cells.at(cell_i++);
-            const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
-            std::vector<gmsh::Node> new_nodes;
-
-            // Loop on nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
-            {
-                nb_nodes++;
-                const auto point_ids = cell_nodes[i];
-                const auto pt        = storage->points[point_ids];
-
-                const auto phi  = cb.eval_functions(pt);
-                const auto depl = disk::eval(x, phi);
-
-                std::array<double, 3> coor = disk::init_coor(pt);
-                // Compute new coordinates
-                for (int j = 0; j < dimension; j++)
-                    coor[j] += depl(j);
-
-                // Save node
-                const gmsh::Node tmp_node(coor, nb_nodes, 0);
-                new_nodes.push_back(tmp_node);
-                gmsh.addNode(tmp_node);
-            }
-            // Add new element
-            disk::add_element(gmsh, new_nodes);
-        }
-        // Save mesh
-        gmsh.writeGmesh(filename, 2);
     }
 
     void
