@@ -880,7 +880,15 @@ class tresca_solver
                << "\t"
                << "sigma_nn"
                << "\t"
-               << "phi_n_1" << std::endl;
+               << "phi_n_1"
+               << "\t"
+               << "u_T"
+               << "\t"
+               << "sigma_nt"
+               << "\t"
+               << "phi_t_1"
+               << "\t"
+               << "abs(phi_t_1)" << std::endl;
 
         const size_t grad_degree = m_hdi.grad_degree();
 
@@ -921,8 +929,13 @@ class tresca_solver
                         const scalar_type uT_n_u     = elem.eval_uT_n(cb, uTF, n, qp.point());
                         const scalar_type sigma_nn_u = elem.eval_sigma_nn(ET, gb, uTF, n, qp.point());
 
+                        const auto phi_t_1_u  = elem.eval_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const auto uT_t_u     = elem.eval_uT_t(cb, uTF, n, qp.point());
+                        const auto sigma_nt_u = elem.eval_sigma_nt(ET, gb, uTF, n, qp.point());
+
                         output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
-                               << "\t" << phi_n_1_u << std ::endl;
+                               << "\t" << phi_n_1_u << "\t" << uT_t_u.transpose() << "\t" << sigma_nt_u.transpose()
+                               << "\t" << phi_t_1_u.transpose() << "\t" << phi_t_1_u.norm() << std ::endl;
                     }
                 }
             }

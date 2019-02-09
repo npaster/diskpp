@@ -325,7 +325,7 @@ class NewtonRaphson_step_tresca
               disk::make_vector_static_decondensation_withMatrix(m_AL[cell_i], m_bL[cell_i], xFs);
 
             // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
-            m_solution_cells.at(cell_i) += m_solution_data.at(cell_i).head(cbs);
+            m_solution_cells.at(cell_i) = m_solution_data.at(cell_i).head(cbs);
 
             // std::cout << "KT_F " << m_AL[cell_i].norm() << std::endl;
             // std::cout << "sol_F" << std::endl;

@@ -29,6 +29,7 @@
 
 #include "bases/bases.hpp"
 #include "common/eigen.hpp"
+#include "mechanics/behaviors/maths_tensor.hpp"
 #include "methods/hho"
 #include "quadratures/quadratures.hpp"
 
@@ -272,7 +273,6 @@ make_vector_static_condensation_withMatrix(const Mesh&                          
     return std::make_tuple(std::make_pair(AC, bC), AL, bL);
 }
 
-
 template<typename MeshType>
 class tresca
 {
@@ -474,6 +474,7 @@ class tresca
         return phi_t;
     }
 
+    // projection on the ball of radius alpha centered on 0
     vector_static
     make_proj_alpha(const vector_static& x, const scalar_type& alpha) const
     {
@@ -485,6 +486,20 @@ class tresca
         }
 
         return alpha * x / x_norm;
+    }
+
+    // derivative of the projection on the ball of radius alpha centered on 0
+    matrix_static
+    make_d_proj_alpha(const vector_static& x, const scalar_type& alpha) const
+    {
+        const scalar_type x_norm = x.norm();
+
+        if (x_norm <= alpha)
+        {
+            return matrix_static::Identity();
+        }
+
+        return alpha / x_norm * (matrix_static::Identity() - disk::Kronecker(x, x) / (x_norm * x_norm));
     }
 
     // compute theta/gamma *(sigma_n, sigma_n)_Fc
@@ -509,11 +524,6 @@ class tresca
                 {
                     const auto sigma_n    = make_hho_sigma_n(ET, n, gb, qp.point());
                     const auto qp_sigma_n = disk::priv::inner_product(qp.weight() / gamma_F, sigma_n);
-
-                    // std::cout << "sigma_n: " << sigma_n.norm() << std::endl;
-                    // std::cout << sigma_n << std::endl;
-                    // std::cout << "qp_sigma_n: " << qp_sigma_n.norm() << std::endl;
-                    // std::cout << qp_sigma_n << std::endl;
 
                     nitsche += disk::priv::outer_product(qp_sigma_n, sigma_n);
                 }
@@ -548,12 +558,13 @@ class tresca
                     const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, qp.point());
                     const vector_type uT_n     = make_hho_uT_n(n, cb, qp.point());
 
-                    const vector_type phi_n_1 = make_hho_phi_n(sigma_nn, uT_n, 1., gamma_F);
+                    const scalar_type phi_n_1_u = eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
                     // Heaviside(-phi_n_1(u))
-                    if (phi_n_1.dot(uTF) <= scalar_type(0))
+                    if (phi_n_1_u <= scalar_type(0))
                     {
                         const vector_type phi_n_theta = make_hho_phi_n(sigma_nn, uT_n, m_rp.m_theta, gamma_F);
+                        const vector_type phi_n_1     = make_hho_phi_n(sigma_nn, uT_n, scalar_type(1), gamma_F);
                         const auto qp_phi_n_theta     = disk::priv::inner_product(qp.weight() / gamma_F, phi_n_theta);
 
                         lhs += disk::priv::outer_product(qp_phi_n_theta, phi_n_1);
@@ -590,15 +601,14 @@ class tresca
                     const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, qp.point());
                     const vector_type uT_n     = make_hho_uT_n(n, cb, qp.point());
 
-                    const vector_type phi_n_1 = make_hho_phi_n(sigma_nn, uT_n, 1., gamma_F);
+                    const scalar_type phi_n_1_u = eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
-                    const scalar_type negative = phi_n_1.dot(uTF);
-                    // [negative]_R-
-                    if (negative <= scalar_type(0))
+                    // [phi_n_1_u]_R-
+                    if (phi_n_1_u <= scalar_type(0))
                     {
                         const vector_type phi_n_theta = make_hho_phi_n(sigma_nn, uT_n, m_rp.m_theta, gamma_F);
 
-                        rhs += (qp.weight() / gamma_F * negative) * phi_n_theta;
+                        rhs += (qp.weight() / gamma_F * phi_n_1_u) * phi_n_theta;
                     }
                 }
             }
@@ -606,7 +616,7 @@ class tresca
         return rhs;
     }
 
-    // compute (phi_t_theta, [phi_t_1(u)]_s)_FC / gamma
+    // compute (phi_t_theta, [phi_t_1(u)]_(s))_FC / gamma
     vector_type
     make_hho_threshold_tresca(const cell_type& cl, const matrix_type& ET, const vector_type& uTF) const
     {
@@ -631,11 +641,9 @@ class tresca
                     const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, qp.point());
                     const auto uT_t     = make_hho_uT_t(n, cb, qp.point());
 
-                    const auto phi_t_1     = make_hho_phi_t(sigma_nt, uT_t, 1., gamma_F);
                     const auto phi_t_theta = make_hho_phi_t(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
 
-                    const vector_static phi_t_1_u      = phi_t_1.transpose() * uTF;
-                    const vector_static phi_t_1_u_proj = make_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+                    const vector_static phi_t_1_u_proj = eval_proj_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
                     const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
 
@@ -644,6 +652,49 @@ class tresca
             }
         }
         return rhs;
+    }
+
+    // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
+    matrix_type
+    make_hho_matrix_tresca(const cell_type& cl, const matrix_type& ET, const vector_type& uTF) const
+    {
+        const auto cb = make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+        const auto gb = make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+
+        matrix_type lhs = matrix_type::Zero(num_total_dofs, num_total_dofs);
+
+        const auto fcs = faces(m_msh, cl);
+        for (auto& fc : fcs)
+        {
+            if (m_bnd.is_contact_face(fc))
+            {
+                const auto n       = normal(m_msh, cl, fc);
+                const auto qp_deg  = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
+                const auto qps     = integrate(m_msh, fc, 2 * qp_deg + 2);
+                const auto hF      = diameter(m_msh, fc);
+                const auto gamma_F = m_rp.m_gamma_0 / hF;
+
+                for (auto& qp : qps)
+                {
+                    const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, qp.point());
+                    const auto uT_t     = make_hho_uT_t(n, cb, qp.point());
+
+                    const auto phi_t_1     = make_hho_phi_t(sigma_nt, uT_t, scalar_type(1), gamma_F);
+                    const auto phi_t_theta = make_hho_phi_t(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
+
+                    const auto phi_t_1_u      = eval_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                    const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+
+                    const auto d_proj_u_phi_t_1 = disk::priv::inner_product(d_proj_phi_t_u, phi_t_1);
+
+                    const auto qp_phi_t_theta = disk::priv::inner_product(qp.weight() / gamma_F, phi_t_theta);
+
+                    lhs += disk::priv::outer_product(qp_phi_t_theta, d_proj_u_phi_t_1);
+                }
+            }
+        }
+
+        return lhs;
     }
 
   public:
@@ -724,6 +775,9 @@ class tresca
 
                 // std::cout << "Threshold: " << std::endl;
                 // std::cout << make_hho_threshold_tresca(cl, ET, uTF).transpose() << std::endl;
+
+                // compute (phi_t_theta, phi_t_1)_FC / gamma
+                K_int += make_hho_matrix_tresca(cl, ET, uTF);
             }
 
             tc.toc();
@@ -753,6 +807,15 @@ class tresca
         return uT_n.dot(uTF.head(cb.size()));
     }
 
+    template<typename CellBasis>
+    vector_static
+    eval_uT_t(const CellBasis& cb, const vector_type& uTF, const vector_static& n, const point_type& pt) const
+    {
+        const auto uT_t = make_hho_uT_t(n, cb, pt);
+
+        return uT_t.transpose() * (uTF.head(cb.size()));
+    }
+
     template<typename GradBasis>
     scalar_type
     eval_sigma_nn(const matrix_type&   ET,
@@ -764,6 +827,19 @@ class tresca
         const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, pt);
 
         return sigma_nn.dot(uTF);
+    }
+
+    template<typename GradBasis>
+    vector_static
+    eval_sigma_nt(const matrix_type&   ET,
+                  const GradBasis&     gb,
+                  const vector_type&   uTF,
+                  const vector_static& n,
+                  const point_type&    pt) const
+    {
+        const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, pt);
+
+        return sigma_nt.transpose() * uTF;
     }
 
     template<typename GradBasis, typename CellBasis>
@@ -779,7 +855,7 @@ class tresca
         const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, pt);
         const vector_type uT_n     = make_hho_uT_n(n, cb, pt);
 
-        const vector_type phi_n_1   = make_hho_phi_n(sigma_nn, uT_n, 1., gamma_F);
+        const vector_type phi_n_1   = make_hho_phi_n(sigma_nn, uT_n, scalar_type(1), gamma_F);
         const scalar_type phi_n_1_u = phi_n_1.dot(uTF);
 
         return phi_n_1_u;
@@ -797,10 +873,44 @@ class tresca
     {
         const scalar_type phi_n_1_u = eval_phi_n(ET, gb, cb, uTF, n, gamma_F, pt);
 
-        if (phi_n_1_u <= 0.0)
+        if (phi_n_1_u <= scalar_type(0))
             return phi_n_1_u;
 
         return scalar_type(0);
+    }
+
+    template<typename GradBasis, typename CellBasis>
+    vector_static
+    eval_phi_t(const matrix_type&   ET,
+               const GradBasis&     gb,
+               const CellBasis&     cb,
+               const vector_type&   uTF,
+               const vector_static& n,
+               const scalar_type&   gamma_F,
+               const point_type&    pt) const
+    {
+        const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, pt);
+        const auto uT_t     = make_hho_uT_t(n, cb, pt);
+
+        const auto          phi_t_1   = make_hho_phi_t(sigma_nt, uT_t, scalar_type(1), gamma_F);
+        const vector_static phi_t_1_u = phi_t_1.transpose() * uTF;
+
+        return phi_t_1_u;
+    }
+
+    template<typename GradBasis, typename CellBasis>
+    vector_static
+    eval_proj_phi_t(const matrix_type&   ET,
+                    const GradBasis&     gb,
+                    const CellBasis&     cb,
+                    const vector_type&   uTF,
+                    const vector_static& n,
+                    const scalar_type&   gamma_F,
+                    const point_type&    pt) const
+    {
+        const vector_static phi_t_1_u = eval_phi_t(ET, gb, cb, uTF, n, gamma_F, pt);
+
+        return make_proj_alpha(phi_t_1_u, m_rp.m_threshold);
     }
 
     template<typename GradBasis>
@@ -825,4 +935,4 @@ class tresca
     }
 };
 
-} // end namespace NLE
+} // end namespace MK

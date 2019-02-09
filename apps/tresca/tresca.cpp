@@ -97,15 +97,7 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
 
     bnd.addContactBC(disk::SIGNORINI, 6);
     bnd.addDirichletBC(disk::DIRICHLET, 10, depl);
-
-    // Cook with quadrilaterals
-    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    // auto un   = [material_data](const point<T, 2>& p) -> result_type { return result_type{1.0, 0}; };
-    // auto trac = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0.1125}; };
-
-    // bnd.addContactBC(disk::SIGNORINI, 8);
-    // bnd.addDirichletBC(disk::DIRICHLET, 3, un);
-    //bnd.addNeumannBC(disk::NEUMANN, 8, trac);
+    //bnd.addDirichletBC(disk::DIRICHLET, 6, zero);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
 
@@ -123,13 +115,13 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
         std::cout << "error: " << nl.compute_l2_displacement_error(solution) << std::endl;
     }
 
-    nl.compute_discontinuous_displacement("depl2D_disc.msh");
+    //nl.compute_discontinuous_displacement("depl2D_disc.msh");
     nl.compute_continuous_displacement("depl2D_cont.msh");
-    nl.compute_discontinuous_stress("stress2D_disc.msh");
-    nl.compute_continuous_stress("stress2D_cont.msh");
+    // nl.compute_discontinuous_stress("stress2D_disc.msh");
+    // nl.compute_continuous_stress("stress2D_cont.msh");
     nl.compute_stress_GP("stress2D_GP.msh");
-    nl.compute_continuous_deformed("deformed2D_cont.msh");
-    nl.compute_discontinuous_deformed("deformed2D_disc.msh");
+    // nl.compute_continuous_deformed("deformed2D_cont.msh");
+    // nl.compute_discontinuous_deformed("deformed2D_disc.msh");
     nl.contact_quantities("contact.dat");
 }
 
