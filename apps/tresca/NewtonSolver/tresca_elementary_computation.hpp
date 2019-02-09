@@ -776,7 +776,7 @@ class tresca
                 // std::cout << "Threshold: " << std::endl;
                 // std::cout << make_hho_threshold_tresca(cl, ET, uTF).transpose() << std::endl;
 
-                // compute (phi_t_theta, phi_t_1)_FC / gamma
+                // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
                 K_int += make_hho_matrix_tresca(cl, ET, uTF);
             }
 

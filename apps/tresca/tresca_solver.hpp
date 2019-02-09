@@ -121,6 +121,7 @@ class tresca_solver
 
         if (m_verbose)
         {
+            std::cout << "Informations about the problem:" << std::endl;
             std::cout << "** Numbers of cells: " << m_msh.cells_size() << std::endl;
             std::cout << "** Numbers of faces: " << m_msh.faces_size()
                       << " ( boundary faces: " << m_msh.boundary_faces_size() << " )" << std::endl;
@@ -240,8 +241,11 @@ class tresca_solver
 
         if (m_verbose)
         {
+            std::cout << "Informations about the hho's degree:" << std::endl;
             m_hdi.info_degree();
+            std::cout << "Informations about the parameters:" << std::endl;
             m_rp.infos();
+            std::cout << "Informations about the boundary conditions:" << std::endl;
             m_bnd.boundary_info();
         }
 
@@ -680,13 +684,21 @@ class tresca_solver
                << "\t"
                << "phi_n_1"
                << "\t"
+               << "[phi_n_1]-"
+               << "\t"
                << "u_T"
                << "\t"
                << "sigma_nt"
                << "\t"
                << "phi_t_1"
                << "\t"
-               << "abs(phi_t_1)" << std::endl;
+               << "[phi_n_1]s"
+               << "\t"
+               << "abs(phi_t_1)"
+               << "\t"
+               << "abs([phi_n_1]s)"
+               << "\t"
+               << "abs([phi_n_1]s)/s" << std::endl;
 
         const size_t grad_degree = m_hdi.grad_degree();
 
@@ -723,17 +735,24 @@ class tresca_solver
 
                     for (auto& qp : qps)
                     {
-                        const scalar_type phi_n_1_u  = elem.eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const scalar_type phi_n_1_u = elem.eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const scalar_type phi_n_1_u_proj =
+                          elem.eval_proj_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
                         const scalar_type uT_n_u     = elem.eval_uT_n(cb, uTF, n, qp.point());
                         const scalar_type sigma_nn_u = elem.eval_sigma_nn(ET, gb, uTF, n, qp.point());
 
-                        const auto phi_t_1_u  = elem.eval_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const auto phi_t_1_u      = elem.eval_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                        const auto phi_t_1_u_proj = elem.eval_proj_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
+
                         const auto uT_t_u     = elem.eval_uT_t(cb, uTF, n, qp.point());
                         const auto sigma_nt_u = elem.eval_sigma_nt(ET, gb, uTF, n, qp.point());
 
                         output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
-                               << "\t" << phi_n_1_u << "\t" << uT_t_u.transpose() << "\t" << sigma_nt_u.transpose()
-                               << "\t" << phi_t_1_u.transpose() << "\t" << phi_t_1_u.norm() << std ::endl;
+                               << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
+                               << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
+                               << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
+                               << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold
+                               << std ::endl;
                     }
                 }
             }
