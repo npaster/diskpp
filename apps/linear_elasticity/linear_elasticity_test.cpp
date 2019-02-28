@@ -514,6 +514,73 @@ test_tetrahedra_netgen(const run_params& rp, const ElasticityParameters material
 
 template<typename T>
 void
+test_dkershaw_fvca6(const run_params& rp, const ElasticityParameters material_data)
+{
+    int runs = 3;
+
+    std::vector<std::string> paths;
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/dkershaw08.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/dkershaw16.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/dkershaw32.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/dkershaw64.msh");
+
+    std::vector<error_type> error_sumup;
+
+    for (int i = 0; i < runs; i++)
+    {
+        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
+    }
+    printResults(error_sumup);
+}
+
+template<typename T>
+void
+test_voro_fvca6(const run_params& rp, const ElasticityParameters material_data)
+{
+    int runs = 5;
+
+    std::vector<std::string> paths;
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/vmesh_1.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/vmesh_2.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/vmesh_3.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/vmesh_4.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/vmesh_5.msh");
+
+    std::vector<error_type> error_sumup;
+
+    for (int i = 0; i < runs; i++)
+    {
+        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
+    }
+    printResults(error_sumup);
+}
+
+template<typename T>
+void
+test_prism_fvca6(const run_params& rp, const ElasticityParameters material_data)
+{
+    int runs = 3;
+
+    std::vector<std::string> paths;
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/bls_10.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/bls_20.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/bls_30.msh");
+    paths.push_back("../../../diskpp/meshes/3D_general/fvca6/bls_40.msh");
+
+    std::vector<error_type> error_sumup;
+
+    for (int i = 0; i < runs; i++)
+    {
+        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
+    }
+    printResults(error_sumup);
+}
+
+template<typename T>
+void
 test_polyhedra_fvca6(const run_params& rp, const ElasticityParameters material_data)
 {
     int runs = 3;
@@ -652,6 +719,27 @@ main(int argc, char** argv)
         tc.tic();
         std::cout << "-Hexahedras diskpp:" << std::endl;
         test_hexahedra_diskpp<RealType>(rp, material_data);
+        tc.toc();
+        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        std::cout << " " << std::endl;
+
+        tc.tic();
+        std::cout << "-dKershaw:" << std::endl;
+        test_dkershaw_fvca6<RealType>(rp, material_data);
+        tc.toc();
+        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        std::cout << " " << std::endl;
+
+        tc.tic();
+        std::cout << "-Voro:" << std::endl;
+        test_voro_fvca6<RealType>(rp, material_data);
+        tc.toc();
+        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        std::cout << " " << std::endl;
+
+        tc.tic();
+        std::cout << "-Prism:" << std::endl;
+        test_prism_fvca6<RealType>(rp, material_data);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
