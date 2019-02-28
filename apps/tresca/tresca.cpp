@@ -66,9 +66,28 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -0.2}; };
     auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
 
-    bnd.addContactBC(disk::SIGNORINI, 6);
-    bnd.addDirichletBC(disk::CLAMPED, 10, zero);
-    bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+    bnd.addContactBC(disk::SIGNORINI_CELL, 6);
+    bnd.addDirichletBC(disk::DIRICHLET, 10, depl);
+    //bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+
+    // auto solution2 = [material_data](const point<T, 2>& p) -> result_type {
+    //     T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+    //            1.0 / (1.0 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y()) + 5.0/(1.0 + 0.10) * (1.0 - p.y() * p.y());
+    //     T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+    //            1.0 / (1.0 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+    //     return 0.1*result_type{fx, fy};
+    // };
+
+    // auto solution3 = [material_data](const point<T, 2>& p) -> result_type {
+    //     T fx = p.y() * (p.y() - 1) * exp(p.y());
+    //     T fy = p.y() * (p.y() - 1);
+
+    //     return result_type{fx, fy};
+    // };
+
+    // disk::gmsh_io<mesh_type> gio(msh);
+    // gio.plot_vector_function("test.msh", solution3);
 
     // solver
 
@@ -116,7 +135,7 @@ run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const d
     auto zero = [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, 0.0}; };
     auto neum = [material_data](const point<T, 3>& p) -> result_type { return result_type{400.0, 0.0, 0.0}; };
 
-    bnd.addContactBC(disk::SIGNORINI, 23);
+    bnd.addContactBC(disk::SIGNORINI_CELL, 23);
     bnd.addDirichletBC(disk::CLAMPED, 27, zero);
     bnd.addDirichletBC(disk::DZ, 31, zero);
     bnd.addDirichletBC(disk::DZ, 33, zero);
@@ -164,7 +183,7 @@ main(int argc, char** argv)
     disk::MaterialData<RealType> material_data;
 
     RealType E  = 1000;
-    RealType nu = 0.3;
+    RealType nu = 0.4999;
 
     material_data.setMu(E, nu);
     material_data.setLambda(E, nu);

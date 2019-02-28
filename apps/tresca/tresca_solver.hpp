@@ -153,12 +153,12 @@ class tresca_solver
             {
                 switch (m_rp.m_stab_type)
                 {
-                    // case HHO:
-                    // {
-                    //     const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                    //     m_stab_precomputed.push_back(make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi));
-                    //     break;
-                    // }
+                    case HHO:
+                    {
+                        const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
+                        m_stab_precomputed.push_back(make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi));
+                        break;
+                    }
                     case HDG:
                     {
                         m_stab_precomputed.push_back(MK::make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd));
@@ -698,7 +698,9 @@ class tresca_solver
                << "\t"
                << "abs([phi_n_1]s)"
                << "\t"
-               << "abs([phi_n_1]s)/s" << std::endl;
+               << "abs([phi_n_1]s)/s"
+               << "\t"
+               << "r" << std::endl;
 
         const size_t grad_degree = m_hdi.grad_degree();
 
@@ -723,37 +725,68 @@ class tresca_solver
             const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
 
             const auto fcs = faces(m_msh, cl);
+            size_t     face_i = 0;
             for (auto& fc : fcs)
             {
                 if (m_bnd.is_contact_face(fc))
                 {
+                    const auto fb = disk::make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
                     const auto n       = normal(m_msh, cl, fc);
                     const auto qp_deg  = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
                     const auto qps     = integrate(m_msh, fc, 2 * qp_deg);
                     const auto hF      = diameter(m_msh, fc);
                     const auto gamma_F = m_rp.m_gamma_0 / hF;
+                    const auto contact_type = m_bnd.contact_boundary_type(fc);
 
                     for (auto& qp : qps)
                     {
-                        const scalar_type phi_n_1_u = elem.eval_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
-                        const scalar_type phi_n_1_u_proj =
-                          elem.eval_proj_phi_n(ET, gb, cb, uTF, n, gamma_F, qp.point());
-                        const scalar_type uT_n_u     = elem.eval_uT_n(cb, uTF, n, qp.point());
                         const scalar_type sigma_nn_u = elem.eval_sigma_nn(ET, gb, uTF, n, qp.point());
-
-                        const auto phi_t_1_u      = elem.eval_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
-                        const auto phi_t_1_u_proj = elem.eval_proj_phi_t(ET, gb, cb, uTF, n, gamma_F, qp.point());
-
-                        const auto uT_t_u     = elem.eval_uT_t(cb, uTF, n, qp.point());
                         const auto sigma_nt_u = elem.eval_sigma_nt(ET, gb, uTF, n, qp.point());
 
-                        output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
-                               << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
-                               << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
-                               << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
-                               << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold
-                               << std ::endl;
+                        const scalar_type r =
+                          std::sqrt(qp.point().x() * qp.point().x() + qp.point().y() * qp.point().y());
+
+                        if (contact_type == disk::SIGNORINI_CELL)
+                        {
+                            const scalar_type phi_n_1_u = elem.eval_phi_n_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                            const scalar_type phi_n_1_u_proj =
+                              elem.eval_proj_phi_n_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                            const scalar_type uT_n_u    = elem.eval_uT_n(cb, uTF, n, qp.point());
+                            const auto phi_t_1_u = elem.eval_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                            const auto phi_t_1_u_proj =
+                              elem.eval_proj_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+
+                            const auto uT_t_u = elem.eval_uT_t(cb, uTF, n, qp.point());
+
+                            output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
+                                   << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
+                                   << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
+                                   << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
+                                   << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t"
+                                   << r << std ::endl;
+                        }
+                        else
+                        {
+                            const scalar_type phi_n_1_u = elem.eval_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+                            const scalar_type phi_n_1_u_proj =
+                              elem.eval_proj_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+                            const scalar_type uT_n_u    = elem.eval_uF_n(fb, uTF, n, qp.point());
+                            const auto phi_t_1_u = elem.eval_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+                            const auto        phi_t_1_u_proj =
+                              elem.eval_proj_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+
+                            const auto uT_t_u = elem.eval_uF_t(fb, uTF, n, qp.point());
+
+                            output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
+                                   << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
+                                   << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
+                                   << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
+                                   << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t"
+                                   << r << std ::endl;
+                        }
+
                     }
+                    face_i++;
                 }
             }
 

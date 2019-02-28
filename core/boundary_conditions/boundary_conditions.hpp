@@ -62,7 +62,9 @@ enum RobinType : size_t
 enum ContactType : size_t
 {
     SIGNORINI = 13,
-    ELSE      = 14,
+    SIGNORINI_FACE = 14,
+    SIGNORINI_CELL = 15,
+    ELSE = 16,
 };
 
 namespace priv
@@ -193,6 +195,10 @@ class BoundaryConditions
     std::vector<std::function<function_type(point_type)>> m_neumann_func;
     std::vector<std::function<function_type(point_type)>> m_robin_func;
 
+    // 1) bool to know if a boundary condition is associated to the face
+    // 2) type of boundary conditions
+    // 3) boundary id of the face
+    // 4) boundary function id of the face
     typedef std::vector<std::tuple<bool, size_t, size_t, size_t>> bnd_storage_type;
     bnd_storage_type                                              m_faces_is_dirichlet;
     bnd_storage_type                                              m_faces_is_neumann;
@@ -574,6 +580,7 @@ class BoundaryConditions
         return nb;
     }
 
+    // In fact it returns the faces which have not a tag SIGNORINI_CELL
     std::vector<face_type>
     faces_without_contact(const cell_type& cl) const
     {
@@ -582,7 +589,7 @@ class BoundaryConditions
 
         for (auto& fc : fcs)
         {
-            if (!is_contact_face(fc))
+            if (contact_boundary_type(fc) != SIGNORINI_CELL)
             {
                 ret.push_back(fc);
             }

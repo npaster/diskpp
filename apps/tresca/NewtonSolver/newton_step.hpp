@@ -202,12 +202,12 @@ class NewtonRaphson_step_tresca
                 {
                     switch (m_rp.m_stab_type)
                     {
-                        // case HHO:
-                        // {
-                        //     const auto recons_scalar = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                        //     stab = make_vector_hho_stabilization(m_msh, cl, recons_scalar.first, m_hdi);
-                        //     break;
-                        // }
+                        case HHO:
+                        {
+                            const auto recons_scalar = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
+                            stab = make_vector_hho_stabilization(m_msh, cl, recons_scalar.first, m_hdi);
+                            break;
+                        }
                         case HDG:
                         {
                             stab = make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd);

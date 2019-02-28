@@ -88,10 +88,91 @@ class gmsh_io
     }
 
     void
-    sava_mesh(const std::string& filename) const
+    save_mesh(const std::string& filename) const
     {
         // Save mesh
         m_gmsh.writeGmesh(filename, 2);
+    }
+
+    template<typename Function>
+    void
+    plot_scalar_function(const std::string& filename, const Function& fct) const
+    {
+        std::vector<gmsh::Data>    data;         // create data
+        std::vector<gmsh::SubData> subdata;      // create subdata
+        data.reserve(m_gmsh.getNumberofNodes()); // data has a size of nb_node
+
+        auto storage = m_post_msh.mesh().backend_storage();
+
+        // Compute the average value and save it
+        for (int i_node = 1; i_node <= m_gmsh.getNumberofNodes(); i_node++)
+        {
+            const auto pt = storage->points[i_node - 1];
+
+            const auto sol = fct(pt);
+
+            const gmsh::Data tmp_data(i_node, disk::convertToVectorGmsh(sol));
+            data.push_back(tmp_data);
+        }
+
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(1, 0.0, "sol_node", data, subdata);
+        // Save the view
+        nodedata.saveNodeData(filename, m_gmsh);
+    }
+
+    template<typename Function>
+    void
+    plot_vector_function(const std::string& filename, const Function& fct) const
+    {
+        std::vector<gmsh::Data>    data;         // create data
+        std::vector<gmsh::SubData> subdata;      // create subdata
+        data.reserve(m_gmsh.getNumberofNodes()); // data has a size of nb_node
+
+        auto storage = m_post_msh.mesh().backend_storage();
+
+        // Compute the average value and save it
+        for (int i_node = 1; i_node <= m_gmsh.getNumberofNodes(); i_node++)
+        {
+            const auto pt = storage->points[i_node - 1];
+
+            const auto sol  = fct(pt);
+
+            const gmsh::Data tmp_data(i_node, disk::convertToVectorGmsh(sol));
+            data.push_back(tmp_data);
+        }
+
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(3, 0.0, "sol_node", data, subdata);
+        // Save the view
+        nodedata.saveNodeData(filename, m_gmsh);
+    }
+
+    template<typename Function>
+    void
+    plot_tensor_function(const std::string& filename, const Function& fct) const
+    {
+        std::vector<gmsh::Data>    data;         // create data
+        std::vector<gmsh::SubData> subdata;      // create subdata
+        data.reserve(m_gmsh.getNumberofNodes()); // data has a size of nb_node
+
+        auto storage = m_post_msh.mesh().backend_storage();
+
+        // Compute the average value and save it
+        for (int i_node = 1; i_node <= m_gmsh.getNumberofNodes(); i_node++)
+        {
+            const auto pt = storage->points[i_node - 1];
+
+            const auto sol = fct(pt);
+
+            const gmsh::Data tmp_data(i_node, disk::convertToVectorGmsh(sol));
+            data.push_back(tmp_data);
+        }
+
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(9, 0.0, "sol_node", data, subdata);
+        // Save the view
+        nodedata.saveNodeData(filename, m_gmsh);
     }
 
     void

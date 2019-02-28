@@ -1351,7 +1351,7 @@ template<typename Mesh>
 class diffusion_condensed_assembler
 {
     using T = typename Mesh::coordinate_type;
-    typedef disk::scalar_boundary_conditions<Mesh> boundary_type;
+    typedef scalar_boundary_conditions<Mesh> boundary_type;
 
     std::vector<size_t>     compress_table;
     std::vector<size_t>     expand_table;
@@ -1664,7 +1664,7 @@ public:
                     {
                         switch (bnd.neumann_boundary_type(face_id))
                         {
-                            case disk::NEUMANN:
+                            case NEUMANN:
                                 throw std::invalid_argument(
                                   "You tried to impose both Neumann and Robin conditions on the same face");
                                 break;
@@ -1675,7 +1675,7 @@ public:
                     {
                         switch (bnd.dirichlet_boundary_type(face_id))
                         {
-                            case disk::DIRICHLET:
+                            case DIRICHLET:
                                 throw std::invalid_argument(
                                   "You tried to impose both Dirichlet and Robin conditions on the same face");
                                 break;
@@ -2193,7 +2193,7 @@ public:
                     {
                         switch (bnd.dirichlet_boundary_type(face_id))
                         {
-                            case disk::DIRICHLET:
+                            case DIRICHLET:
                                 throw std::invalid_argument("You tried to impose"
                                 "both Dirichlet and Neumann conditions on the same face");
                                 break;
@@ -2661,9 +2661,14 @@ class assembler_mechanics
         {
 
             face_compress_map.at(face_id) = total_dofs;
-            if(!bnd.is_contact_face(face_id))
+            if (!bnd.is_contact_face(face_id))
             {
                 const auto free_dofs = num_face_dofs - bnd.dirichlet_imposed_dofs(face_id, m_hdi.face_degree());
+                total_dofs += free_dofs;
+            }
+            else if (bnd.contact_boundary_type(face_id) == SIGNORINI_FACE)
+            {
+                const auto free_dofs = num_face_dofs;
                 total_dofs += free_dofs;
             }
         }
@@ -2715,7 +2720,7 @@ class assembler_mechanics
 
                 switch (bnd.dirichlet_boundary_type(face_id))
                 {
-                    case disk::DIRICHLET:
+                    case DIRICHLET:
                     {
                         if (!ind_ok)
                         {
@@ -2728,7 +2733,7 @@ class assembler_mechanics
                         }
                         break;
                     }
-                    case disk::CLAMPED:
+                    case CLAMPED:
                     {
                         proj_bcf.setZero();
                         mat_Fj.setZero();
@@ -2743,7 +2748,7 @@ class assembler_mechanics
                         }
                         break;
                     }
-                    case disk::DX:
+                    case DX:
                     {
                         for (size_t i = 0; i < num_face_dofs; i += dimension)
                         {
@@ -2768,7 +2773,7 @@ class assembler_mechanics
                         ind_ok = true;
                         break;
                     }
-                    case disk::DY:
+                    case DY:
                     {
                         for (size_t i = 0; i < num_face_dofs; i += dimension)
                         {
@@ -2793,7 +2798,7 @@ class assembler_mechanics
                         ind_ok = true;
                         break;
                     }
-                    case disk::DZ:
+                    case DZ:
                     {
                         if (dimension != 3)
                             throw std::invalid_argument("You are not in 3D");
@@ -2814,7 +2819,7 @@ class assembler_mechanics
                         ind_ok = true;
                         break;
                     }
-                    case disk::DXDY:
+                    case DXDY:
                     {
                         for (size_t i = 0; i < num_face_dofs; i += dimension)
                         {
@@ -2838,7 +2843,7 @@ class assembler_mechanics
                         ind_ok = true;
                         break;
                     }
-                    case disk::DXDZ:
+                    case DXDZ:
                     {
                         if (dimension != 3)
                             throw std::invalid_argument("You are not in 3D");
@@ -2858,7 +2863,7 @@ class assembler_mechanics
                         ind_ok = true;
                         break;
                     }
-                    case disk::DYDZ:
+                    case DYDZ:
                     {
                         if (dimension != 3)
                             throw std::invalid_argument("You are not in 3D");
@@ -2952,17 +2957,17 @@ class assembler_mechanics
 
                switch (bnd.dirichlet_boundary_type(face_id))
                {
-                   case disk::DIRICHLET:
+                   case DIRICHLET:
                    {
                        ret.segment(face_offset, num_face_dofs) = proj_bcf;
                        break;
                    }
-                   case disk::CLAMPED:
+                   case CLAMPED:
                    {
                        ret.segment(face_offset, num_face_dofs).setZero();
                        break;
                    }
-                   case disk::DX:
+                   case DX:
                    {
 
                        for (size_t i = 0; i < num_face_dofs; i += dimension)
@@ -2976,7 +2981,7 @@ class assembler_mechanics
                        }
                        break;
                    }
-                   case disk::DY:
+                   case DY:
                    {
                        for (size_t i = 0; i < num_face_dofs; i += dimension)
                        {
@@ -2989,7 +2994,7 @@ class assembler_mechanics
                        }
                        break;
                    }
-                   case disk::DZ:
+                   case DZ:
                    {
                        if (dimension != 3)
                            throw std::invalid_argument("You are not in 3D");
@@ -3001,7 +3006,7 @@ class assembler_mechanics
                        }
                        break;
                    }
-                   case disk::DXDY:
+                   case DXDY:
                    {
                        for (size_t i = 0; i < num_face_dofs; i += dimension)
                        {
@@ -3014,7 +3019,7 @@ class assembler_mechanics
                        }
                        break;
                    }
-                   case disk::DXDZ:
+                   case DXDZ:
                    {
                        if (dimension != 3)
                            throw std::invalid_argument("You are not in 3D");
@@ -3026,7 +3031,7 @@ class assembler_mechanics
                        }
                        break;
                    }
-                   case disk::DYDZ:
+                   case DYDZ:
                    {
                        if (dimension != 3)
                            throw std::invalid_argument("You are not in 3D");
@@ -3078,15 +3083,15 @@ class assembler_mechanics
             assert(proj_bcf.size() == num_face_dofs);
 
             switch (bnd.dirichlet_boundary_type(face_id)) {
-               case disk::DIRICHLET: {
+               case DIRICHLET: {
                   ret.segment(face_offset, num_face_dofs) = proj_bcf;
                   break;
                }
-               case disk::CLAMPED: {
+               case CLAMPED: {
                   ret.segment(face_offset, num_face_dofs).setZero();
                   break;
                }
-               case disk::DX: {
+               case DX: {
 
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = proj_bcf(i);
@@ -3097,7 +3102,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DY: {
+               case DY: {
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
                      ret(face_offset + i + 1) = proj_bcf(i + 1);
@@ -3107,7 +3112,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DZ: {
+               case DZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
@@ -3116,7 +3121,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DXDY: {
+               case DXDY: {
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = proj_bcf(i);
                      ret(face_offset + i + 1) = proj_bcf(i + 1);
@@ -3126,7 +3131,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DXDZ: {
+               case DXDZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = proj_bcf(i);
@@ -3135,7 +3140,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DYDZ: {
+               case DYDZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
@@ -3172,6 +3177,7 @@ class assembler_mechanics
        const auto        num_face_dofs = vector_basis_size(face_degree, dimension - 1, dimension);
        const scalar_type zero          = 0;
 
+        // in fact, this is the face without SIGNORINI_CELL
        const auto          fcs = bnd.faces_without_contact(cl);
        std::vector<size_t> l2g(fcs.size() * num_face_dofs);
        std::vector<bool>   l2l(fcs.size() * num_face_dofs, true);
@@ -3202,7 +3208,7 @@ class assembler_mechanics
 
                    switch (bnd.dirichlet_boundary_type(face_id))
                    {
-                       case disk::DIRICHLET:
+                       case DIRICHLET:
                        {
                            if (!ind_ok)
                            {
@@ -3215,7 +3221,7 @@ class assembler_mechanics
                            }
                            break;
                        }
-                       case disk::CLAMPED:
+                       case CLAMPED:
                        {
                            incr = -sol_F[face_id];
                            if (!ind_ok)
@@ -3229,7 +3235,7 @@ class assembler_mechanics
                            }
                            break;
                        }
-                       case disk::DX:
+                       case DX:
                        {
                            for (size_t i = 0; i < num_face_dofs; i += dimension)
                            {
@@ -3254,7 +3260,7 @@ class assembler_mechanics
                            ind_ok = true;
                            break;
                        }
-                       case disk::DY:
+                       case DY:
                        {
                            for (size_t i = 0; i < num_face_dofs; i += dimension)
                            {
@@ -3279,7 +3285,7 @@ class assembler_mechanics
                            ind_ok = true;
                            break;
                        }
-                       case disk::DZ:
+                       case DZ:
                        {
                            if (dimension != 3)
                                throw std::invalid_argument("You are not in 3D");
@@ -3300,7 +3306,7 @@ class assembler_mechanics
                            ind_ok = true;
                            break;
                        }
-                       case disk::DXDY:
+                       case DXDY:
                        {
                            for (size_t i = 0; i < num_face_dofs; i += dimension)
                            {
@@ -3324,7 +3330,7 @@ class assembler_mechanics
                            ind_ok = true;
                            break;
                        }
-                       case disk::DXDZ:
+                       case DXDZ:
                        {
                            if (dimension != 3)
                                throw std::invalid_argument("You are not in 3D");
@@ -3344,7 +3350,7 @@ class assembler_mechanics
                            ind_ok = true;
                            break;
                        }
-                       case disk::DYDZ:
+                       case DYDZ:
                        {
                            if (dimension != 3)
                                throw std::invalid_argument("You are not in 3D");
@@ -3449,16 +3455,16 @@ class assembler_mechanics
             assert(proj_bcf.size() == num_face_dofs);
 
             switch (bnd.dirichlet_boundary_type(face_id)) {
-               case disk::DIRICHLET: {
+               case DIRICHLET: {
                   ret.segment(face_offset, num_face_dofs) = incr;
                   break;
                }
-               case disk::CLAMPED: {
+               case CLAMPED: {
                   incr                                    = -sol_F[face_id];
                   ret.segment(face_offset, num_face_dofs) = incr;
                   break;
                }
-               case disk::DX: {
+               case DX: {
 
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = incr(i);
@@ -3469,7 +3475,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DY: {
+               case DY: {
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
                      ret(face_offset + i + 1) = incr(i + 1);
@@ -3479,7 +3485,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DZ: {
+               case DZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
@@ -3488,7 +3494,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DXDY: {
+               case DXDY: {
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = incr(i);
                      ret(face_offset + i + 1) = incr(i + 1);
@@ -3498,7 +3504,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DXDZ: {
+               case DXDZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = incr(i);
@@ -3507,7 +3513,7 @@ class assembler_mechanics
                   }
                   break;
                }
-               case disk::DYDZ: {
+               case DYDZ: {
                   if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                   for (size_t i = 0; i < num_face_dofs; i += dimension) {
                      ret(face_offset + i)     = solution(compress_offset + sol_ind++);
@@ -3522,7 +3528,7 @@ class assembler_mechanics
                }
             }
          }
-         else if (bnd.is_contact_face(face_id))
+         else if (bnd.contact_boundary_type(face_id) == SIGNORINI_CELL)
          {
              ret.segment(face_offset, num_face_dofs) = -sol_F[face_id];
          }
@@ -3553,17 +3559,17 @@ class assembler_mechanics
 
                if (bnd.is_dirichlet_face(face_id)) {
                   switch (bnd.dirichlet_boundary_type(face_id)) {
-                     case disk::DIRICHLET: {
+                     case DIRICHLET: {
                         throw std::invalid_argument("You tried to impose both Dirichlet and "
                                                     "Neumann conditions on the same face");
                         break;
                      }
-                     case disk::CLAMPED: {
+                     case CLAMPED: {
                         throw std::invalid_argument("You tried to impose both Dirichlet and "
                                                     "Neumann conditions on the same face");
                         break;
                      }
-                     case disk::DX: {
+                     case DX: {
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            RHS(face_offset + i + 1) += neumann(i + 1);
                            if (dimension == 3) {
@@ -3572,7 +3578,7 @@ class assembler_mechanics
                         }
                         break;
                      }
-                     case disk::DY: {
+                     case DY: {
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            RHS(face_offset + i) = neumann(i);
                            if (dimension == 3) {
@@ -3582,7 +3588,7 @@ class assembler_mechanics
 
                         break;
                      }
-                     case disk::DZ: {
+                     case DZ: {
                         if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            RHS(face_offset + i) += neumann(i);
@@ -3590,7 +3596,7 @@ class assembler_mechanics
                         }
                         break;
                      }
-                     case disk::DXDY: {
+                     case DXDY: {
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            if (dimension == 3) {
                               RHS(face_offset + i + 2) += neumann(i + 2);
@@ -3598,14 +3604,14 @@ class assembler_mechanics
                         }
                         break;
                      }
-                     case disk::DXDZ: {
+                     case DXDZ: {
                         if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            RHS(face_offset + i + 1) += neumann(i + 1);
                         }
                         break;
                      }
-                     case disk::DYDZ: {
+                     case DYDZ: {
                         if (dimension != 3) throw std::invalid_argument("You are not in 3D");
                         for (size_t i = 0; i < num_face_dofs; i += dimension) {
                            RHS(face_offset + i) += neumann(i);
