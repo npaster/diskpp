@@ -304,6 +304,24 @@ class linear_elasticity_solver
         return pi;
     }
 
+    void
+    eigenvalues()
+    {
+        SelfAdjointEigenSolver<sparse_matrix<scalar_type>> es(m_assembler.LHS);
+
+        if(es.info() == Eigen::Success)
+        {
+            const auto evs = es.eigenvalues();
+
+            std::cout << "Eigenvalues: " << evs.size() << std::endl;
+            std::cout << evs.transpose() << std::endl;
+        }
+        else
+        {
+            std::cout << "Fail to compute eigenvalues" << std::endl;
+        }
+    }
+
     template<typename AnalyticalSolution>
     scalar_type
     compute_l2_displacement_error(const AnalyticalSolution& as)
