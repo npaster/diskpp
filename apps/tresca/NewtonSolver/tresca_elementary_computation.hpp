@@ -35,8 +35,6 @@
 
 #include "timecounter.h"
 
-#define CONTACT_FACES
-
 namespace MK
 {
 
@@ -113,8 +111,6 @@ make_matrix_symmetric_gradrec(const Mesh&                                   msh,
         } // end qp
     }
 
-#ifdef CONTACT_FACES
-
     for (size_t i = 0; i < fcs.size(); i++)
     {
         const auto fc = fcs[i];
@@ -133,40 +129,6 @@ make_matrix_symmetric_gradrec(const Mesh&                                   msh,
             gr_rhs.block(0, 0, gbs, cbs) -= disk::priv::outer_product(qp_gphi_n, cphi);
         }
     }
-
-#else
-    const auto fcs2   = faces(msh, cl);
-    size_t     face_i = 0;
-    for (size_t i = 0; i < fcs2.size(); i++)
-    {
-        const auto fc = fcs2[i];
-        const auto n  = normal(msh, cl, fc);
-        const auto fb = make_vector_monomial_basis(msh, fc, facdeg);
-
-        const bool is_contact_face = bnd.is_contact_face(fc);
-
-        const auto qps_f = integrate(msh, fc, graddeg + std::max(celdeg, facdeg));
-        for (auto& qp : qps_f)
-        {
-            const auto cphi = cb.eval_functions(qp.point());
-            const auto gphi = gb.eval_functions(qp.point());
-            const auto fphi = fb.eval_functions(qp.point());
-
-            const auto qp_gphi_n = disk::priv::inner_product(gphi, disk::priv::inner_product(qp.weight(), n));
-            gr_rhs.block(0, 0, gbs, cbs) -= disk::priv::outer_product(qp_gphi_n, cphi);
-
-            if (!is_contact_face)
-            {
-                gr_rhs.block(0, cbs + face_i * fbs, gbs, fbs) += disk::priv::outer_product(qp_gphi_n, fphi);
-            }
-        }
-
-        if (!is_contact_face)
-        {
-            face_i++;
-        }
-    }
-#endif
 
     matrix_type oper = gr_lhs.ldlt().solve(gr_rhs);
     matrix_type data = gr_rhs.transpose() * oper;
@@ -199,7 +161,6 @@ make_scalar_hdg_stabilization(const Mesh&                                   msh,
 
     auto cb = make_scalar_monomial_basis(msh, cl, celdeg);
 
-#ifdef CONTACT_FACES
     for (size_t i = 0; i < num_faces; i++)
     {
         const auto fc = fcs[i];
@@ -232,54 +193,6 @@ make_scalar_hdg_stabilization(const Mesh&                                   msh,
         oper.block(0, 0, fbs, cbs) = mass.ldlt().solve(trace);
         data += oper.transpose() * tr * (1. / h);
     }
-#else
-    const auto fcs2   = faces(msh, cl);
-    size_t     face_i = 0;
-    for (size_t i = 0; i < fcs2.size(); i++)
-    {
-        const auto fc = fcs2[i];
-        const auto h  = diameter(msh, fc);
-        const auto fb = make_scalar_monomial_basis(msh, fc, facdeg);
-
-        const bool is_contact_face = bnd.is_contact_face(fc);
-
-        if (!is_contact_face)
-        {
-            matrix_type oper  = matrix_type::Zero(fbs, total_dofs);
-            matrix_type tr    = matrix_type::Zero(fbs, total_dofs);
-            matrix_type mass  = make_mass_matrix(msh, fc, fb);
-            matrix_type trace = matrix_type::Zero(fbs, cbs);
-
-            oper.block(0, cbs + face_i * fbs, fbs, fbs) = -If;
-
-            const auto qps = integrate(msh, fc, facdeg + celdeg);
-            for (auto& qp : qps)
-            {
-                const auto c_phi = cb.eval_functions(qp.point());
-                const auto f_phi = fb.eval_functions(qp.point());
-
-                assert(c_phi.rows() == cbs);
-                assert(f_phi.rows() == fbs);
-                assert(c_phi.cols() == f_phi.cols());
-
-                trace += disk::priv::outer_product(disk::priv::inner_product(qp.weight(), f_phi), c_phi);
-            }
-
-            tr.block(0, cbs + face_i * fbs, fbs, fbs) = -mass;
-            tr.block(0, 0, fbs, cbs)                  = trace;
-
-            oper.block(0, 0, fbs, cbs) = mass.ldlt().solve(trace);
-            data += oper.transpose() * tr * (1. / h);
-
-            face_i++;
-        }
-        else
-        {
-            matrix_type mass_T = make_mass_matrix(msh, fc, cb);
-            data.block(0, 0, cbs, cbs) += mass_T / h;
-        }
-    }
-#endif
 
     return data;
 }
@@ -1014,7 +927,7 @@ class tresca
         matrix_type AT = make_hho_aT(cl, ET, ST);
 
         // add volumic term
-        RTF.head(cell_basis_size) += make_rhs(m_msh, cl, cb, load, 6);
+        RTF.head(cell_basis_size) += make_rhs(m_msh, cl, cb, load, 2);
 
         // contact contribution
         time_contact = 0.0;

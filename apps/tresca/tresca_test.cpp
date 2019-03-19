@@ -57,6 +57,7 @@ struct run_params
     int  degree;
     int  l;
     bool verbose;
+    bool cell_based;
 };
 
 void
@@ -67,12 +68,55 @@ usage(const char* progname)
     printf("    -3: test 3D mesh\n");
     printf("    -k: face degree (>=1)\n");
     printf("    -t: theta parameter for Nitshe method");
+    printf("    -c: cell_based method");
     printf("    -v: verbose\n");
+}
+
+template<typename Mesh>
+void
+renumber_boundaries(Mesh& msh)
+{
+    using T      = typename Mesh::coordinate_type;
+    auto storage = msh.backend_storage();
+
+    auto is_close_to = [](const T val, const T ref) -> bool {
+        T eps = 1E-7;
+        return std::abs(ref - val) < eps;
+    };
+
+    for (size_t face_i = 0; face_i < msh.faces_size(); face_i++)
+    {
+        auto fc = *std::next(msh.faces_begin(), face_i);
+        if (storage->boundary_info.at(face_i).is_boundary)
+        {
+            const auto bar = barycenter(msh, fc);
+            if (is_close_to(bar.y(), T(0)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 1;
+            }
+            else if (is_close_to(bar.x(), T(1)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 2;
+            }
+            else if (is_close_to(bar.y(), T(1)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 3;
+            }
+            else if (is_close_to(bar.x(), T(0)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 4;
+            }
+            else
+            {
+                throw std::invalid_argument("dont find the boundaries");
+            }
+        }
+    }
 }
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
-run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+run_tresca_solver( Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef static_vector<T, 2>                         result_type;
@@ -82,34 +126,75 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     timecounter tc;
     tc.tic();
 
+    renumber_boundaries(msh);
+
+    // auto load = [material_data](const point<T, 2>& p) -> result_type {
+    //     T x  = p.x();
+    //     T y  = p.y();
+    //     T y2 = y * y;
+
+    //     T fx = material_data.getLambda() * (0.1 * x - 0.05) +
+    //            2.0 * material_data.getMu() * (0.05 * x + 2 * y * (0.3 * x - 0.15) - 0.025);
+    //     T fy = 0.6 * material_data.getLambda() * y2 + 2.0 * material_data.getMu() * (0.3 * y2 + 0.05 * y + 0.05);
+    //     return result_type{fx, fy};
+    // };
+
+    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
+    //     T ux = -0.2 * p.y() * p.y() * p.y() * (p.x() - 0.5);
+    //     T uy = -0.05 * (1.0 + p.y()) * (p.x() - 0.5) * (p.x() - 0.5) - 0.01 * p.y();
+    //     return result_type{ux, uy};
+    // };
+
+    // auto load = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y  = p.y();
+    //     T ey= std::exp(y);
+
+    //     T fx = - material_data.getMu() * y * (y + 3)*ey;
+    //     T fy = -2 * material_data.getLambda() - 4.0 * material_data.getMu();
+    //     return result_type{fx, fy};
+    // };
+
+    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y   = p.y();
+    //     T ey = std::exp(y);
+
+    //     T ux = y*(y-1)*ey;
+    //     T uy = y * (y - 1);
+    //     return result_type{ux, uy};
+    // };
+
+    // auto neum2 = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y  = p.y();
+    //     T ey = std::exp(y);
+
+    //     T ux = material_data.getLambda() * (2*y - 1);
+    //     T uy = material_data.getMu() * (y * y  + y - 1)*ey;
+    //     return result_type{ux, uy};
+    // };
+
     auto load = [material_data](const point<T, 2>& p) -> result_type {
-        const T lambda = material_data.getLambda();
-        const T mu     = material_data.getMu();
+        T y      = p.y();
+        T x      = p.x();
+        T exy    = std::exp(x * y);
+        T mu     = material_data.getMu();
+        T lambda = material_data.getLambda();
+        T coeff  = 0.5 * lambda * y * y - x * x * (0.5 * lambda + 1);
 
-        T fx =
-          lambda * cos(M_PI * (p.x() + p.y())) -
-          2.0 * mu *
-            ((4 * lambda + 4) * sin(2 * M_PI * p.y()) * cos(2 * M_PI * p.x()) + sin(M_PI * p.x()) * sin(M_PI * p.y())) +
-          2.0 * mu *
-            (2.0 * lambda * sin(2 * M_PI * p.y()) + 2.0 * sin(2 * M_PI * p.y()) + 0.5 * cos(M_PI * (p.x() + p.y())));
-        T fy =
-          lambda * cos(M_PI * (p.x() + p.y())) +
-          2.0 * mu *
-            ((4 * lambda + 4) * sin(2 * M_PI * p.x()) * cos(2 * M_PI * p.y()) - sin(M_PI * p.x()) * sin(M_PI * p.y())) -
-          2.0 * mu *
-            (2.0 * lambda * sin(2 * M_PI * p.x()) + 2.0 * sin(2 * M_PI * p.x()) - 0.5 * cos(M_PI * (p.x() + p.y())));
+        T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
+        T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
 
-        return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy};
+        return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
     };
 
     auto solution = [material_data](const point<T, 2>& p) -> result_type {
-        T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-               1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-        T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-               1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+        T y     = p.y();
+        T x     = p.x();
+        T exy   = std::exp(x * y);
+        T coeff = 1.0 / (1.0 + material_data.getLambda());
 
-        return result_type{fx, fy};
+        return result_type{x *exy*(1.0+coeff), y * exy *( -1.0 + coeff)}/6.0;
     };
+
 
     auto sigma = [material_data](const point<T, 2>& p) -> grad_type {
         const T lambda = material_data.getLambda();
@@ -143,7 +228,21 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     };
 
     Bnd_type bnd(msh);
-    bnd.addDirichletEverywhere(solution);
+    if(cell_based)
+    {
+        bnd.addContactBC(disk::SIGNORINI_CELL, 1);
+    }
+    else
+    {
+        bnd.addContactBC(disk::SIGNORINI_FACE, 1);
+    }
+
+    bnd.addDirichletBC(disk::DIRICHLET, 2, solution);
+    bnd.addDirichletBC(disk::DIRICHLET, 3, solution);
+    bnd.addDirichletBC(disk::DIRICHLET, 4, solution);
+
+
+    //bnd.addDirichletBC(disk::DIRICHLET, 1, solution);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
 
@@ -161,12 +260,15 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     error.error_depl   = nl.compute_l2_displacement_error(solution);
     error.error_stress = 1.0; // le.compute_l2_stress_error(sigma);
 
+    //  nl.compute_stress_GP("stress2D_GP_test.msh");
+    //  nl.compute_continuous_displacement("depl2D_cont_test.msh");
+
     return error;
 }
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
-run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef static_vector<T, 3>                         result_type;
@@ -305,7 +407,7 @@ printResults(const std::vector<error_type>& error)
 
 template<typename T>
 void
-test_triangles_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -321,14 +423,14 @@ test_triangles_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& materia
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_triangles_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -344,14 +446,14 @@ test_triangles_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& materi
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_hexagons(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexagons(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 5;
 
@@ -367,14 +469,14 @@ test_hexagons(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_kershaws(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_kershaws(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 5;
 
@@ -390,14 +492,14 @@ test_kershaws(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_quads_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 5;
 
@@ -413,14 +515,14 @@ test_quads_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& material_da
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_quads_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -436,14 +538,14 @@ test_quads_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& material_d
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_hexahedra_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -459,14 +561,14 @@ test_hexahedra_diskpp(const ParamRun<T>& rp, const disk::MaterialData<T>& materi
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_cartesian_3d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_hexahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -482,14 +584,14 @@ test_hexahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& materia
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_tetrahedra_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -505,14 +607,14 @@ test_tetrahedra_netgen(const ParamRun<T>& rp, const disk::MaterialData<T>& mater
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_polyhedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_polyhedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 3;
 
@@ -527,14 +629,14 @@ test_polyhedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& materia
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
 
 template<typename T>
 void
-test_tetrahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
     int runs = 4;
 
@@ -550,7 +652,7 @@ test_tetrahedra_fvca6(const ParamRun<T>& rp, const disk::MaterialData<T>& materi
     for (int i = 0; i < runs; i++)
     {
         auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
-        error_sumup.push_back(run_tresca_solver(msh, rp, material_data));
+        error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
     }
     printResults(error_sumup);
 }
@@ -566,26 +668,30 @@ main(int argc, char** argv)
     // Elasticity Parameters
     disk::MaterialData<RealType> material_data;
 
-    material_data.setMu(1.0);
-    material_data.setLambda(1000.);
+    material_data.setMu(2.0);
+    material_data.setLambda(100000.);
 
     // Solver parameters
     ParamRun<RealType> rp;
     rp.m_precomputation    = true;
     rp.m_stab_type         = HDG;
-    rp.m_epsilon           = 1.0E-9;
+    rp.m_epsilon           = 1.0E-7;
     rp.m_time_step.front() = std::make_pair(1.0, 1);
+    rp.m_sublevel          = 5;
     rp.m_beta              = 10 * material_data.getMu();
-    rp.m_gamma_0           = 10 * material_data.getMu();
+    rp.m_gamma_0           = 100 * material_data.getMu();
 
     int ch;
+    bool cell_based = false;
 
-    while ((ch = getopt(argc, argv, "23k:t:v")) != -1)
+    while ((ch = getopt(argc, argv, "23ck:t:v")) != -1)
     {
         switch (ch)
         {
             case '2': dim = 2; break;
             case '3': dim = 3; break;
+
+            case 'c': cell_based = true; break;
 
             case 'k':
                 degree = atoi(optarg);
@@ -624,35 +730,35 @@ main(int argc, char** argv)
     {
         tc.tic();
         std::cout << "-Tetrahedras fvca6:" << std::endl;
-        test_tetrahedra_fvca6<RealType>(rp, material_data);
+        test_tetrahedra_fvca6<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Tetrahedras netgen:" << std::endl;
-        test_tetrahedra_netgen<RealType>(rp, material_data);
+        test_tetrahedra_netgen<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Hexahedras fvca6:" << std::endl;
-        test_hexahedra_fvca6<RealType>(rp, material_data);
+        test_hexahedra_fvca6<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Hexahedras diskpp:" << std::endl;
-        test_hexahedra_diskpp<RealType>(rp, material_data);
+        test_hexahedra_diskpp<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Polyhedra:" << std::endl;
-        test_polyhedra_fvca6<RealType>(rp, material_data);
+        test_polyhedra_fvca6<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
@@ -662,42 +768,42 @@ main(int argc, char** argv)
 
         tc.tic();
         std::cout << "-Triangles fvca5:" << std::endl;
-        test_triangles_fvca5<RealType>(rp, material_data);
+        test_triangles_fvca5<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Triangles netgen:" << std::endl;
-        test_triangles_netgen<RealType>(rp, material_data);
+        test_triangles_netgen<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Quadrangles fvca5:" << std::endl;
-        test_quads_fvca5<RealType>(rp, material_data);
+        test_quads_fvca5<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Quadrangles diskpp:" << std::endl;
-        test_quads_diskpp<RealType>(rp, material_data);
+        test_quads_diskpp<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Hexagons:" << std::endl;
-        test_hexagons<RealType>(rp, material_data);
+        test_hexagons<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Kershaws:" << std::endl;
-        test_kershaws<RealType>(rp, material_data);
+        test_kershaws<RealType>(rp, material_data, cell_based);
         tc.toc();
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;

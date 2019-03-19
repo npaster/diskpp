@@ -433,7 +433,7 @@ class tresca_solver
 
         const auto cbs      = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
         const int  diff_deg = m_hdi.face_degree() - m_hdi.cell_degree();
-        const int  di       = std::max(diff_deg, 1);
+        const int  di       = std::max(diff_deg, 2);
 
         int cell_i = 0;
 
@@ -447,6 +447,9 @@ class tresca_solver
             const matrix_type mass = disk::make_mass_matrix(m_msh, cl, cb);
 
             const vector_type comp_dof = x.head(cbs);
+            // std::cout << "cell:" << std::endl;
+            // std::cout << true_dof.transpose() << std::endl;
+            // std::cout << comp_dof.transpose() << std::endl;
             const vector_type diff_dof = (true_dof - comp_dof);
             assert(comp_dof.size() == true_dof.size());
             err_dof += diff_dof.dot(mass * diff_dof);

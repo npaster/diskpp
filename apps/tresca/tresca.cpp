@@ -62,32 +62,39 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     // bnd.addDirichletEverywhere(solution);
 
     // Bostan2
-    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -0.2}; };
-    auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
+    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    // auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -0.2}; };
+    // auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
 
-    bnd.addContactBC(disk::SIGNORINI_CELL, 6);
-    bnd.addDirichletBC(disk::DIRICHLET, 10, depl);
-    //bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+    // bnd.addContactBC(disk::SIGNORINI_CELL, 6);
+    // bnd.addDirichletBC(disk::DIRICHLET, 10, depl);
 
-    // auto solution2 = [material_data](const point<T, 2>& p) -> result_type {
-    //     T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-    //            1.0 / (1.0 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y()) + 5.0/(1.0 + 0.10) * (1.0 - p.y() * p.y());
-    //     T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-    //            1.0 / (1.0 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    // // Hertz
+    // auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -2.0}; };
 
-    //     return 0.1*result_type{fx, fy};
-    // };
+    // bnd.addContactBC(disk::SIGNORINI_FACE, 6);
+    // bnd.addDirichletBC(disk::DIRICHLET, 3, depl);
 
-    // auto solution3 = [material_data](const point<T, 2>& p) -> result_type {
-    //     T fx = p.y() * (p.y() - 1) * exp(p.y());
-    //     T fy = p.y() * (p.y() - 1);
+    // Conv
+    auto depl = [material_data](const point<T, 2>& p) -> result_type {
+        T ux = -0.2 * p.y() * p.y() * p.y() * (p.x() - 0.5);
+        T uy = -0.05 * (1.0 + p.y()) * (p.x() - 0.5) * (p.x() - 0.5) - 0.01 * p.y();
+        return result_type{ux, uy};
+    };
 
-    //     return result_type{fx, fy};
-    // };
+    auto load2 = [material_data](const point<T, 2>& p) -> result_type {
+        T x  = p.x();
+        T y  = p.y();
+        T y2 = y * y;
 
-    // disk::gmsh_io<mesh_type> gio(msh);
-    // gio.plot_vector_function("test.msh", solution3);
+        T fx = material_data.getLambda() * (0.1 * x - 0.05) +
+               2.0 * material_data.getMu() * (0.05 * x + 2 * y * (0.3 * x - 0.15) - 0.0025);
+        T fy = 0.6 * material_data.getLambda() * y2 + 2.0 * material_data.getMu() * (0.3 * y2 + 0.05 * y + 0.05);
+        return result_type{fx, fy};
+    };
+
+    bnd.addContactBC(disk::SIGNORINI_FACE, 2);
+    bnd.addDirichletBC(disk::DIRICHLET, 1, depl);
 
     // solver
 
@@ -108,9 +115,9 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
     // nl.compute_discontinuous_displacement("depl2D_disc.msh");
     nl.compute_continuous_displacement("depl2D_cont.msh");
     // nl.compute_discontinuous_stress("stress2D_disc.msh");
-    // nl.compute_continuous_stress("stress2D_cont.msh");
+    nl.compute_continuous_stress("stress2D_cont.msh");
     nl.compute_stress_GP("stress2D_GP.msh");
-    // nl.compute_continuous_deformed("deformed2D_cont.msh");
+    nl.compute_continuous_deformed("deformed2D_cont.msh");
     // nl.compute_discontinuous_deformed("deformed2D_disc.msh");
     nl.contact_quantities("contact.dat");
 }
@@ -131,15 +138,21 @@ run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const d
     Bnd_type bnd(msh);
     // bnd.addDirichletEverywhere(solution);
 
-    // Bostan2
-    auto zero = [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, 0.0}; };
-    auto neum = [material_data](const point<T, 3>& p) -> result_type { return result_type{400.0, 0.0, 0.0}; };
+    // // Bostan2
+    // auto zero = [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, 0.0}; };
+    // auto neum = [material_data](const point<T, 3>& p) -> result_type { return result_type{400.0, 0.0, 0.0}; };
 
-    bnd.addContactBC(disk::SIGNORINI_CELL, 23);
-    bnd.addDirichletBC(disk::CLAMPED, 27, zero);
-    bnd.addDirichletBC(disk::DZ, 31, zero);
-    bnd.addDirichletBC(disk::DZ, 33, zero);
-    bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+    // bnd.addContactBC(disk::SIGNORINI_CELL, 23);
+    // bnd.addDirichletBC(disk::CLAMPED, 27, zero);
+    // bnd.addDirichletBC(disk::DZ, 31, zero);
+    // bnd.addDirichletBC(disk::DZ, 33, zero);
+    // bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+
+    // Hertz
+    auto depl= [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, -5.0}; };
+
+    bnd.addContactBC(disk::SIGNORINI_CELL, 17);
+    bnd.addDirichletBC(disk::DIRICHLET, 13, depl);
 
     // Solver
 
@@ -158,9 +171,9 @@ run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const d
     }
 
     nl.compute_discontinuous_displacement("depl3D_disc.msh");
-    // nl.compute_continuous_displacement("depl3D_cont.msh");
+    nl.compute_continuous_displacement("depl3D_cont.msh");
     // nl.compute_discontinuous_stress("stress3D_disc.msh");
-    // nl.compute_continuous_stress("stress3D_cont.msh");
+    nl.compute_continuous_stress("stress3D_cont.msh");
     nl.compute_stress_GP("stress3D_GP.msh");
     // nl.compute_continuous_deformed("deformed3D_cont.msh");
     // nl.compute_discontinuous_deformed("deformed3D_disc.msh");
@@ -220,6 +233,15 @@ main(int argc, char** argv)
     {
         std::cout << "Guessed mesh format: Medit format" << std::endl;
         auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+        run_tresca_solver(msh, rp, material_data);
+        return 0;
+    }
+
+    /* Netgen 2D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$")))
+    {
+        std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
+        auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
         run_tresca_solver(msh, rp, material_data);
         return 0;
     }
