@@ -133,6 +133,7 @@ run_finite_strains_solver(const Mesh<T, 2, Storage>&   msh,
     nl.compute_is_plastic_continuous("state2D_cont.msh");
     nl.compute_continuous_deformed("deformed2D_cont.msh");
     nl.compute_discontinuous_deformed("deformed2D_disc.msh");
+    nl.compute_small_ev_GP("smallev2D_GP.msh");
 }
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -190,28 +191,25 @@ run_finite_strains_solver(const Mesh<T, 3, Storage>&   msh,
     // bnd.addNeumannBC(disk::NEUMANN, 27, pres);
 
     // // Sphere GDEF
-    bnd.addDirichletBC(disk::DX, 12, zero);
-    bnd.addDirichletBC(disk::DY, 24, zero);
-    bnd.addDirichletBC(disk::DZ, 19, zero);
-    bnd.addDirichletBC(disk::DIRICHLET, 27, deplr);
+    // bnd.addDirichletBC(disk::DX, 12, zero);
+    // bnd.addDirichletBC(disk::DY, 24, zero);
+    // bnd.addDirichletBC(disk::DZ, 19, zero);
+    // bnd.addDirichletBC(disk::DIRICHLET, 27, deplr);
     //bnd.addNeumannBC(disk::NEUMANN, 27, pres);
 
-    // Cylindre GDEF
-    // auto depl = [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, 1.0}; };
-    // bnd.addDirichletBC(disk::DZ, 125, zero);
-    // bnd.addDirichletBC(disk::DZ, 50, zero);
-    // bnd.addDirichletBC(disk::DZ, 96, zero);
-    // bnd.addDirichletBC(disk::DX, 113, zero);
-    // bnd.addDirichletBC(disk::DX, 91, zero);
-    // bnd.addDirichletBC(disk::DX, 74, zero);
-    // bnd.addDirichletBC(disk::DX, 120, zero);
-    // bnd.addDirichletBC(disk::DY, 31, zero);
-    // bnd.addDirichletBC(disk::DY, 108, zero);
-    // bnd.addDirichletBC(disk::DY, 128, zero);
-    // bnd.addDirichletBC(disk::DY, 55, zero);
-    // bnd.addDirichletBC(disk::DZ, 103, depl);
-    // bnd.addDirichletBC(disk::DZ, 14, depl);
-    // bnd.addDirichletBC(disk::DZ, 69, depl);
+    // Torsion GDEF
+    auto rot = [](const point<T, 3>& p) -> result_type {
+        T dx = ((cos(2.0*M_PI*0.1)-1)*(p.x())-sin(2.0*M_PI*0.1)*(p.y())) / 0.1;
+        T dy = (sin(2.0*M_PI*0.1)*p.x()+(cos(2.0*M_PI*0.1)-1)*p.y()) / 0.1;
+         return result_type{dx, dy, 0.0}; };
+    bnd.addDirichletBC(disk::CLAMPED, 55, zero);
+    bnd.addDirichletBC(disk::CLAMPED, 26, zero);
+    bnd.addDirichletBC(disk::CLAMPED, 82, zero);
+    bnd.addDirichletBC(disk::CLAMPED, 96, zero);
+    bnd.addDirichletBC(disk::DIRICHLET, 86, rot);
+    bnd.addDirichletBC(disk::DIRICHLET, 62, rot);
+    bnd.addDirichletBC(disk::DIRICHLET, 45, rot);
+    bnd.addDirichletBC(disk::DIRICHLET, 14, rot);
 
     // Cube + pres
     //    auto zero = [material_data](const point<T, 3>& p) -> result_type {
@@ -292,18 +290,18 @@ main(int argc, char** argv)
     disk::MaterialData<RealType> material_data;
 
     // // Cook Parameters (mm, MPa, kN)
-    // RealType E  = 206.9;
-    // RealType nu = 0.29;
+    RealType E  = 206.9;
+    RealType nu = 0.29;
 
-    // material_data.setMu(E, nu);
-    // material_data.setLambda(E, nu);
+    material_data.setMu(E, nu);
+    material_data.setLambda(E, nu);
 
-    // readCurve("VEM2_2d.dat", material_data);
+    readCurve("VEM2_2d.dat", material_data);
 
-    // material_data.setK(0.0);
-    // material_data.setH(E, 0.13, 0.0);
+    material_data.setK(0.0);
+    material_data.setH(E, 0.13, 0.0);
 
-    // material_data.setSigma_y0(0.450);
+    material_data.setSigma_y0(0.450);
 
     // Old cook
     // RealType E  = 70;
@@ -316,15 +314,15 @@ main(int argc, char** argv)
     // material_data.setSigma_y0(0.243);
 
     // Sphere Parameters (mm, MPa, kN)
-    RealType E = 28.95;
-    RealType nu = 0.3;
-    RealType ET = 0;
+    // RealType E = 28.95;
+    // RealType nu = 0.3;
+    // RealType ET = 0;
 
-    material_data.setMu(E, nu);
-    material_data.setLambda(E, nu);
-    material_data.setK(0);
-    material_data.setH(0.0);
-    material_data.setSigma_y0(6);
+    // material_data.setMu(E, nu);
+    // material_data.setLambda(E, nu);
+    // material_data.setK(0);
+    // material_data.setH(0.0);
+    // material_data.setSigma_y0(6);
 
     int ch;
 

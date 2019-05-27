@@ -70,8 +70,8 @@ class finite_strains_solver
     typedef dynamic_vector<scalar_type> vector_type;
 
     typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
-    typedef disk::LinearIsotropicAndKinematicHardening<mesh_type> law_hpp_type;
-    //typedef disk::IsotropicHardeningVMis<mesh_type> law_hpp_type;
+    //typedef disk::LinearIsotropicAndKinematicHardening<mesh_type> law_hpp_type;
+    typedef disk::IsotropicHardeningVMis<mesh_type> law_hpp_type;
     typedef disk::mechanics::LogarithmicStrain<law_hpp_type> law_type;
 
     typename disk::hho_degree_info m_hdi;
@@ -407,6 +407,9 @@ class finite_strains_solver
                 }
             }
         }
+
+        // m_law.save_smallest_eigenvalues("smallev.dat");
+        // m_law.stat_smallest_eigenvalues();
 
         si.m_time_step = total_step;
 
@@ -1252,5 +1255,42 @@ class finite_strains_solver
         }
 
         output.close();
+    }
+
+    void
+    compute_smallest_ev_GP(const std::string& filename) const
+    {
+        gmsh::Gmesh gmsh = disk::convertMesh(post_mesh);
+
+        std::vector<gmsh::Data>    data;    // create data (not used)
+        std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
+        size_t                     nb_nodes(gmsh.getNumberofNodes());
+
+        int cell_i = 0;
+        for (auto& cl : m_msh)
+        {
+            const auto law_quadpoints = m_law.getCellIVs(cell_i).getIVs();
+
+            // Loop on nodes
+            for (auto& qp : law_quadpoints)
+            {
+                scalar_type p = qp.smallest_eigenvalue();
+
+                const std::vector<double> p_s = disk::convertToVectorGmsh(p);
+
+                // Add GP
+                // Create a node at gauss point
+                nb_nodes++;
+                const gmsh::Node    new_node = disk::convertPoint(qp.point(), nb_nodes);
+                const gmsh::SubData sdata(p_s, new_node);
+                subdata.push_back(sdata); // add subdata
+            }
+            cell_i++;
+        }
+
+        // Save
+        gmsh::NodeData nodedata(1, 0.0, "state_GP", data, subdata); // create and init a nodedata view
+
+        nodedata.saveNodeData(filename, gmsh); // save the view
     }
 };

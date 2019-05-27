@@ -124,6 +124,95 @@ class LogarithmicStrain
     {
         return m_list_cell_qp.at(cell_id);
     }
+
+    scalar_type
+    smallest_eigenvalue() const
+    {
+        using std::min;
+
+        scalar_type ev = 10.0E50;
+
+        for (auto& qp_cell : m_list_cell_qp)
+        {
+            const auto& law_quadpoints = qp_cell.getQPs();
+
+            for(auto& qp : law_quadpoints)
+            {
+                ev = min(ev, qp.small_eigenvalue());
+            }
+        }
+        return ev;
+    }
+
+    void
+    save_smallest_eigenvalues(const std::string& filename) const
+    {
+        std::ofstream output;
+        output.open(filename, std::ofstream::out | std::ofstream::trunc);
+
+        if (!output.is_open())
+        {
+            std::cerr << "Unable to open file " << filename << std::endl;
+        }
+
+        for (auto& qp_cell : m_list_cell_qp)
+        {
+            const auto& law_quadpoints = qp_cell.getQPs();
+
+            for(auto& qp : law_quadpoints)
+            {
+                output << qp.smallest_eigenvalue() << std::endl;
+            }
+        }
+
+        output.close();
+    }
+
+    void
+    stat_smallest_eigenvalues() const
+    {
+        std::vector<scalar_type> tab;
+        tab.reserve(m_nb_qp);
+
+        for (auto& qp_cell : m_list_cell_qp)
+        {
+            const auto& law_quadpoints = qp_cell.getQPs();
+
+            for(auto& qp : law_quadpoints)
+            {
+                tab.push_back(qp.small_eigenvalue());
+            }
+        }
+
+        const auto small_ev = smallest_eigenvalue();
+
+        int num_items;
+
+        std::cout << "Statistique about eigenvalues: " << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){return ev <= -10.0;});
+        std::cout << "** Eigenvalues between min < ev < -10: " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > -10 && ev <= -5.0){return true;} return false;});
+        std::cout << "** Eigenvalues between -10 < ev < -5 : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > -5 && ev <= -1.0){return true;} return false;});
+        std::cout << "** Eigenvalues between -5 < ev < -1  : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > -1.0 && ev <= -0.5){return true;} return false;});
+        std::cout << "** Eigenvalues between -1 < ev < -0.5: " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > -0.5 && ev <= 0.0){return true;} return false;});
+        std::cout << "** Eigenvalues between -0.5 < ev < 0 : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > 0.0 && ev <= 0.5){return true;} return false;});
+        std::cout << "** Eigenvalues between 0 < ev < 0.5  : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > .5 && ev <= 1.0){return true;} return false;});
+        std::cout << "** Eigenvalues between 0.5 < ev < 1  : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > 1.0 && ev <= 5.0){return true;} return false;});
+        std::cout << "** Eigenvalues between 1 < ev < 5    : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > 5 && ev <= 10.0){return true;} return false;});
+        std::cout << "** Eigenvalues between 5 < ev < 10   : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > 10 && ev <= 50.0){return true;} return false;});
+        std::cout << "** Eigenvalues between 10 < ev < 50  : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+        num_items = std::count_if(tab.begin(), tab.end(), [](scalar_type ev){ if(ev > 50 ){return true;} return false;});
+        std::cout << "** Eigenvalues between 50 < ev       : " << num_items << "  ( " << scalar_type(num_items)/m_nb_qp << " % )" << std::endl;
+
+    }
 };
 }
 }

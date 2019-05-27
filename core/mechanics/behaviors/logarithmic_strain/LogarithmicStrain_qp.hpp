@@ -71,6 +71,9 @@ class LogarithmicStrain_qp
 
     static_tensor<scalar_type, 3> Pn; // Projector: to compute PK1 form T
 
+    bool comp_ev;
+    scalar_type small_ev;
+
     static_matrix_type3D
     compute_stress3DPrev_T(const data_type& data) const
     {
@@ -144,6 +147,13 @@ class LogarithmicStrain_qp
         // std::cout << convertTensorNotationMangel<scalar_type, 3>(convertCtoA<scalar_type>(C, PK2 , F_curr)) <<
         // std::endl;
 
+        if(comp_ev)
+        {
+            const static_matrix<scalar_type, 6, 6> dPK1dF = convertTensorNotationMangel<scalar_type, 3>(A);
+            SelfAdjointEigenSolver<static_matrix<scalar_type, 6, 6>> es(dPK1dF);
+            small_ev = es.eigenvalues()(0);
+        }
+
         return std::make_pair(PK1, A);
     }
 
@@ -152,6 +162,8 @@ class LogarithmicStrain_qp
     {
         m_law_hpp_qp = law_hpp_qp_type(point, weight);
         Pn           = static_tensor<scalar_type, 3>::Zero();
+        small_ev = 0.0;
+        comp_ev = false;
     }
 
     point<scalar_type, DIM>
@@ -164,6 +176,12 @@ class LogarithmicStrain_qp
     weight() const
     {
         return m_law_hpp_qp.weight();
+    }
+
+    void
+    compute_eigenvalue(const bool val)
+    {
+        comp_ev = val;
     }
 
     bool
@@ -248,6 +266,12 @@ class LogarithmicStrain_qp
     compute_stress3D_T(const data_type& data) const
     {
         return m_law_hpp_qp.compute_stress3D(data);
+    }
+
+    scalar_type
+    smallest_eigenvalue() const
+    {
+        return small_ev;
     }
 };
 }
