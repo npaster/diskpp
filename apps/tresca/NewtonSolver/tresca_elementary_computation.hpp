@@ -755,6 +755,7 @@ class tresca
                 const auto gamma_F      = m_rp.m_gamma_0 / hF;
 
                 const auto fb = make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
+                const auto s_func = m_bnd.contact_boundary_func(fc);
 
                 for (auto& qp : qps)
                 {
@@ -767,7 +768,7 @@ class tresca
                         const auto phi_t_theta = make_hho_phi_t_uT(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
 
                         const vector_static phi_t_1_u_proj =
-                          eval_proj_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                          eval_proj_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, s_func(qp.point()), qp.point());
 
                         const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
 
@@ -780,7 +781,7 @@ class tresca
                         const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, face_i);
 
                         const vector_static phi_t_1_u_proj =
-                          eval_proj_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+                          eval_proj_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, s_func(qp.point()), qp.point());
 
                         const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
 
@@ -816,6 +817,7 @@ class tresca
                 const auto gamma_F      = m_rp.m_gamma_0 / hF;
 
                 const auto fb = make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
+                const auto s_func = m_bnd.contact_boundary_func(fc);
 
                 for (auto& qp : qps)
                 {
@@ -829,7 +831,7 @@ class tresca
                         const auto phi_t_theta = make_hho_phi_t_uT(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
 
                         const auto phi_t_1_u      = eval_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
-                        const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+                        const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, s_func(qp.point()));
 
                         const auto d_proj_u_phi_t_1 = disk::priv::inner_product(d_proj_phi_t_u, phi_t_1);
 
@@ -845,7 +847,7 @@ class tresca
                         const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, face_i);
 
                         const auto phi_t_1_u      = eval_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
-                        const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+                        const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, s_func(qp.point()));
 
                         const auto d_proj_u_phi_t_1 = disk::priv::inner_product(d_proj_phi_t_u, phi_t_1);
 
@@ -1089,11 +1091,12 @@ class tresca
                        const vector_type&   uTF,
                        const vector_static& n,
                        const scalar_type&   gamma_F,
+                       const scalar_type&   s,
                        const point_type&    pt) const
     {
         const vector_static phi_t_1_u = eval_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, pt);
 
-        return make_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+        return make_proj_alpha(phi_t_1_u, s);
     }
 
     template<typename GradBasis, typename FaceBasis>
@@ -1165,11 +1168,12 @@ class tresca
                        const size_t&        face_i,
                        const vector_static& n,
                        const scalar_type&   gamma_F,
+                       const scalar_type&   s,
                        const point_type&    pt) const
     {
         const vector_static phi_t_1_u = eval_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, pt);
 
-        return make_proj_alpha(phi_t_1_u, m_rp.m_threshold);
+        return make_proj_alpha(phi_t_1_u, s);
     }
 
     template<typename GradBasis>

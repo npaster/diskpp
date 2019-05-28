@@ -194,6 +194,7 @@ class BoundaryConditions
     std::vector<std::function<function_type(point_type)>> m_dirichlet_func;
     std::vector<std::function<function_type(point_type)>> m_neumann_func;
     std::vector<std::function<function_type(point_type)>> m_robin_func;
+    std::vector<std::function<scalar_type(point_type)>>   m_contact_func;
 
     // 1) bool to know if a boundary condition is associated to the face
     // 2) type of boundary conditions
@@ -203,8 +204,7 @@ class BoundaryConditions
     bnd_storage_type                                              m_faces_is_dirichlet;
     bnd_storage_type                                              m_faces_is_neumann;
     bnd_storage_type                                              m_faces_is_robin;
-
-    std::vector<std::tuple<bool, size_t, size_t>> m_faces_is_contact;
+    std::vector<std::tuple<bool, size_t, size_t, int>>            m_faces_is_contact;
 
     size_t m_dirichlet_faces, m_neumann_faces, m_robin_faces, m_contact_faces;
 
@@ -246,7 +246,7 @@ class BoundaryConditions
         m_faces_is_dirichlet.assign(m_msh.faces_size(), std::make_tuple(false, NOTHING, 0, 0));
         m_faces_is_neumann.assign(m_msh.faces_size(), std::make_tuple(false, FREE, 0, 0));
         m_faces_is_robin.assign(m_msh.faces_size(), std::make_tuple(false, WHATEVER, 0, 0));
-        m_faces_is_contact.assign(m_msh.faces_size(), std::make_tuple(false, NO_CONTACT, 0));
+        m_faces_is_contact.assign(m_msh.faces_size(), std::make_tuple(false, NO_CONTACT, 0, -1));
     }
 
     void
@@ -256,7 +256,24 @@ class BoundaryConditions
 
         for (size_t face_id : list_faces)
         {
-            m_faces_is_contact.at(face_id) = std::make_tuple(true, btype, b_id);
+            m_faces_is_contact.at(face_id) = std::make_tuple(true, btype, b_id, -1);
+            m_contact_faces++;
+        }
+    }
+
+    template<typename Function>
+    void
+    addContactBC(const size_t& btype, const size_t& b_id, const Function& bcf)
+    {
+
+        const size_t bcf_id = m_contact_func.size();
+        m_contact_func.push_back(bcf);
+
+        const auto list_faces = search_faces(b_id);
+
+        for (size_t face_id : list_faces)
+        {
+            m_faces_is_contact.at(face_id) = std::make_tuple(true, btype, b_id, bcf_id);
             m_contact_faces++;
         }
     }
@@ -711,6 +728,30 @@ class BoundaryConditions
     robin_boundary_func(const face_type& fc) const
     {
         return robin_boundary_func(m_msh.lookup(fc));
+    }
+
+    auto
+    contact_boundary_func(const size_t face_i) const
+    {
+        if (!is_contact_face(face_i))
+        {
+            throw std::logic_error("You want the contact function of face which is not a conatact face");
+        }
+
+        const auto fid = std::get<3>(m_faces_is_contact.at(face_i));
+
+        if (fid < 0)
+        {
+            throw std::logic_error("You want the contact function of face which has not function");
+        }
+
+        return m_contact_func.at(fid);
+    }
+
+    auto
+    contact_boundary_func(const face_type& fc) const
+    {
+        return contact_boundary_func(m_msh.lookup(fc));
     }
 
     void

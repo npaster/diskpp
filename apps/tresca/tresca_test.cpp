@@ -139,92 +139,65 @@ run_tresca_solver( Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::
 
     renumber_boundaries(msh);
 
-    // auto load = [material_data](const point<T, 2>& p) -> result_type {
-    //     T x  = p.x();
-    //     T y  = p.y();
-    //     T y2 = y * y;
-
-    //     T fx = material_data.getLambda() * (0.1 * x - 0.05) +
-    //            2.0 * material_data.getMu() * (0.05 * x + 2 * y * (0.3 * x - 0.15) - 0.025);
-    //     T fy = 0.6 * material_data.getLambda() * y2 + 2.0 * material_data.getMu() * (0.3 * y2 + 0.05 * y + 0.05);
-    //     return result_type{fx, fy};
-    // };
-
-    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
-    //     T ux = -0.2 * p.y() * p.y() * p.y() * (p.x() - 0.5);
-    //     T uy = -0.05 * (1.0 + p.y()) * (p.x() - 0.5) * (p.x() - 0.5) - 0.01 * p.y();
-    //     return result_type{ux, uy};
-    // };
-
-    // auto load = [material_data](const point<T, 2>& p) -> result_type {
-    //     T y  = p.y();
-    //     T ey= std::exp(y);
-
-    //     T fx = - material_data.getMu() * y * (y + 3)*ey;
-    //     T fy = -2 * material_data.getLambda() - 4.0 * material_data.getMu();
-    //     return result_type{fx, fy};
-    // };
-
-    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
-    //     T y   = p.y();
-    //     T ey = std::exp(y);
-
-    //     T ux = y*(y-1)*ey;
-    //     T uy = y * (y - 1);
-    //     return result_type{ux, uy};
-    // };
-
-
-    // auto load = [material_data](const point<T, 2>& p) -> result_type {
-    //     T y      = p.y();
-    //     T x      = p.x();
-    //     T exy    = std::exp(x * y);
-    //     T mu     = material_data.getMu();
-    //     T lambda = material_data.getLambda();
-    //     T coeff  = 0.5 * lambda * y * y - x * x * (0.5 * lambda + 1);
-
-    //     T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
-    //     T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
-
-    //     return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
-    // };
-
-    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
-    //     T y     = p.y();
-    //     T x     = p.x();
-    //     T exy   = std::exp(x * y);
-    //     T coeff = 1.0 / (1.0 + material_data.getLambda());
-
-    //     return result_type{x *exy*(1.0+coeff), y * exy *( -1.0 + coeff)}/6.0;
-    // };
-
     auto load = [material_data](const point<T, 2>& p) -> result_type {
         T y      = p.y();
         T x      = p.x();
+        T exy    = std::exp(x * y);
         T mu     = material_data.getMu();
         T lambda = material_data.getLambda();
+        T coeff  = 0.5 * lambda * y * y - x * x * (0.5 * lambda + 1);
 
-        T fx = 0.0;
-        T fy = 2.*(lambda+2.*mu)*(3.*y-2.);
+        T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
+        T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
 
-        return result_type{fx, fy};
+        return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
     };
 
     auto solution = [material_data](const point<T, 2>& p) -> result_type {
         T y     = p.y();
         T x     = p.x();
+        T exy   = std::exp(x * y);
+        T coeff = 1.0 / (1.0 + material_data.getLambda());
 
-        return result_type{0, -y * (y-1)*(y-1)};
+        return result_type{x *exy*(1.0+coeff), y * exy *( -1.0 + coeff)}/6.0;
+    };
+
+    // auto load = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y      = p.y();
+    //     T x      = p.x();
+    //     T mu     = material_data.getMu();
+    //     T lambda = material_data.getLambda();
+
+    //     T fx = -12.0*mu*y*y;
+    //     T fy = 2.*(lambda+2.*mu)*(3.*y-2.);
+
+    //     return result_type{fx, fy};
+    // };
+
+    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y     = p.y();
+    //     T x     = p.x();
+
+    //     return result_type{y*y*y*y, -y * (y-1)*(y-1)};
+    // };
+
+    auto s = [rp, material_data](const point<T, 2>& p) -> T {
+        T y      = p.y();
+        T x      = p.x();
+        T mu     = material_data.getMu();
+        T lambda = material_data.getLambda();
+        //return rp.m_threshold;
+        return mu * x * x * (0.5*lambda +1.0) / (3*lambda+3.0);
     };
 
     Bnd_type bnd(msh);
     if(cell_based)
     {
-        bnd.addContactBC(disk::SIGNORINI_CELL, 1);
+        bnd.addContactBC(disk::SIGNORINI_CELL, 1, s);
     }
     else
     {
-        bnd.addContactBC(disk::SIGNORINI_FACE, 1);
+        bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
     }
 
     // bnd.addDirichletBC(disk::DIRICHLET, 1, solution);
@@ -324,6 +297,11 @@ run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const d
         const T divu = gs.trace();
 
         return 2 * mu * gs + lambda * divu * static_matrix<T, 3, 3>::Identity();
+    };
+
+    auto s = [rp](const point<T, 3>& p) -> T {
+
+        return rp.m_threshold;
     };
 
     Bnd_type bnd(msh);
@@ -657,7 +635,7 @@ main(int argc, char** argv)
     disk::MaterialData<RealType> material_data;
 
     material_data.setMu(2.0);
-    material_data.setLambda(2.);
+    material_data.setLambda(2.E4);
 
     // Solver parameters
     ParamRun<RealType> rp;

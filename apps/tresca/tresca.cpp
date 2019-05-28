@@ -93,7 +93,12 @@ run_tresca_solver(const Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const d
         return result_type{fx, fy};
     };
 
-    bnd.addContactBC(disk::SIGNORINI_FACE, 2);
+    auto s = [rp](const point<T, 2>& p) -> T {
+
+        return rp.m_threshold;
+    };
+
+    bnd.addContactBC(disk::SIGNORINI_FACE, 2, s);
     bnd.addDirichletBC(disk::DIRICHLET, 1, depl);
 
     // solver
@@ -148,10 +153,15 @@ run_tresca_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const d
     // bnd.addDirichletBC(disk::DZ, 33, zero);
     // bnd.addNeumannBC(disk::NEUMANN, 3, neum);
 
+    auto s = [rp](const point<T, 3>& p) -> T {
+
+        return rp.m_threshold;
+    };
+
     // Hertz
     auto depl= [material_data](const point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, -5.0}; };
 
-    bnd.addContactBC(disk::SIGNORINI_CELL, 17);
+    bnd.addContactBC(disk::SIGNORINI_CELL, 17, s);
     bnd.addDirichletBC(disk::DIRICHLET, 13, depl);
 
     // Solver
