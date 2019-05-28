@@ -80,8 +80,7 @@ class NewtonRaphson_step_tresca
     std::vector<vector_type> m_bL;
     std::vector<matrix_type> m_AL;
 
-    std::vector<vector_type> m_postprocess_data, m_solution_data;
-    std::vector<vector_type> m_solution_cells, m_solution_faces;
+    std::vector<vector_type> m_postprocess_data, m_solution, m_solution_faces;
 
     std::vector<bool> m_has_contact_faces;
 
@@ -135,21 +134,16 @@ class NewtonRaphson_step_tresca
     }
 
     void
-    initialize(const std::vector<vector_type>& initial_solution_cells,
-               const std::vector<vector_type>& initial_solution_faces,
+    initialize(const std::vector<vector_type>& initial_solution_faces,
                const std::vector<vector_type>& initial_solution)
     {
-        m_solution_cells.clear();
-        m_solution_cells = initial_solution_cells;
-        assert(m_msh.cells_size() == m_solution_cells.size());
-
         m_solution_faces.clear();
         m_solution_faces = initial_solution_faces;
         assert(m_msh.faces_size() == m_solution_faces.size());
 
-        m_solution_data.clear();
-        m_solution_data = initial_solution;
-        assert(m_msh.cells_size() == m_solution_data.size());
+        m_solution.clear();
+        m_solution = initial_solution;
+        assert(m_msh.cells_size() == m_solution.size());
     }
 
     template<typename LoadFunction>
@@ -233,7 +227,7 @@ class NewtonRaphson_step_tresca
             // Mechanical Computation
 
             tc.tic();
-            elem.compute(cl, lf, ET, stab, m_solution_data.at(cell_i), m_has_contact_faces[cell_i]);
+            elem.compute(cl, lf, ET, stab, m_solution.at(cell_i), m_has_contact_faces[cell_i]);
 
             matrix_type lhs = elem.K_int;
             vector_type rhs = elem.RTF;
@@ -290,8 +284,8 @@ class NewtonRaphson_step_tresca
         timecounter tc;
         tc.tic();
 
-        const int fbs = disk::vector_basis_size(m_hdi.face_degree(), dimension - 1, dimension);
-        const int cbs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
+        const auto fbs = disk::vector_basis_size(m_hdi.face_degree(), dimension - 1, dimension);
+        const auto cbs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
 
         const auto solF = m_assembler.expand_solution_nl(m_msh, m_bnd, m_system_solution, m_solution_faces);
 
@@ -307,7 +301,7 @@ class NewtonRaphson_step_tresca
         for (auto& cl : m_msh)
         {
             // Extract the solution
-            const auto fcs             = m_bnd.faces_without_contact(cl);
+            const auto fcs             = m_bnd.faces_with_unknowns(cl);
             const auto num_faces       = fcs.size();
             const auto total_faces_dof = fcs.size() * fbs;
 
@@ -321,11 +315,8 @@ class NewtonRaphson_step_tresca
             }
 
             // Update element U^{i+1} = U^i + delta U^i ///
-            m_solution_data.at(cell_i) +=
+            m_solution.at(cell_i) +=
               disk::make_vector_static_decondensation_withMatrix(m_AL[cell_i], m_bL[cell_i], xFs);
-
-            // Update Cell Uc^{i+1} = Uc^i + delta Uc^i ///
-            m_solution_cells.at(cell_i) = m_solution_data.at(cell_i).head(cbs);
 
             // std::cout << "KT_F " << m_AL[cell_i].norm() << std::endl;
             // std::cout << "sol_F" << std::endl;
@@ -334,7 +325,7 @@ class NewtonRaphson_step_tresca
             // std::cout << m_bL[cell_i].transpose() << std::endl;
             // std::cout << "sol_T" << std::endl;
             // std::cout << xT.transpose() << std::endl;
-            // std::cout << (m_solution_data.at(cell_i)).segment(0, cbs).transpose() << std::endl;
+            // std::cout << (m_solution.at(cell_i)).segment(0, cbs).transpose() << std::endl;
 
             cell_i++;
         }
@@ -419,21 +410,16 @@ class NewtonRaphson_step_tresca
     }
 
     void
-    save_solutions(std::vector<vector_type>& solution_cells,
-                   std::vector<vector_type>& solution_faces,
+    save_solutions(std::vector<vector_type>& solution_faces,
                    std::vector<vector_type>& solution)
     {
-        solution_cells.clear();
-        solution_cells = m_solution_cells;
-        assert(m_solution_cells.size() == solution_cells.size());
-
         solution_faces.clear();
         solution_faces = m_solution_faces;
         assert(m_solution_faces.size() == solution_faces.size());
 
         solution.clear();
-        solution = m_solution_data;
-        assert(m_solution_data.size() == solution.size());
+        solution = m_solution;
+        assert(m_solution.size() == solution.size());
     }
 };
 

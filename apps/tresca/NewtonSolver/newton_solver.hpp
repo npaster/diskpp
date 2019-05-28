@@ -65,8 +65,7 @@ class NewtonRaphson_solver_tresca
     const param_type&    m_rp;
     const material_type& m_material_data;
 
-    std::vector<vector_type> m_solution_data;
-    std::vector<vector_type> m_solution_cells, m_solution_faces;
+    std::vector<vector_type> m_solution, m_solution_faces;
 
     bool m_verbose;
     bool m_convergence;
@@ -94,21 +93,16 @@ class NewtonRaphson_solver_tresca
     }
 
     void
-    initialize(const std::vector<vector_type>& initial_solution_cells,
-               const std::vector<vector_type>& initial_solution_faces,
+    initialize(const std::vector<vector_type>& initial_solution_faces,
                const std::vector<vector_type>& initial_solution)
     {
-        m_solution_cells.clear();
-        m_solution_cells = initial_solution_cells;
-        assert(m_msh.cells_size() == m_solution_cells.size());
-
         m_solution_faces.clear();
         m_solution_faces = initial_solution_faces;
         assert(m_msh.faces_size() == m_solution_faces.size());
 
-        m_solution_data.clear();
-        m_solution_data = initial_solution;
-        assert(m_msh.cells_size() == m_solution_data.size());
+        m_solution.clear();
+        m_solution = initial_solution;
+        assert(m_msh.cells_size() == m_solution.size());
     }
 
     template<typename LoadIncrement>
@@ -124,7 +118,7 @@ class NewtonRaphson_solver_tresca
         // initialise the NewtonRaphson_step
         NewtonRaphson_step_tresca<mesh_type> newton_step(m_msh, m_hdi, m_bnd, m_rp, m_material_data);
 
-        newton_step.initialize(m_solution_cells, m_solution_faces, m_solution_data);
+        newton_step.initialize(m_solution_faces, m_solution);
 
         m_convergence = false;
 
@@ -150,7 +144,7 @@ class NewtonRaphson_solver_tresca
             m_convergence = newton_step.test_convergence(iter);
             if (m_convergence)
             {
-                newton_step.save_solutions(m_solution_cells, m_solution_faces, m_solution_data);
+                newton_step.save_solutions(m_solution_faces, m_solution);
                 tc.toc();
                 ni.m_time_newton = tc.to_double();
                 return ni;
@@ -177,21 +171,16 @@ class NewtonRaphson_solver_tresca
     }
 
     void
-    save_solutions(std::vector<vector_type>& solution_cells,
-                   std::vector<vector_type>& solution_faces,
+    save_solutions(std::vector<vector_type>& solution_faces,
                    std::vector<vector_type>& solution)
     {
-        solution_cells.clear();
-        solution_cells = m_solution_cells;
-        assert(m_solution_cells.size() == solution_cells.size());
-
         solution_faces.clear();
         solution_faces = m_solution_faces;
         assert(m_solution_faces.size() == solution_faces.size());
 
         solution.clear();
-        solution = m_solution_data;
-        assert(m_solution_data.size() == solution.size());
+        solution = m_solution;
+        assert(m_solution.size() == solution.size());
     }
 };
 

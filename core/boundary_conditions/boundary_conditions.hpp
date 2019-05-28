@@ -64,7 +64,7 @@ enum ContactType : size_t
     SIGNORINI = 13,
     SIGNORINI_FACE = 14,
     SIGNORINI_CELL = 15,
-    ELSE = 16,
+    NO_CONTACT = 16,
 };
 
 namespace priv
@@ -246,7 +246,7 @@ class BoundaryConditions
         m_faces_is_dirichlet.assign(m_msh.faces_size(), std::make_tuple(false, NOTHING, 0, 0));
         m_faces_is_neumann.assign(m_msh.faces_size(), std::make_tuple(false, FREE, 0, 0));
         m_faces_is_robin.assign(m_msh.faces_size(), std::make_tuple(false, WHATEVER, 0, 0));
-        m_faces_is_contact.assign(m_msh.faces_size(), std::make_tuple(false, ELSE, 0));
+        m_faces_is_contact.assign(m_msh.faces_size(), std::make_tuple(false, NO_CONTACT, 0));
     }
 
     void
@@ -499,6 +499,18 @@ class BoundaryConditions
         return robin_boundary_id(m_msh.lookup(fc));
     }
 
+    size_t
+    contact_boundary_id(const size_t face_i) const
+    {
+        return std::get<2>(m_faces_is_contact.at(face_i));
+    }
+
+    size_t
+    contact_boundary_id(const face_type& fc) const
+    {
+        return robin_boundary_id(m_msh.lookup(fc));
+    }
+
     bool
     cell_has_dirichlet_faces(const cell_type& cl) const
     {
@@ -580,7 +592,7 @@ class BoundaryConditions
         return nb;
     }
 
-    // In fact it returns the faces which have not a tag SIGNORINI_CELL
+    // In fact it returns the faces which have not a tag SIGNORINI
     std::vector<face_type>
     faces_without_contact(const cell_type& cl) const
     {
@@ -589,7 +601,42 @@ class BoundaryConditions
 
         for (auto& fc : fcs)
         {
+            if (contact_boundary_type(fc) == NO_CONTACT)
+            {
+                ret.push_back(fc);
+            }
+        }
+        return ret;
+    }
+
+    // In fact it returns the faces which have not a tag SIGNORINI_CELL
+    std::vector<face_type>
+    faces_with_unknowns(const cell_type& cl) const
+    {
+        const auto             fcs = faces(m_msh, cl);
+        std::vector<face_type> ret;
+
+        for (auto& fc : fcs)
+        {
             if (contact_boundary_type(fc) != SIGNORINI_CELL)
+            {
+                ret.push_back(fc);
+            }
+        }
+
+        return ret;
+    }
+
+    // In fact it returns the faces which have a tag SIGNORINI
+    std::vector<face_type>
+    faces_with_contact(const cell_type& cl) const
+    {
+        const auto             fcs = faces(m_msh, cl);
+        std::vector<face_type> ret;
+
+        for (auto& fc : fcs)
+        {
+            if (contact_boundary_type(fc) != NO_CONTACT)
             {
                 ret.push_back(fc);
             }

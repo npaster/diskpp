@@ -84,6 +84,17 @@ renumber_boundaries(Mesh& msh)
         return std::abs(ref - val) < eps;
     };
 
+
+    /*          -----------------
+    *           !       3       !
+    *           !               !
+    *      4    !               ! 2
+    *           !               !
+    *           !               !
+    *           -----------------
+    *                   1
+    * */
+
     for (size_t face_i = 0; face_i < msh.faces_size(); face_i++)
     {
         auto fc = *std::next(msh.faces_begin(), face_i);
@@ -163,68 +174,47 @@ run_tresca_solver( Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::
     //     return result_type{ux, uy};
     // };
 
-    // auto neum2 = [material_data](const point<T, 2>& p) -> result_type {
-    //     T y  = p.y();
-    //     T ey = std::exp(y);
 
-    //     T ux = material_data.getLambda() * (2*y - 1);
-    //     T uy = material_data.getMu() * (y * y  + y - 1)*ey;
-    //     return result_type{ux, uy};
+    // auto load = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y      = p.y();
+    //     T x      = p.x();
+    //     T exy    = std::exp(x * y);
+    //     T mu     = material_data.getMu();
+    //     T lambda = material_data.getLambda();
+    //     T coeff  = 0.5 * lambda * y * y - x * x * (0.5 * lambda + 1);
+
+    //     T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
+    //     T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
+
+    //     return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
+    // };
+
+    // auto solution = [material_data](const point<T, 2>& p) -> result_type {
+    //     T y     = p.y();
+    //     T x     = p.x();
+    //     T exy   = std::exp(x * y);
+    //     T coeff = 1.0 / (1.0 + material_data.getLambda());
+
+    //     return result_type{x *exy*(1.0+coeff), y * exy *( -1.0 + coeff)}/6.0;
     // };
 
     auto load = [material_data](const point<T, 2>& p) -> result_type {
         T y      = p.y();
         T x      = p.x();
-        T exy    = std::exp(x * y);
         T mu     = material_data.getMu();
         T lambda = material_data.getLambda();
-        T coeff  = 0.5 * lambda * y * y - x * x * (0.5 * lambda + 1);
 
-        T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
-        T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
+        T fx = 0.0;
+        T fy = 2.*(lambda+2.*mu)*(3.*y-2.);
 
-        return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
+        return result_type{fx, fy};
     };
 
     auto solution = [material_data](const point<T, 2>& p) -> result_type {
         T y     = p.y();
         T x     = p.x();
-        T exy   = std::exp(x * y);
-        T coeff = 1.0 / (1.0 + material_data.getLambda());
 
-        return result_type{x *exy*(1.0+coeff), y * exy *( -1.0 + coeff)}/6.0;
-    };
-
-
-    auto sigma = [material_data](const point<T, 2>& p) -> grad_type {
-        const T lambda = material_data.getLambda();
-        const T mu     = material_data.getMu();
-
-        T g11 =
-          -(2 * (lambda + 1) * sin(2 * M_PI * p.x()) * sin(2 * M_PI * p.y()) - sin(M_PI * p.y()) * cos(M_PI * p.x()));
-        T g12 = (2 * lambda + 2) * (cos(2 * M_PI * p.x()) - 1) * cos(2 * M_PI * p.y()) +
-                sin(M_PI * p.x()) * cos(M_PI * p.y());
-
-        T g21 = (-2 * lambda + 2) * (cos(2 * M_PI * p.y()) - 1) * cos(2 * M_PI * p.x()) +
-                sin(M_PI * p.y()) * cos(M_PI * p.x());
-
-        T g22 =
-          2 * (lambda + 1) * sin(2 * M_PI * p.x()) * sin(2 * M_PI * p.y()) + sin(M_PI * p.x()) * cos(M_PI * p.y());
-
-        grad_type g = grad_type::Zero();
-
-        g(0, 0) = g11;
-        g(0, 1) = g12;
-        g(1, 0) = g21;
-        g(1, 1) = g22;
-
-        g *= M_PI / (lambda + 1);
-
-        const grad_type gs = 0.5 * (g + g.transpose());
-
-        const T divu = gs.trace();
-
-        return 2 * mu * gs + lambda * divu * static_matrix<T, 2, 2>::Identity();
+        return result_type{0, -y * (y-1)*(y-1)};
     };
 
     Bnd_type bnd(msh);
@@ -237,12 +227,10 @@ run_tresca_solver( Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::
         bnd.addContactBC(disk::SIGNORINI_FACE, 1);
     }
 
+    // bnd.addDirichletBC(disk::DIRICHLET, 1, solution);
     bnd.addDirichletBC(disk::DIRICHLET, 2, solution);
     bnd.addDirichletBC(disk::DIRICHLET, 3, solution);
     bnd.addDirichletBC(disk::DIRICHLET, 4, solution);
-
-
-    //bnd.addDirichletBC(disk::DIRICHLET, 1, solution);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
 
@@ -258,10 +246,10 @@ run_tresca_solver( Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::
     error.degree       = rp.m_face_degree;
     error.nb_dof       = nl.getDofs();
     error.error_depl   = nl.compute_l2_displacement_error(solution);
-    error.error_stress = 1.0; // le.compute_l2_stress_error(sigma);
+    error.error_stress = nl.compute_H1_error(solution);
 
-    //  nl.compute_stress_GP("stress2D_GP_test.msh");
-    //  nl.compute_continuous_displacement("depl2D_cont_test.msh");
+    // nl.compute_stress_GP("stress2D_GP_test.msh");
+    // nl.compute_continuous_displacement("depl2D_cont_test.msh");
 
     return error;
 }
@@ -669,22 +657,25 @@ main(int argc, char** argv)
     disk::MaterialData<RealType> material_data;
 
     material_data.setMu(2.0);
-    material_data.setLambda(100000.);
+    material_data.setLambda(2.);
 
     // Solver parameters
     ParamRun<RealType> rp;
     rp.m_precomputation    = true;
     rp.m_stab_type         = HDG;
-    rp.m_epsilon           = 1.0E-7;
+    rp.m_epsilon           = 1.0E-6;
     rp.m_time_step.front() = std::make_pair(1.0, 1);
-    rp.m_sublevel          = 5;
+    rp.m_sublevel          = 2;
     rp.m_beta              = 10 * material_data.getMu();
     rp.m_gamma_0           = 100 * material_data.getMu();
+    rp.m_frot              = true;
+    rp.m_threshold         = 0;
+    rp.m_theta             = 0;
 
-    int ch;
+    int  ch;
     bool cell_based = false;
 
-    while ((ch = getopt(argc, argv, "23ck:t:v")) != -1)
+    while ((ch = getopt(argc, argv, "23cg:k:t:v")) != -1)
     {
         switch (ch)
         {
@@ -692,6 +683,8 @@ main(int argc, char** argv)
             case '3': dim = 3; break;
 
             case 'c': cell_based = true; break;
+
+            case 'g': rp.m_gamma_0 = atof(optarg); break;
 
             case 'k':
                 degree = atoi(optarg);
@@ -701,7 +694,7 @@ main(int argc, char** argv)
                     degree = 1;
                 }
                 rp.m_face_degree = degree;
-                rp.m_cell_degree = degree + 1;
+                rp.m_cell_degree = degree;
                 rp.m_grad_degree = degree;
                 break;
 
@@ -722,46 +715,56 @@ main(int argc, char** argv)
 
     timecounter tc;
 
+    if(cell_based)
+    {
+        rp.m_cell_degree = rp.m_face_degree + 1;
+        rp.m_stab_type   = HDG;
+    }
+    else
+    {
+        rp.m_stab_type = HHO;
+    }
+
     std::cout << " Test convergence rates for: " << std::endl;
     std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
     std::cout << " " << std::endl;
 
     if (dim == 3)
     {
-        tc.tic();
-        std::cout << "-Tetrahedras fvca6:" << std::endl;
-        test_tetrahedra_fvca6<RealType>(rp, material_data, cell_based);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Tetrahedras fvca6:" << std::endl;
+        // test_tetrahedra_fvca6<RealType>(rp, material_data, cell_based);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Tetrahedras netgen:" << std::endl;
-        test_tetrahedra_netgen<RealType>(rp, material_data, cell_based);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Tetrahedras netgen:" << std::endl;
+        // test_tetrahedra_netgen<RealType>(rp, material_data, cell_based);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Hexahedras fvca6:" << std::endl;
-        test_hexahedra_fvca6<RealType>(rp, material_data, cell_based);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Hexahedras fvca6:" << std::endl;
+        // test_hexahedra_fvca6<RealType>(rp, material_data, cell_based);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Hexahedras diskpp:" << std::endl;
-        test_hexahedra_diskpp<RealType>(rp, material_data, cell_based);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Hexahedras diskpp:" << std::endl;
+        // test_hexahedra_diskpp<RealType>(rp, material_data, cell_based);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Polyhedra:" << std::endl;
-        test_polyhedra_fvca6<RealType>(rp, material_data, cell_based);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Polyhedra:" << std::endl;
+        // test_polyhedra_fvca6<RealType>(rp, material_data, cell_based);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
     }
     else if (dim == 2)
     {

@@ -62,7 +62,7 @@ make_matrix_symmetric_gradrec(const Mesh&                                   msh,
     const auto cbs = disk::vector_basis_size(celdeg, Mesh::dimension, Mesh::dimension);
     const auto fbs = disk::vector_basis_size(facdeg, Mesh::dimension - 1, Mesh::dimension);
 
-    const auto fcs       = bnd.faces_without_contact(cl);
+    const auto fcs       = bnd.faces_with_unknowns(cl);
     const auto num_faces = fcs.size();
 
     matrix_type gr_lhs = matrix_type::Zero(gbs, gbs);
@@ -111,7 +111,7 @@ make_matrix_symmetric_gradrec(const Mesh&                                   msh,
         } // end qp
     }
 
-    for (size_t i = 0; i < fcs.size(); i++)
+    for (size_t i = 0; i < num_faces; i++)
     {
         const auto fc = fcs[i];
         const auto n  = normal(msh, cl, fc);
@@ -152,7 +152,7 @@ make_scalar_hdg_stabilization(const Mesh&                                   msh,
     const auto cbs = disk::scalar_basis_size(celdeg, Mesh::dimension);
     const auto fbs = disk::scalar_basis_size(facdeg, Mesh::dimension - 1);
 
-    const auto fcs        = bnd.faces_without_contact(cl);
+    const auto fcs        = bnd.faces_with_unknowns(cl);
     const auto num_faces  = fcs.size();
     const auto total_dofs = cbs + num_faces * fbs;
 
@@ -224,7 +224,7 @@ make_vector_static_condensation_withMatrix(const Mesh&                          
     const auto num_cell_dofs = disk::vector_basis_size(di.cell_degree(), Mesh::dimension, Mesh::dimension);
     const auto num_face_dofs = disk::vector_basis_size(di.face_degree(), Mesh::dimension - 1, Mesh::dimension);
 
-    const auto fcs            = bnd.faces_without_contact(cl);
+    const auto fcs            = bnd.faces_with_unknowns(cl);
     const auto num_faces      = fcs.size();
     const auto num_faces_dofs = num_faces * num_face_dofs;
     const auto num_total_dofs = num_cell_dofs + num_faces_dofs;
@@ -412,48 +412,30 @@ class tresca
         return priv::compute_g0(pt, n);
     }
 
-    template<typename CellBasis>
+    // normal part of u : u_n = u.n
+    template<typename TraceBasis>
     vector_type
-    make_hho_uT_n(const vector_static& n, const CellBasis& cb, const point_type& pt) const
+    make_hho_u_n(const vector_static& n, const TraceBasis& tb, const point_type& pt) const
     {
-        const auto c_phi = cb.eval_functions(pt);
+        const auto t_phi = tb.eval_functions(pt);
 
         //(phi_T . n)
-        return disk::priv::inner_product(c_phi, n);
+        return disk::priv::inner_product(t_phi, n);
     }
 
-    template<typename CellBasis>
+    // tangential part of u : u_t = u - u_n*n
+    template<typename TraceBasis>
     Matrix<scalar_type, Dynamic, dimension>
-    make_hho_uT_t(const vector_static& n, const CellBasis& cb, const point_type& pt) const
+    make_hho_u_t(const vector_static& n, const TraceBasis& tb, const point_type& pt) const
     {
-        const auto c_phi = cb.eval_functions(pt);
-        const auto uT_n  = make_hho_uT_n(n, cb, pt);
+        const auto t_phi = tb.eval_functions(pt);
+        const auto u_n  = make_hho_u_n(n, tb, pt);
 
         // phi_T - (phi_T . n)n
-        return c_phi - disk::priv::inner_product(disk::priv::inner_product(c_phi, n), n);
+        return t_phi - disk::priv::inner_product(u_n, n);
     }
 
-    template<typename FaceBasis>
-    vector_type
-    make_hho_uF_n(const vector_static& n, const FaceBasis& fb, const point_type& pt) const
-    {
-        const auto f_phi = fb.eval_functions(pt);
-
-        //(phi_F . n)
-        return disk::priv::inner_product(f_phi, n);
-    }
-
-    template<typename FaceBasis>
-    Matrix<scalar_type, Dynamic, dimension>
-    make_hho_uF_t(const vector_static& n, const FaceBasis& fb, const point_type& pt) const
-    {
-        const auto f_phi = fb.eval_functions(pt);
-        const auto uF_n  = make_hho_uT_n(n, fb, pt);
-
-        // phi_F - (phi_F . n)n
-        return f_phi - disk::priv::inner_product(disk::priv::inner_product(f_phi, n), n);
-    }
-
+    // cauchy traction : sigma_n = sigma * n
     template<typename GradBasis>
     Matrix<scalar_type, Dynamic, dimension>
     make_hho_sigma_n(const matrix_type& ET, const vector_static& n, const GradBasis& gb, const point_type& pt) const
@@ -596,23 +578,20 @@ class tresca
 
         matrix_type nitsche = matrix_type::Zero(num_total_dofs, num_total_dofs);
 
-        const auto fcs = faces(m_msh, cl);
+        const auto fcs = m_bnd.faces_with_contact(cl);
         for (auto& fc : fcs)
         {
-            if (m_bnd.is_contact_face(fc))
+            const auto n       = normal(m_msh, cl, fc);
+            const auto qps     = integrate(m_msh, fc, 2 * m_hdi.grad_degree() + 2);
+            const auto hF      = diameter(m_msh, fc);
+            const auto gamma_F = m_rp.m_gamma_0 / hF;
+
+            for (auto& qp : qps)
             {
-                const auto n       = normal(m_msh, cl, fc);
-                const auto qps     = integrate(m_msh, fc, 2 * m_hdi.grad_degree());
-                const auto hF      = diameter(m_msh, fc);
-                const auto gamma_F = m_rp.m_gamma_0 / hF;
+                const auto sigma_n    = make_hho_sigma_n(ET, n, gb, qp.point());
+                const auto qp_sigma_n = disk::priv::inner_product(qp.weight() / gamma_F, sigma_n);
 
-                for (auto& qp : qps)
-                {
-                    const auto sigma_n    = make_hho_sigma_n(ET, n, gb, qp.point());
-                    const auto qp_sigma_n = disk::priv::inner_product(qp.weight() / gamma_F, sigma_n);
-
-                    nitsche += disk::priv::outer_product(qp_sigma_n, sigma_n);
-                }
+                nitsche += disk::priv::outer_product(qp_sigma_n, sigma_n);
             }
         }
 
@@ -649,7 +628,7 @@ class tresca
 
                     if (contact_type == disk::SIGNORINI_CELL)
                     {
-                        const vector_type uT_n = make_hho_uT_n(n, cb, qp.point());
+                        const vector_type uT_n = make_hho_u_n(n, cb, qp.point());
 
                         const scalar_type phi_n_1_u = eval_phi_n_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
@@ -665,7 +644,7 @@ class tresca
                     }
                     else
                     {
-                        const vector_type uF_n = make_hho_uF_n(n, fb, qp.point());
+                        const vector_type uF_n = make_hho_u_n(n, fb, qp.point());
 
                         const scalar_type phi_n_1_u = eval_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
 
@@ -719,7 +698,7 @@ class tresca
 
                     if (contact_type == disk::SIGNORINI_CELL)
                     {
-                        const vector_type uT_n = make_hho_uT_n(n, cb, qp.point());
+                        const vector_type uT_n = make_hho_u_n(n, cb, qp.point());
 
                         const scalar_type phi_n_1_u = eval_phi_n_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
@@ -733,7 +712,7 @@ class tresca
                     }
                     else
                     {
-                        const vector_type uF_n = make_hho_uF_n(n, fb, qp.point());
+                        const vector_type uF_n = make_hho_u_n(n, fb, qp.point());
 
                         const scalar_type phi_n_1_u = eval_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
 
@@ -783,7 +762,7 @@ class tresca
 
                     if (contact_type == disk::SIGNORINI_CELL)
                     {
-                        const auto uT_t = make_hho_uT_t(n, cb, qp.point());
+                        const auto uT_t = make_hho_u_t(n, cb, qp.point());
 
                         const auto phi_t_theta = make_hho_phi_t_uT(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
 
@@ -796,12 +775,12 @@ class tresca
                     }
                     else
                     {
-                        const auto uF_t = make_hho_uF_t(n, fb, qp.point());
+                        const auto uF_t = make_hho_u_t(n, fb, qp.point());
 
                         const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, face_i);
 
                         const vector_static phi_t_1_u_proj =
-                          eval_proj_phi_t_uF(ET, gb, cb, uTF, face_i, n, gamma_F, qp.point());
+                          eval_proj_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
 
                         const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
 
@@ -844,7 +823,7 @@ class tresca
 
                     if (contact_type == disk::SIGNORINI_CELL)
                     {
-                        const auto uT_t = make_hho_uT_t(n, cb, qp.point());
+                        const auto uT_t = make_hho_u_t(n, cb, qp.point());
 
                         const auto phi_t_1     = make_hho_phi_t_uT(sigma_nt, uT_t, scalar_type(1), gamma_F);
                         const auto phi_t_theta = make_hho_phi_t_uT(sigma_nt, uT_t, m_rp.m_theta, gamma_F);
@@ -860,7 +839,7 @@ class tresca
                     }
                     else
                     {
-                        const auto uF_t = make_hho_uF_t(n, fb, qp.point());
+                        const auto uF_t = make_hho_u_t(n, fb, qp.point());
 
                         const auto phi_t_1     = make_hho_phi_t_uF(sigma_nt, uF_t, scalar_type(1), gamma_F, face_i);
                         const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, face_i);
@@ -913,7 +892,7 @@ class tresca
     {
         timecounter tc;
 
-        const auto fcs       = m_bnd.faces_without_contact(cl);
+        const auto fcs       = m_bnd.faces_with_unknowns(cl);
         const auto num_faces = fcs.size();
         num_total_dofs       = cell_basis_size + num_faces * face_basis_size;
 
@@ -987,7 +966,7 @@ class tresca
     scalar_type
     eval_uT_n(const CellBasis& cb, const vector_type& uTF, const vector_static& n, const point_type& pt) const
     {
-        const vector_type uT_n = make_hho_uT_n(n, cb, pt);
+        const vector_type uT_n = make_hho_u_n(n, cb, pt);
 
         return uT_n.dot(uTF.head(cell_basis_size));
     }
@@ -996,7 +975,7 @@ class tresca
     vector_static
     eval_uT_t(const CellBasis& cb, const vector_type& uTF, const vector_static& n, const point_type& pt) const
     {
-        const auto uT_t = make_hho_uT_t(n, cb, pt);
+        const auto uT_t = make_hho_u_t(n, cb, pt);
 
         return uT_t.transpose() * (uTF.head(cell_basis_size));
     }
@@ -1005,7 +984,7 @@ class tresca
     scalar_type
     eval_uF_n(const FaceBasis& fb, const vector_type& uF, const vector_static& n, const point_type& pt) const
     {
-        const vector_type uF_n = make_hho_uF_n(n, fb, pt);
+        const vector_type uF_n = make_hho_u_n(n, fb, pt);
 
         return uF_n.dot(uF);
     }
@@ -1014,7 +993,7 @@ class tresca
     vector_static
     eval_uF_t(const FaceBasis& fb, const vector_type& uF, const vector_static& n, const point_type& pt) const
     {
-        const auto uF_t = make_hho_uF_t(n, fb, pt);
+        const auto uF_t = make_hho_u_t(n, fb, pt);
 
         return uF_t.transpose() * uF;
     }
@@ -1056,7 +1035,7 @@ class tresca
                   const point_type&    pt) const
     {
         const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, pt);
-        const vector_type uT_n     = make_hho_uT_n(n, cb, pt);
+        const vector_type uT_n     = make_hho_u_n(n, cb, pt);
         const scalar_type g0       = make_hho_distance(pt, n);
 
         const vector_type phi_n_1   = make_hho_phi_n_uT(sigma_nn, uT_n, scalar_type(1), gamma_F);
@@ -1094,7 +1073,7 @@ class tresca
                   const point_type&    pt) const
     {
         const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, pt);
-        const auto uT_t     = make_hho_uT_t(n, cb, pt);
+        const auto uT_t     = make_hho_u_t(n, cb, pt);
 
         const auto          phi_t_1   = make_hho_phi_t_uT(sigma_nt, uT_t, scalar_type(1), gamma_F);
         const vector_static phi_t_1_u = phi_t_1.transpose() * uTF;
@@ -1129,7 +1108,7 @@ class tresca
                   const point_type&    pt) const
     {
         const vector_type sigma_nn = make_hho_sigma_nn(ET, n, gb, pt);
-        const vector_type uF_n     = make_hho_uF_n(n, fb, pt);
+        const vector_type uF_n     = make_hho_u_n(n, fb, pt);
         const scalar_type g0       = make_hho_distance(pt, n);
 
         const vector_type phi_n_1   = make_hho_phi_n_uF(sigma_nn, uF_n, scalar_type(1), gamma_F, face_i);
@@ -1169,7 +1148,7 @@ class tresca
                   const point_type&    pt) const
     {
         const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, pt);
-        const auto uF_t     = make_hho_uF_t(n, fb, pt);
+        const auto uF_t     = make_hho_u_t(n, fb, pt);
 
         const auto          phi_t_1   = make_hho_phi_t_uF(sigma_nt, uF_t, scalar_type(1), gamma_F, face_i);
         const vector_static phi_t_1_u = phi_t_1.transpose() * uTF;

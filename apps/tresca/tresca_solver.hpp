@@ -79,8 +79,7 @@ class tresca_solver
 
     disk::gmsh_io<mesh_type> gmesh_io;
 
-    std::vector<vector_type> m_solution_data;
-    std::vector<vector_type> m_solution_cells, m_solution_faces;
+    std::vector<vector_type> m_solution, m_solution_faces;
     std::vector<matrix_type> m_gradient_precomputed, m_stab_precomputed;
 
     bool m_verbose, m_convergence;
@@ -94,12 +93,10 @@ class tresca_solver
     void
     init()
     {
-        m_solution_data.clear();
-        m_solution_cells.clear();
+        m_solution.clear();
         m_solution_faces.clear();
 
-        m_solution_data.reserve(m_msh.cells_size());
-        m_solution_cells.reserve(m_msh.cells_size());
+        m_solution.reserve(m_msh.cells_size());
         m_solution_faces.reserve(m_msh.faces_size());
 
         const auto num_cell_dofs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
@@ -108,10 +105,9 @@ class tresca_solver
 
         for (auto& cl : m_msh)
         {
-            const auto fcs       = m_bnd.faces_without_contact(cl);
+            const auto fcs       = m_bnd.faces_with_unknowns(cl);
             const auto num_faces = fcs.size();
-            m_solution_data.push_back(vector_type::Zero(num_cell_dofs + num_faces * num_face_dofs));
-            m_solution_cells.push_back(vector_type::Zero(num_cell_dofs));
+            m_solution.push_back(vector_type::Zero(num_cell_dofs + num_faces * num_face_dofs));
         }
 
         for (int i = 0; i < m_msh.faces_size(); i++)
@@ -299,7 +295,7 @@ class tresca_solver
 
         // Newton solver
         MK::NewtonRaphson_solver_tresca<mesh_type> newton_solver(m_msh, m_hdi, m_bnd, m_rp, m_material_data);
-        newton_solver.initialize(m_solution_cells, m_solution_faces, m_solution_data);
+        newton_solver.initialize(m_solution_faces, m_solution);
 
         // loading
         while (!list_step.empty())
@@ -364,7 +360,7 @@ class tresca_solver
             {
                 prev_time = current_time;
                 list_step.pop_front();
-                newton_solver.save_solutions(m_solution_cells, m_solution_faces, m_solution_data);
+                newton_solver.save_solutions(m_solution_faces, m_solution);
 
                 if (time_saving)
                 {
@@ -415,12 +411,14 @@ class tresca_solver
     void
     printSolutionCell() const
     {
-        int cell_i = 0;
+        int        cell_i = 0;
+        const auto cbs    = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
+
         std::cout << "Solution at the cells:" << std::endl;
         for (auto& cl : m_msh)
         {
             std::cout << "cell " << cell_i << ": " << std::endl;
-            std::cout << m_solution_cells.at(cell_i++) << std::endl;
+            std::cout << m_solution.at(cell_i++).head(cbs) << std::endl;
         }
     }
 
@@ -431,19 +429,17 @@ class tresca_solver
     {
         scalar_type err_dof = 0;
 
-        const auto cbs      = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
-        const int  diff_deg = m_hdi.face_degree() - m_hdi.cell_degree();
-        const int  di       = std::max(diff_deg, 2);
+        const auto cbs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
 
         int cell_i = 0;
 
         for (auto& cl : m_msh)
         {
-            const auto x = m_solution_cells.at(cell_i++);
+            const auto x = m_solution.at(cell_i++).head(cbs);
 
-            const vector_type true_dof = disk::project_function(m_msh, cl, m_hdi.cell_degree(), as, di);
+            const vector_type true_dof = disk::project_function(m_msh, cl, m_hdi.cell_degree(), as, 2);
 
-            auto              cb   = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+            const auto        cb   = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
             const matrix_type mass = disk::make_mass_matrix(m_msh, cl, cb);
 
             const vector_type comp_dof = x.head(cbs);
@@ -458,28 +454,127 @@ class tresca_solver
         return sqrt(err_dof);
     }
 
+    // compute l2 error
+    template<typename AnalyticalSolution>
+    scalar_type
+    compute_H1_error(const AnalyticalSolution& as)
+    {
+        scalar_type err_dof = 0;
+
+        int cell_i = 0;
+
+        for (auto& cl : m_msh)
+        {
+            const auto gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd);
+            const auto stab   = m_stab_precomputed.at(cell_i);
+            // const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
+            // const auto stab   = make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi);
+            // const auto stab = MK::make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd);
+            const auto Ah = gr.second + stab;
+
+            const auto x = m_solution.at(cell_i++);
+
+            const vector_type true_dof = disk::project_function(m_msh, cl, m_hdi, m_bnd, as, 2);
+
+            // std::cout << "cell:" << std::endl;
+            // std::cout << true_dof.transpose() << std::endl;
+            // std::cout << x.transpose() << std::endl;
+            const vector_type diff_dof = (true_dof - x);
+
+            err_dof += diff_dof.dot(Ah * diff_dof);
+        }
+
+        return sqrt(err_dof);
+    }
+
+    // compute l2 error
+    template<typename AnalyticalSolution>
+    scalar_type
+    compute_l2_pres_error(const AnalyticalSolution& as)
+    {
+        scalar_type err_dof = 0;
+
+        int cell_i = 0;
+
+        MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
+
+        for (auto& cl : m_msh)
+        {
+            const auto  uTF = m_solution.at(cell_i);
+            matrix_type gr;
+            if (m_rp.m_precomputation)
+            {
+                gr = m_gradient_precomputed.at(cell_i);
+            }
+            else
+            {
+                gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd).first;
+            }
+
+            const matrix_type ET     = gr;
+            const vector_type ET_uTF = ET * uTF;
+            const auto        gb     = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+            const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+
+            const auto hT = diameter(m_msh, cl);
+
+            const auto fcs    = m_bnd.faces_with_contact(cl);
+            size_t     face_i = 0;
+            for (auto& fc : fcs)
+            {
+                const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
+                const auto n            = normal(m_msh, cl, fc);
+                const auto qp_deg       = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
+                const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 4);
+                const auto hF           = diameter(m_msh, fc);
+                const auto gamma_F      = m_rp.m_gamma_0 / hF;
+                const auto contact_type = m_bnd.contact_boundary_type(fc);
+                const auto contact_id   = m_bnd.contact_boundary_id(fc);
+
+
+                // if(contact_id == 1)
+                // {
+                for(auto& qp : qps)
+                {
+                    const scalar_type pres_sol = as(qp.point());
+
+                    const auto        stress    = elem.eval_stress(ET_uTF, gb, qp.point());
+
+                    const scalar_type pres_comp = stress(1,1);
+
+                    //std::cout << pres_sol << " vs " << pres_comp << std::endl;
+
+                    err_dof += hT * qp.weight() * (pres_sol - pres_comp) * (pres_sol - pres_comp);
+                }
+                // }
+            }
+        }
+
+        return sqrt(err_dof);
+    }
+
     void
     compute_discontinuous_displacement(const std::string& filename) const
     {
-        gmesh_io.save_vector_hho_solution_discontinuous(filename, m_msh, m_hdi, m_solution_data);
+        gmesh_io.save_vector_hho_solution_discontinuous(filename, m_msh, m_hdi, m_solution);
     }
 
     void
     compute_continuous_displacement(const std::string& filename) const
     {
-        gmesh_io.save_vector_hho_solution_continuous(filename, m_msh, m_hdi, m_solution_data);
+        gmesh_io.save_vector_hho_solution_continuous(filename, m_msh, m_hdi, m_solution);
     }
 
     void
     compute_continuous_deformed(const std::string& filename) const
     {
-        gmesh_io.save_vector_hho_deformed_continuous(filename, m_msh, m_hdi, m_solution_data);
+        gmesh_io.save_vector_hho_deformed_continuous(filename, m_msh, m_hdi, m_solution);
     }
 
     void
     compute_discontinuous_deformed(const std::string& filename) const
     {
-        gmesh_io.save_vector_hho_deformed_discontinuous(filename, m_msh, m_hdi, m_solution_data);
+        gmesh_io.save_vector_hho_deformed_discontinuous(filename, m_msh, m_hdi, m_solution);
     }
 
     void
@@ -498,7 +593,7 @@ class tresca_solver
         for (auto& cl : m_msh)
         {
             const auto  qps = integrate(m_msh, cl, 2 * grad_degree);
-            const auto  uTF = m_solution_data.at(cell_i);
+            const auto  uTF = m_solution.at(cell_i);
             matrix_type gr;
             if (m_rp.m_precomputation)
             {
@@ -549,7 +644,7 @@ class tresca_solver
         size_t nb_nodes = 0;
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution_data.at(cell_i);
+            const auto  uTF = m_solution.at(cell_i);
             matrix_type gr;
             if (m_rp.m_precomputation)
             {
@@ -619,7 +714,7 @@ class tresca_solver
 
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution_data.at(cell_i);
+            const auto  uTF = m_solution.at(cell_i);
             matrix_type gr;
             if (m_rp.m_precomputation)
             {
@@ -712,39 +807,40 @@ class tresca_solver
         int cell_i = 0;
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution_data.at(cell_i);
-            matrix_type gr;
-            if (m_rp.m_precomputation)
+            if (m_bnd.cell_has_contact_faces(cl))
             {
-                gr = m_gradient_precomputed.at(cell_i);
-            }
-            else
-            {
-                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
-            }
-            const matrix_type ET     = gr;
-            const vector_type ET_uTF = ET * uTF;
-            const auto        gb     = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
-            const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
-
-            const auto fcs = faces(m_msh, cl);
-            size_t     face_i = 0;
-            for (auto& fc : fcs)
-            {
-                if (m_bnd.is_contact_face(fc))
+                const auto  uTF = m_solution.at(cell_i);
+                matrix_type gr;
+                if (m_rp.m_precomputation)
                 {
-                    const auto fb = disk::make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
-                    const auto n       = normal(m_msh, cl, fc);
-                    const auto qp_deg  = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
-                    const auto qps     = integrate(m_msh, fc, 2 * qp_deg);
-                    const auto hF      = diameter(m_msh, fc);
-                    const auto gamma_F = m_rp.m_gamma_0 / hF;
+                    gr = m_gradient_precomputed.at(cell_i);
+                }
+                else
+                {
+                    gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd).first;
+                }
+
+                const matrix_type ET     = gr;
+                const vector_type ET_uTF = ET * uTF;
+                const auto        gb     = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
+                const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+
+                const auto fcs    = m_bnd.faces_with_contact(cl);
+                size_t     face_i = 0;
+                for (auto& fc : fcs)
+                {
+                    const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, m_hdi.face_degree());
+                    const auto n            = normal(m_msh, cl, fc);
+                    const auto qp_deg       = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
+                    const auto qps          = integrate(m_msh, fc, 2 * qp_deg);
+                    const auto hF           = diameter(m_msh, fc);
+                    const auto gamma_F      = m_rp.m_gamma_0 / hF;
                     const auto contact_type = m_bnd.contact_boundary_type(fc);
 
                     for (auto& qp : qps)
                     {
                         const scalar_type sigma_nn_u = elem.eval_sigma_nn(ET, gb, uTF, n, qp.point());
-                        const auto sigma_nt_u = elem.eval_sigma_nt(ET, gb, uTF, n, qp.point());
+                        const auto        sigma_nt_u = elem.eval_sigma_nt(ET, gb, uTF, n, qp.point());
 
                         const scalar_type r =
                           std::sqrt(qp.point().x() * qp.point().x() + qp.point().y() * qp.point().y());
@@ -755,8 +851,8 @@ class tresca_solver
                             const scalar_type phi_n_1_u_proj =
                               elem.eval_proj_phi_n_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
                             const scalar_type uT_n_u    = elem.eval_uT_n(cb, uTF, n, qp.point());
-                            const auto phi_t_1_u = elem.eval_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
-                            const auto phi_t_1_u_proj =
+                            const auto        phi_t_1_u = elem.eval_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
+                            const auto        phi_t_1_u_proj =
                               elem.eval_proj_phi_t_uT(ET, gb, cb, uTF, n, gamma_F, qp.point());
 
                             const auto uT_t_u = elem.eval_uT_t(cb, uTF, n, qp.point());
@@ -770,12 +866,13 @@ class tresca_solver
                         }
                         else
                         {
-                            const scalar_type phi_n_1_u = elem.eval_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
+                            const scalar_type phi_n_1_u =
+                              elem.eval_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
                             const scalar_type phi_n_1_u_proj =
                               elem.eval_proj_phi_n_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
-                            const scalar_type uT_n_u    = elem.eval_uF_n(fb, uTF, n, qp.point());
+                            const scalar_type uT_n_u = elem.eval_uF_n(fb, uTF, n, qp.point());
                             const auto phi_t_1_u = elem.eval_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
-                            const auto        phi_t_1_u_proj =
+                            const auto phi_t_1_u_proj =
                               elem.eval_proj_phi_t_uF(ET, gb, fb, uTF, face_i, n, gamma_F, qp.point());
 
                             const auto uT_t_u = elem.eval_uF_t(fb, uTF, n, qp.point());
@@ -787,12 +884,10 @@ class tresca_solver
                                    << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t"
                                    << r << std ::endl;
                         }
-
                     }
                     face_i++;
                 }
             }
-
             cell_i++;
         }
         output.close();

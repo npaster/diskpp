@@ -154,21 +154,22 @@ Matrix<typename Mesh::coordinate_type, Dynamic, 1>
 project_function(const Mesh&                      msh,
                  const typename Mesh::cell_type&  cl,
                  const hho_degree_info&           hdi,
+                 const vector_boundary_conditions<Mesh>& bnd,
                  const vector_rhs_function<Mesh>& f,
                  size_t                           di = 0)
 {
     using T = typename Mesh::coordinate_type;
     typedef Matrix<T, Dynamic, 1> vector_type;
 
-    auto cbs       = vector_basis_size(hdi.cell_degree(), Mesh::dimension, Mesh::dimension);
-    auto fbs       = vector_basis_size(hdi.face_degree(), Mesh::dimension - 1, Mesh::dimension);
-    auto num_faces = howmany_faces(msh, cl);
+    const auto cbs       = vector_basis_size(hdi.cell_degree(), Mesh::dimension, Mesh::dimension);
+    const auto fbs       = vector_basis_size(hdi.face_degree(), Mesh::dimension - 1, Mesh::dimension);
+    const auto fcs       = bnd.faces_with_unknowns(cl);
+    const auto num_faces = fcs.size();
 
     vector_type ret = vector_type::Zero(cbs + num_faces * fbs);
 
     ret.block(0, 0, cbs, 1) = project_function(msh, cl, hdi.cell_degree(), f, di);
 
-    auto fcs = faces(msh, cl);
     for (size_t i = 0; i < num_faces; i++)
     {
         ret.segment(cbs + i * fbs, fbs) = project_function(msh, fcs[i], hdi.face_degree(), f, di);
@@ -3175,11 +3176,11 @@ class assembler_mechanics
        assert(sol_F.size() == msh.faces_size());
        const size_t      face_degree   = m_hdi.face_degree();
        const auto        num_face_dofs = vector_basis_size(face_degree, dimension - 1, dimension);
-       const scalar_type zero          = 0;
+       const scalar_type zero          = scalar_type(0);
 
         // in fact, this is the face without SIGNORINI_CELL
-       const auto          fcs = bnd.faces_without_contact(cl);
-       std::vector<size_t> l2g(fcs.size() * num_face_dofs);
+       const auto          fcs = bnd.faces_with_unknowns(cl);
+       std::vector<size_t> l2g(fcs.size() * num_face_dofs, 0xDEADBEEF);
        std::vector<bool>   l2l(fcs.size() * num_face_dofs, true);
        vector_type         rhs_bc = vector_type::Zero(fcs.size() * num_face_dofs);
 
@@ -3849,7 +3850,7 @@ compute_lhs_vector(const Mesh&                                           msh,
     const auto num_cell_dofs = vector_basis_size(hdi.cell_degree(), dimension, dimension);
     const auto num_face_dofs = vector_basis_size(hdi.face_degree(), dimension - 1, dimension);
 
-    const auto fcs       = bnd.faces_without_contact(cl);
+    const auto fcs       = bnd.faces_with_unknowns(cl);
     const auto num_faces = fcs.size();
 
     const auto total_dofs = num_cell_dofs + num_faces * num_face_dofs;
