@@ -609,6 +609,12 @@ class BoundaryConditions
         return nb;
     }
 
+    size_t
+    howmany_without_contact_faces(const cell_type& cl) const
+    {
+        return howmany_faces(m_msh, cl) - howmany_contact_faces(cl);
+    }
+
     // In fact it returns the faces which have not a tag SIGNORINI
     std::vector<face_type>
     faces_without_contact(const cell_type& cl) const

@@ -99,20 +99,31 @@ class tresca_solver
         m_solution.reserve(m_msh.cells_size());
         m_solution_faces.reserve(m_msh.faces_size());
 
-        const auto num_cell_dofs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
-        const auto num_face_dofs = disk::vector_basis_size(m_hdi.face_degree(), dimension - 1, dimension);
-        const auto total_dof     = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
+        const auto num_cell_dofs      = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
+        const auto num_face_dofs      = disk::vector_basis_size(m_hdi.face_degree(), dimension - 1, dimension);
+        const auto num_face_dofs_cont = disk::vector_basis_size(m_hdi.face_degree()+1, dimension - 1, dimension);
+        const auto total_dof          = m_msh.cells_size() * num_cell_dofs + m_msh.faces_size() * num_face_dofs;
 
         for (auto& cl : m_msh)
         {
-            const auto fcs       = m_bnd.faces_with_unknowns(cl);
-            const auto num_faces = fcs.size();
-            m_solution.push_back(vector_type::Zero(num_cell_dofs + num_faces * num_face_dofs));
+            const auto ci        = disk::contact_info<mesh_type>(m_msh, cl, m_hdi, m_bnd);
+            m_solution.push_back(vector_type::Zero(ci.num_total_dofs()));
         }
 
         for (int i = 0; i < m_msh.faces_size(); i++)
         {
-            m_solution_faces.push_back(vector_type::Zero(num_face_dofs));
+            if (m_bnd.contact_boundary_type(i) == disk::SIGNORINI_FACE)
+            {
+                m_solution_faces.push_back(vector_type::Zero(num_face_dofs_cont));
+            }
+            else if (m_bnd.contact_boundary_type(i) == disk::SIGNORINI_CELL)
+            {
+                m_solution_faces.push_back(vector_type::Zero(0));
+            }
+            else
+            {
+                m_solution_faces.push_back(vector_type::Zero(num_face_dofs));
+            }
         }
 
         if (m_verbose)
@@ -151,8 +162,8 @@ class tresca_solver
                 {
                     case HHO:
                     {
-                        const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                        m_stab_precomputed.push_back(make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi));
+                        const auto recons = MK::make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi, m_bnd);
+                        m_stab_precomputed.push_back(MK::make_vector_hho_stabilization(m_msh, cl, recons.first, m_hdi, m_bnd));
                         break;
                     }
                     case HDG:
@@ -282,16 +293,12 @@ class tresca_solver
             time_saving = true;
         }
 
-        // Precomputation
-        if (m_rp.m_precomputation)
-        {
             timecounter t1;
             t1.tic();
             this->pre_computation();
             t1.toc();
             if (m_verbose)
                 std::cout << "-Precomputation: " << t1.to_double() << " sec" << std::endl;
-        }
 
         // Newton solver
         MK::NewtonRaphson_solver_tresca<mesh_type> newton_solver(m_msh, m_hdi, m_bnd, m_rp, m_material_data);
@@ -501,15 +508,7 @@ class tresca_solver
         for (auto& cl : m_msh)
         {
             const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr;
-            if (m_rp.m_precomputation)
-            {
-                gr = m_gradient_precomputed.at(cell_i);
-            }
-            else
-            {
-                gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd).first;
-            }
+            matrix_type gr = m_gradient_precomputed.at(cell_i);
 
             const matrix_type ET     = gr;
             const vector_type ET_uTF = ET * uTF;
@@ -594,15 +593,8 @@ class tresca_solver
         {
             const auto  qps = integrate(m_msh, cl, 2 * grad_degree);
             const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr;
-            if (m_rp.m_precomputation)
-            {
-                gr = m_gradient_precomputed.at(cell_i);
-            }
-            else
-            {
-                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
-            }
+            matrix_type gr  = m_gradient_precomputed.at(cell_i);
+
             const vector_type ETuTF = gr * uTF;
             const auto        gb    = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
 
@@ -645,15 +637,8 @@ class tresca_solver
         for (auto& cl : m_msh)
         {
             const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr;
-            if (m_rp.m_precomputation)
-            {
-                gr = m_gradient_precomputed.at(cell_i);
-            }
-            else
-            {
-                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
-            }
+            matrix_type gr = m_gradient_precomputed.at(cell_i);
+
             const vector_type       ETuTF      = gr * uTF;
             const auto              gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
             const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
@@ -715,15 +700,8 @@ class tresca_solver
         for (auto& cl : m_msh)
         {
             const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr;
-            if (m_rp.m_precomputation)
-            {
-                gr = m_gradient_precomputed.at(cell_i);
-            }
-            else
-            {
-                gr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi).first;
-            }
+            matrix_type gr = m_gradient_precomputed.at(cell_i);
+
             const vector_type ETuTF      = gr * uTF;
             const auto        gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
             const auto        cell_nodes = gmesh_io.post_mesh().nodes_cell(cell_i);
@@ -810,15 +788,7 @@ class tresca_solver
             if (m_bnd.cell_has_contact_faces(cl))
             {
                 const auto  uTF = m_solution.at(cell_i);
-                matrix_type gr;
-                if (m_rp.m_precomputation)
-                {
-                    gr = m_gradient_precomputed.at(cell_i);
-                }
-                else
-                {
-                    gr = MK::make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd).first;
-                }
+                matrix_type gr = m_gradient_precomputed.at(cell_i);
 
                 const matrix_type ET     = gr;
                 const vector_type ET_uTF = ET * uTF;

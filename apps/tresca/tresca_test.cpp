@@ -834,7 +834,7 @@ main(int argc, char** argv)
     bool cell_based = false;
     bool robust     = false;
 
-    while ((ch = getopt(argc, argv, "23cg:k:t:v:r")) != -1)
+    while ((ch = getopt(argc, argv, "23cg:k:t:vr")) != -1)
     {
         switch (ch)
         {
@@ -879,14 +879,14 @@ main(int argc, char** argv)
     if (cell_based)
     {
         rp.m_cell_degree = rp.m_face_degree + 1;
-        rp.m_stab_type   = HDG;
+        rp.m_stab_type   = HHO;
     }
     else
     {
         rp.m_stab_type = HHO;
     }
 
-    if (rp.m_theta != 1.0)
+    if (rp.m_theta != -1.0)
     {
         rp.m_gamma_0 *= (rp.m_face_degree + 1.0) * (rp.m_face_degree + dim);
     }

@@ -134,8 +134,7 @@ class NewtonRaphson_step_tresca
     }
 
     void
-    initialize(const std::vector<vector_type>& initial_solution_faces,
-               const std::vector<vector_type>& initial_solution)
+    initialize(const std::vector<vector_type>& initial_solution_faces, const std::vector<vector_type>& initial_solution)
     {
         m_solution_faces.clear();
         m_solution_faces = initial_solution_faces;
@@ -167,59 +166,16 @@ class NewtonRaphson_step_tresca
         for (auto& cl : m_msh)
         {
             // Gradient Reconstruction
-            matrix_type ET;
-            tc.tic();
-            if (m_rp.m_precomputation)
-            {
-                ET = gradient_precomputed[cell_i];
-            }
-            else
-            {
-                const auto gradrec_full = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, m_bnd);
-                ET                      = gradrec_full.first;
-            }
-            tc.toc();
-            ai.m_time_gradrec += tc.to_double();
+            matrix_type ET = gradient_precomputed[cell_i];
 
             // Stabilisation Contribution
-            tc.tic();
 
             matrix_type stab;
 
             if (m_rp.m_stab)
             {
-                if (m_rp.m_precomputation)
-                {
-                    stab = stab_precomputed.at(cell_i);
-                }
-                else
-                {
-                    switch (m_rp.m_stab_type)
-                    {
-                        case HHO:
-                        {
-                            const auto recons_scalar = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-                            stab = make_vector_hho_stabilization(m_msh, cl, recons_scalar.first, m_hdi);
-                            break;
-                        }
-                        case HDG:
-                        {
-                            stab = make_vector_hdg_stabilization(m_msh, cl, m_hdi, m_bnd);
-                            break;
-                        }
-                        // case DG:
-                        // {
-                        //     stab = make_vector_dg_stabilization(m_msh, cl, m_hdi);
-                        //     break;
-                        // }
-                        case NO: { break;
-                        }
-                        default: throw std::invalid_argument("Unknown stabilization");
-                    }
-                }
+                stab = stab_precomputed.at(cell_i);
             }
-            tc.toc();
-            ai.m_time_stab += tc.to_double();
 
             // Begin Assembly
             // Build rhs and lhs
@@ -283,37 +239,41 @@ class NewtonRaphson_step_tresca
     {
         timecounter tc;
         tc.tic();
-
-        const auto fbs = disk::vector_basis_size(m_hdi.face_degree(), dimension - 1, dimension);
         const auto cbs = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
 
         const auto solF = m_assembler.expand_solution_nl(m_msh, m_bnd, m_system_solution, m_solution_faces);
 
+        assert(m_solution_faces.size() == solF.size());
         // Update  unknowns
         // Update face Uf^{i+1} = Uf^i + delta Uf^i
         for (int i = 0; i < m_solution_faces.size(); i++)
         {
-            assert(m_solution_faces.at(i).size() == fbs);
-            m_solution_faces.at(i) += solF.segment(i * fbs, fbs);
+            // std::cout << i << " " << m_solution_faces.at(i).size() << " vs " << solF.at(i).size() << std::endl;
+
+            assert(m_solution_faces.at(i).size() == solF.at(i).size());
+            m_solution_faces.at(i) += solF.at(i);
         }
+
         // Update cell
         int cell_i = 0;
         for (auto& cl : m_msh)
         {
+            const auto ci = disk::contact_info<mesh_type>(m_msh, cl, m_hdi, m_bnd);
             // Extract the solution
-            const auto fcs             = m_bnd.faces_with_unknowns(cl);
-            const auto num_faces       = fcs.size();
-            const auto total_faces_dof = fcs.size() * fbs;
+            const auto fcs            = ci.faces();
+            const auto num_faces      = fcs.size();
+            const auto num_faces_dofs = ci.num_faces_dofs();
 
-            vector_type xFs = vector_type::Zero(total_faces_dof);
-
+            vector_type xFs    = vector_type::Zero(num_faces_dofs);
+            size_t      offset = 0;
             for (int face_i = 0; face_i < num_faces; face_i++)
             {
-                const auto face_id = m_msh.lookup(fcs[face_i]);
-
-                xFs.segment(face_i * fbs, fbs) = solF.segment(face_id * fbs, fbs);
+                const auto face_id       = m_msh.lookup(fcs[face_i]);
+                const auto solFi         = solF.at(face_id);
+                const auto fbs           = solFi.size();
+                xFs.segment(offset, fbs) = solFi;
+                offset += fbs;
             }
-
             // Update element U^{i+1} = U^i + delta U^i ///
             m_solution.at(cell_i) +=
               disk::make_vector_static_decondensation_withMatrix(m_AL[cell_i], m_bL[cell_i], xFs);
@@ -410,8 +370,7 @@ class NewtonRaphson_step_tresca
     }
 
     void
-    save_solutions(std::vector<vector_type>& solution_faces,
-                   std::vector<vector_type>& solution)
+    save_solutions(std::vector<vector_type>& solution_faces, std::vector<vector_type>& solution)
     {
         solution_faces.clear();
         solution_faces = m_solution_faces;
