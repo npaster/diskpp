@@ -239,7 +239,7 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&         msh,
     bnd.addDirichletBC(disk::DIRICHLET, 4, solution);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
-
+    nl.init_solution(solution);
     SolverInfo solve_info = nl.compute(load);
 
     if (nl.verbose())
@@ -321,6 +321,7 @@ run_tresca_solver(const Mesh<T, 3, Storage>&   msh,
     bnd.addDirichletBC(disk::DIRICHLET, 2, solution);
 
     tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
+    nl.init_solution(solution);
 
     SolverInfo solve_info = nl.compute(load);
 
@@ -395,7 +396,7 @@ printResults2(const std::vector<error_type>& error)
 
         std::cout << "Robustesse test for k = " << error[0].degree << std::endl;
         std::cout << "-----------------------------------------------------------------------------------" << std::endl;
-        std::cout << "| Poisson coef| Displacement | Difference  | Displacem  | Difference  |    Total   |"
+        std::cout << "| Lambda coef| Displacement | Difference  | Displacem  | Difference  |    Total   |"
                   << std::endl;
         std::cout << "|    nu       |   L2 error   |             |  H1 error  |             | faces DOF  |"
                   << std::endl;
@@ -693,7 +694,7 @@ test_triangles_fvca5_robust(const ParamRun<T>& rp, disk::MaterialData<T>& materi
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca5_2d_mesh<T>("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_3.typ1");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -710,7 +711,7 @@ test_quads_diskpp_robust(const ParamRun<T>& rp, disk::MaterialData<T>& material_
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_cartesian_2d_mesh<T>("../../../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -727,7 +728,7 @@ test_hexagons_robust(const ParamRun<T>& rp, disk::MaterialData<T>& material_data
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca5_2d_mesh<T>("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -744,7 +745,7 @@ test_kershaws_robust(const ParamRun<T>& rp, disk::MaterialData<T>& material_data
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca5_2d_mesh<T>("../../../diskpp/meshes/2D_kershaw/fvca5/mesh4_1_3.typ1");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -761,7 +762,7 @@ test_tetrahedra_fvca6_robust(const ParamRun<T>& rp, disk::MaterialData<T>& mater
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca6_3d_mesh<T>("../../../diskpp/meshes/3D_tetras/fvca6/tet.2.msh");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -778,7 +779,7 @@ test_hexahedra_fvca6_robust(const ParamRun<T>& rp, disk::MaterialData<T>& materi
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca6_3d_mesh<T>("../../../diskpp/meshes/3D_hexa/fvca6/hexa_8x8x8.msh");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -795,7 +796,7 @@ test_polyhedra_fvca6_robust(const ParamRun<T>& rp, disk::MaterialData<T>& materi
         material_data.setLambda(std::pow(10.0, i));
         auto msh = disk::load_fvca6_3d_mesh<T>("../../../diskpp/meshes/3D_general/fvca6/dbls_20.msh");
         error_sumup.push_back(run_tresca_solver(msh, rp, material_data, cell_based));
-        error_sumup[i].h = material_data.getNu();
+        error_sumup[i].h = material_data.getLambda();
     }
     printResults2(error_sumup);
 }
@@ -821,11 +822,11 @@ main(int argc, char** argv)
     ParamRun<RealType> rp;
     rp.m_precomputation    = true;
     rp.m_stab_type         = HDG;
-    rp.m_epsilon           = 1.0E-6;
+    rp.m_epsilon           = 2.0E-6;
     rp.m_time_step.front() = std::make_pair(1.0, 1);
     rp.m_sublevel          = 2;
-    rp.m_beta              = 10 * material_data.getMu();
-    rp.m_gamma_0           = 100 * material_data.getMu();
+    rp.m_beta              = 2 * material_data.getMu();
+    rp.m_gamma_0           = 2 * material_data.getMu();
     rp.m_frot              = true;
     rp.m_threshold         = 0;
     rp.m_theta             = 0;
@@ -853,7 +854,7 @@ main(int argc, char** argv)
                     degree = 1;
                 }
                 rp.m_face_degree = degree;
-                rp.m_cell_degree = degree;
+                rp.m_cell_degree = degree+1;
                 rp.m_grad_degree = degree;
                 break;
 

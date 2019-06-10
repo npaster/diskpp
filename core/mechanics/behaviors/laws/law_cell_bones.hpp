@@ -136,6 +136,33 @@ class LawTypeCellBones
     }
 
     vector_type
+    projectStressSymOnCell(const mesh_type&       msh,
+                        const cell_type&       cl,
+                        const hho_degree_info& hdi,
+                        const data_type&       material_data) const
+    {
+        const auto grad_degree     = hdi.grad_degree();
+        const int  grad_basis_size = sym_matrix_basis_size(grad_degree, dimension, dimension);
+        const auto gb              = make_sym_matrix_monomial_basis(msh, cl, grad_degree);
+
+        const matrix_type mass = make_mass_matrix(msh, cl, gb);
+        vector_type       rhs  = vector_type::Zero(grad_basis_size);
+
+        for (auto& qp : m_list_qp)
+        {
+            const auto stress = qp.compute_stress(material_data);
+            const auto gphi   = gb.eval_functions(qp.point());
+            assert(gphi.size() == grad_basis_size);
+
+            const auto qp_stress = priv::inner_product(qp.weight(), stress);
+
+            rhs += priv::outer_product(gphi, qp_stress);
+        }
+
+        return mass.llt().solve(rhs);
+    }
+
+    vector_type
     projectPOnCell(const mesh_type& msh, const cell_type& cl, const hho_degree_info& hdi) const
     {
         const auto grad_degree = hdi.grad_degree();

@@ -74,7 +74,6 @@ class NewtonRaphson_step_tresca
     const hdi_type&     m_hdi;
     const bnd_type&     m_bnd;
     const param_type&   m_rp;
-    const material_type m_material_data;
     assembler_type      m_assembler;
 
     std::vector<vector_type> m_bL;
@@ -106,10 +105,9 @@ class NewtonRaphson_step_tresca
     NewtonRaphson_step_tresca(const mesh_type&    msh,
                               const hdi_type&     hdi,
                               const bnd_type&     bnd,
-                              const param_type&   rp,
-                              const material_type material_data) :
+                              const param_type&   rp) :
       m_msh(msh),
-      m_hdi(hdi), m_rp(rp), m_bnd(bnd), m_verbose(rp.m_verbose), m_material_data(material_data)
+      m_hdi(hdi), m_rp(rp), m_bnd(bnd), m_verbose(rp.m_verbose)
     {
         m_AL.clear();
         m_AL.resize(m_msh.cells_size());
@@ -145,13 +143,15 @@ class NewtonRaphson_step_tresca
         assert(m_msh.cells_size() == m_solution.size());
     }
 
-    template<typename LoadFunction>
+    template<typename LoadFunction, typename Law>
     AssemblyInfo
     assemble(const LoadFunction&             lf,
              const std::vector<matrix_type>& gradient_precomputed,
-             const std::vector<matrix_type>& stab_precomputed)
+             const std::vector<matrix_type>& stab_precomputed,
+             Law& law)
     {
-        elem_type    elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
+        const auto   material_data = law.getMaterialData();
+        elem_type    elem(m_msh, m_hdi, material_data, m_rp, m_bnd);
         AssemblyInfo ai;
 
         // set RHS to zero
@@ -183,7 +183,8 @@ class NewtonRaphson_step_tresca
             // Mechanical Computation
 
             tc.tic();
-            elem.compute(cl, lf, ET, stab, m_solution.at(cell_i), m_has_contact_faces[cell_i]);
+            auto& law_cell = law.getCellQPs(cell_i);
+            elem.compute(cl, lf, ET, stab, m_solution.at(cell_i), m_has_contact_faces[cell_i], law_cell);
 
             matrix_type lhs = elem.K_int;
             vector_type rhs = elem.RTF;
