@@ -61,10 +61,10 @@ enum RobinType : size_t
 
 enum ContactType : size_t
 {
-    SIGNORINI = 13,
+    SIGNORINI      = 13,
     SIGNORINI_FACE = 14,
     SIGNORINI_CELL = 15,
-    NO_CONTACT = 16,
+    NO_CONTACT     = 16,
 };
 
 namespace priv
@@ -125,7 +125,7 @@ struct num_face_dofs<false>
 template<bool ScalarBoundary>
 struct imposed_dofs
 {
-   static  size_t
+    static size_t
     dirichlet_imposed_dofs(const size_t& btype, const size_t& num_face_dofs, const size_t dimension)
     {
         switch (btype)
@@ -220,11 +220,7 @@ class BoundaryConditions
         {
             const auto bfc = *itor;
 
-            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), bfc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
-
-            const auto face_id = eid.second;
+            const auto face_id = m_msh.lookup(bfc);
 
             if (m_msh.boundary_id(face_id) == b_id)
             {
@@ -289,11 +285,7 @@ class BoundaryConditions
         {
             const auto bfc = *itor;
 
-            const auto eid = find_element_id(m_msh.faces_begin(), m_msh.faces_end(), bfc);
-            if (!eid.first)
-                throw std::invalid_argument("This is a bug: face not found");
-
-            const auto face_id = eid.second;
+            const auto face_id = m_msh.lookup(bfc);
 
             m_faces_is_dirichlet.at(face_id) = std::make_tuple(true, DIRICHLET, 0, bcf_id);
             m_dirichlet_faces++;
@@ -581,9 +573,9 @@ class BoundaryConditions
     {
         const auto fcs = faces(m_msh, cl);
 
-        for(auto& fc : fcs)
+        for (auto& fc : fcs)
         {
-            if(is_neumann_face(fc))
+            if (is_neumann_face(fc))
             {
                 return true;
             }
@@ -596,7 +588,7 @@ class BoundaryConditions
     howmany_contact_faces(const cell_type& cl) const
     {
         const auto fcs = faces(m_msh, cl);
-        size_t       nb  = 0;
+        size_t     nb  = 0;
 
         for (auto& fc : fcs)
         {
@@ -741,14 +733,14 @@ class BoundaryConditions
     {
         if (!is_contact_face(face_i))
         {
-            throw std::logic_error("You want the contact function of face which is not a conatact face");
+            throw std::logic_error("You want the contact function of a face which is not a conatact face");
         }
 
         const auto fid = std::get<3>(m_faces_is_contact.at(face_i));
 
         if (fid < 0)
         {
-            throw std::logic_error("You want the contact function of face which has not function");
+            throw std::logic_error("You want the contact function of a face which has not function");
         }
 
         return m_contact_func.at(fid);

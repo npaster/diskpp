@@ -58,10 +58,10 @@ class NewtonRaphson_solver_tresca
 
     typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
 
-    const mesh_type&     m_msh;
-    const hdi_type&      m_hdi;
-    const bnd_type&      m_bnd;
-    const param_type&    m_rp;
+    const mesh_type&  m_msh;
+    const hdi_type&   m_hdi;
+    const bnd_type&   m_bnd;
+    const param_type& m_rp;
 
     std::vector<vector_type> m_solution, m_solution_faces;
 
@@ -69,12 +69,8 @@ class NewtonRaphson_solver_tresca
     bool m_convergence;
 
   public:
-    NewtonRaphson_solver_tresca(const mesh_type&     msh,
-                                const hdi_type&      hdi,
-                                const bnd_type&      bnd,
-                                const param_type&    rp) :
-      m_msh(msh),
-      m_hdi(hdi), m_bnd(bnd), m_rp(rp), m_verbose(rp.m_verbose), m_convergence(false)
+    NewtonRaphson_solver_tresca(const mesh_type& msh, const hdi_type& hdi, const bnd_type& bnd, const param_type& rp) :
+      m_msh(msh), m_hdi(hdi), m_bnd(bnd), m_rp(rp), m_verbose(rp.m_verbose), m_convergence(false)
     {
     }
 
@@ -90,8 +86,7 @@ class NewtonRaphson_solver_tresca
     }
 
     void
-    initialize(const std::vector<vector_type>& initial_solution_faces,
-               const std::vector<vector_type>& initial_solution)
+    initialize(const std::vector<vector_type>& initial_solution_faces, const std::vector<vector_type>& initial_solution)
     {
         m_solution_faces.clear();
         m_solution_faces = initial_solution_faces;
@@ -169,8 +164,7 @@ class NewtonRaphson_solver_tresca
     }
 
     void
-    save_solutions(std::vector<vector_type>& solution_faces,
-                   std::vector<vector_type>& solution)
+    save_solutions(std::vector<vector_type>& solution_faces, std::vector<vector_type>& solution)
     {
         solution_faces.clear();
         solution_faces = m_solution_faces;

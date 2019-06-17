@@ -784,7 +784,7 @@ class tresca_solver
     void
     compute_equivalent_plastic_strain_GP(const std::string& filename) const
     {
-        const gmsh::Gmesh& gmsh    = gmesh_io.gmesh();
+        const gmsh::Gmesh& gmsh = gmesh_io.gmesh();
 
         std::vector<gmsh::Data>    data;    // create data (not used)
         std::vector<gmsh::SubData> subdata; // create subdata to save soution at gauss point
@@ -926,70 +926,74 @@ class tresca_solver
                 size_t offset = cbs;
                 for (auto& fc : fcs)
                 {
-                    const auto facedeg      = ci.face_degree(m_bnd, fc);
-                    const auto fbs          = ci.num_face_dofs(m_bnd, fc);
-                    const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, facedeg);
-                    const auto n            = normal(m_msh, cl, fc);
-                    const auto qp_deg       = std::max(m_hdi.cell_degree(), m_hdi.grad_degree());
-                    const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 2);
-                    const auto hF           = diameter(m_msh, fc);
-                    const auto gamma_F      = m_rp.m_gamma_0 / hF;
-                    const auto contact_type = m_bnd.contact_boundary_type(fc);
+                    const auto facedeg = ci.face_degree(m_bnd, fc);
+                    const auto fbs     = ci.num_face_dofs(m_bnd, fc);
 
-                    const auto s_func = m_bnd.contact_boundary_func(fc);
-
-                    for (auto& qp : qps)
+                    if (m_bnd.is_contact_face(fc))
                     {
-                        const scalar_type sigma_nn_u = elem.eval_stress_nn(stress_coeff, gb, n, qp.point());
-                        const auto        sigma_nt_u = elem.eval_stress_nt(stress_coeff, gb, n, qp.point());
+                        const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, facedeg);
+                        const auto n            = normal(m_msh, cl, fc);
+                        const auto qp_deg       = std::max(m_hdi.cell_degree(), m_hdi.face_degree());
+                        const auto qps          = integrate(m_msh, fc, 2 * qp_deg);
+                        const auto hF           = diameter(m_msh, fc);
+                        const auto gamma_F      = m_rp.m_gamma_0 / hF;
+                        const auto contact_type = m_bnd.contact_boundary_type(fc);
 
-                        const scalar_type r =
-                          std::sqrt(qp.point().x() * qp.point().x() + qp.point().y() * qp.point().y());
+                        const auto s_func = m_bnd.contact_boundary_func(fc);
 
-                        if (contact_type == disk::SIGNORINI_CELL)
+                        for (auto& qp : qps)
                         {
-                            const scalar_type phi_n_1_u =
-                              elem.eval_phi_n_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
-                            const scalar_type phi_n_1_u_proj =
-                              elem.eval_proj_phi_n_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
-                            const scalar_type uT_n_u = elem.eval_uT_n(cb, uTF, n, qp.point());
-                            const auto        phi_t_1_u =
-                              elem.eval_phi_t_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
-                            const auto phi_t_1_u_proj = elem.eval_proj_phi_t_uT(
-                              stress_coeff, gb, cb, uTF, n, gamma_F, s_func(qp.point()), qp.point());
+                            const scalar_type sigma_nn_u = elem.eval_stress_nn(stress_coeff, gb, n, qp.point());
+                            const auto        sigma_nt_u = elem.eval_stress_nt(stress_coeff, gb, n, qp.point());
 
-                            const auto uT_t_u = elem.eval_uT_t(cb, uTF, n, qp.point());
+                            const scalar_type r =
+                              std::sqrt(qp.point().x() * qp.point().x() + qp.point().y() * qp.point().y());
 
-                            output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
-                                   << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
-                                   << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
-                                   << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
-                                   << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t"
-                                   << r << std ::endl;
-                        }
-                        else
-                        {
-                            const auto        uF = uTF.segment(offset, fbs);
-                            const scalar_type phi_n_1_u =
-                              elem.eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
-                            const scalar_type phi_n_1_u_proj =
-                              elem.eval_proj_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
-                            const scalar_type uT_n_u    = elem.eval_uF_n(fb, uF, n, qp.point());
-                            const auto        phi_t_1_u = elem.eval_phi_t_uF(
-                              stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
-                            const auto phi_t_1_u_proj = elem.eval_proj_phi_t_uF(
-                              stress_coeff, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
+                            if (contact_type == disk::SIGNORINI_CELL)
+                            {
+                                const scalar_type phi_n_1_u =
+                                  elem.eval_phi_n_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
+                                const scalar_type phi_n_1_u_proj =
+                                  elem.eval_proj_phi_n_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
+                                const scalar_type uT_n_u = elem.eval_uT_n(cb, uTF, n, qp.point());
+                                const auto        phi_t_1_u =
+                                  elem.eval_phi_t_uT(stress_coeff, gb, cb, uTF, n, gamma_F, qp.point());
+                                const auto phi_t_1_u_proj = elem.eval_proj_phi_t_uT(
+                                  stress_coeff, gb, cb, uTF, n, gamma_F, s_func(qp.point()), qp.point());
 
-                            const auto uT_t_u = elem.eval_uF_t(fb, uF, n, qp.point());
+                                const auto uT_t_u = elem.eval_uT_t(cb, uTF, n, qp.point());
 
-                            output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t" << sigma_nn_u
-                                   << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t" << uT_t_u.transpose() << "\t"
-                                   << sigma_nt_u.transpose() << "\t" << phi_t_1_u.transpose() << "\t"
-                                   << phi_t_1_u_proj.transpose() << "\t" << phi_t_1_u.norm() << "\t"
-                                   << phi_t_1_u_proj.norm() << "\t" << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t"
-                                   << r << std ::endl;
+                                output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t"
+                                       << sigma_nn_u << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t"
+                                       << uT_t_u.transpose() << "\t" << sigma_nt_u.transpose() << "\t"
+                                       << phi_t_1_u.transpose() << "\t" << phi_t_1_u_proj.transpose() << "\t"
+                                       << phi_t_1_u.norm() << "\t" << phi_t_1_u_proj.norm() << "\t"
+                                       << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t" << r << std ::endl;
+                            }
+                            else
+                            {
+                                const auto        uF = uTF.segment(offset, fbs);
+                                const scalar_type phi_n_1_u =
+                                  elem.eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                const scalar_type phi_n_1_u_proj =
+                                  elem.eval_proj_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                const scalar_type uT_n_u = elem.eval_uF_n(fb, uF, n, qp.point());
+                                const auto        phi_t_1_u =
+                                  elem.eval_phi_t_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                const auto phi_t_1_u_proj = elem.eval_proj_phi_t_uF(
+                                  stress_coeff, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
+                                const auto uF_t_u = elem.eval_uF_t(fb, uF, n, qp.point());
+
+                                output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t"
+                                       << sigma_nn_u << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t"
+                                       << uF_t_u.transpose() << "\t" << sigma_nt_u.transpose() << "\t"
+                                       << phi_t_1_u.transpose() << "\t" << phi_t_1_u_proj.transpose() << "\t"
+                                       << phi_t_1_u.norm() << "\t" << phi_t_1_u_proj.norm() << "\t"
+                                       << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t" << r << std ::endl;
+                            }
                         }
                     }
+
                     offset += fbs;
                 }
             }

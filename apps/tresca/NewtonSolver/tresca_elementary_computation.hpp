@@ -474,8 +474,6 @@ compute_g0(const point<T, 2>& pt, const static_vector<T, 2>& n)
 {
     // compute the distance to the plane y = 0
 
-    return 0.0;
-
     if (std::abs(n(1)) < T(1E-12))
         return 10E12;
 

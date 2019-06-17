@@ -70,11 +70,11 @@ class NewtonRaphson_step_tresca
 
     vector_type m_system_solution;
 
-    const mesh_type&    m_msh;
-    const hdi_type&     m_hdi;
-    const bnd_type&     m_bnd;
-    const param_type&   m_rp;
-    assembler_type      m_assembler;
+    const mesh_type&  m_msh;
+    const hdi_type&   m_hdi;
+    const bnd_type&   m_bnd;
+    const param_type& m_rp;
+    assembler_type    m_assembler;
 
     std::vector<vector_type> m_bL;
     std::vector<matrix_type> m_AL;
@@ -102,12 +102,8 @@ class NewtonRaphson_step_tresca
     }
 
   public:
-    NewtonRaphson_step_tresca(const mesh_type&    msh,
-                              const hdi_type&     hdi,
-                              const bnd_type&     bnd,
-                              const param_type&   rp) :
-      m_msh(msh),
-      m_hdi(hdi), m_rp(rp), m_bnd(bnd), m_verbose(rp.m_verbose)
+    NewtonRaphson_step_tresca(const mesh_type& msh, const hdi_type& hdi, const bnd_type& bnd, const param_type& rp) :
+      m_msh(msh), m_hdi(hdi), m_rp(rp), m_bnd(bnd), m_verbose(rp.m_verbose)
     {
         m_AL.clear();
         m_AL.resize(m_msh.cells_size());
@@ -148,7 +144,7 @@ class NewtonRaphson_step_tresca
     assemble(const LoadFunction&             lf,
              const std::vector<matrix_type>& gradient_precomputed,
              const std::vector<matrix_type>& stab_precomputed,
-             Law& law)
+             Law&                            law)
     {
         const auto   material_data = law.getMaterialData();
         elem_type    elem(m_msh, m_hdi, material_data, m_rp, m_bnd);
