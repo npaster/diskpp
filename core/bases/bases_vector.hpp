@@ -501,11 +501,11 @@ vector_basis_size_RT(const size_t k, const size_t sd, const size_t vd)
 
     if (sd == 3 && vd == 3)
     {
-        return (k + 1) * (k + 2) * (k + 4) / 2;
+        return k * (k + 1) * (k + 3) / 2;
     }
     else if (sd == 2 && vd == 2)
     {
-        return (k + 1) * (k + 3);
+        return k  * (k + 2);
     }
 
     throw std::invalid_argument("Raviart-Thomas basis: unknown case");
