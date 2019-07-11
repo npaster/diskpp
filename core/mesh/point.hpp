@@ -57,32 +57,38 @@ public:
             m_coords[i] = *(l.begin()+i);
 
     }
-    
+
     point operator=(const point& other)
     {
         m_coords = other.m_coords;
         return *this;
     }
-    
+
     template<typename U = T>
     point(const typename std::enable_if<DIM == 1, U>::type& x)
     {
         m_coords[0] = x;
     }
-    
+
     template<typename U = T>
     point(const typename std::enable_if<DIM == 2, U>::type& x, const U& y)
     {
         m_coords[0] = x;
         m_coords[1] = y;
     }
-    
+
     template<typename U = T>
     point(const typename std::enable_if<DIM == 3, U>::type& x, const U& y, const U& z)
     {
         m_coords[0] = x;
         m_coords[1] = y;
         m_coords[2] = z;
+    }
+
+    point(const static_vector<T,DIM>& vec)
+    {
+        for (size_t i = 0; i < DIM; i++)
+            m_coords[i] = vec(i);
     }
 
     T   at(size_t pos) const { return m_coords.at(pos); }
@@ -133,8 +139,28 @@ public:
         point ret;
         for (size_t i = 0; i < DIM; i++)
             ret.m_coords[i] = p1.m_coords[i] + p2.m_coords[i];
-        
+
         return ret;
+    }
+
+
+    template<int N>
+    friend point
+    operator+(const point& p1, const static_vector<T, N>& vec)
+    {
+        static_assert(N == DIM, "wrong dimension");
+        point ret;
+        for (size_t i = 0; i < DIM; i++)
+            ret.m_coords[i] = p1.m_coords[i] + vec(i);
+
+        return ret;
+    }
+
+    template<int N>
+    friend point
+    operator+(const static_vector<T, N>& vec, const point& p1)
+    {
+        return p1 + vec;
     }
 
     friend point operator-(const point& p1, const point& p2)
@@ -142,7 +168,7 @@ public:
         point ret;
         for (size_t i = 0; i < DIM; i++)
             ret.m_coords[i] = p1.m_coords[i] - p2.m_coords[i];
-        
+
         return ret;
     }
 
@@ -151,7 +177,7 @@ public:
         point ret;
         for (size_t i = 0; i < DIM; i++)
             ret.m_coords[i] = p.m_coords[i] * scalefactor;
-        
+
         return ret;
     }
 
@@ -165,7 +191,7 @@ public:
         point ret;
         for (size_t i = 0; i < DIM; i++)
             ret.m_coords[i] = p.m_coords[i] / scalefactor;
-        
+
         return ret;
     }
 };
