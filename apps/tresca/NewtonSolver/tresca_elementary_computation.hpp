@@ -505,6 +505,102 @@ compute_g0(const point<T, 3>& pt, const static_vector<T, 3>& n)
 
     return dist;
 }
+
+template<typename Basis, typename T, size_t DIM>
+point<T, DIM>
+new_pt(const Basis& base, const dynamic_vector<T>& tab_coeff, const point<T, DIM>& pt)
+{
+    const auto beval = base.eval_functions(pt);
+
+    const auto depl = disk::eval(tab_coeff, beval);
+
+    return pt + depl;
+}
+
+template<typename T>
+static_vector<T, 2>
+compute_normal(const point<T, 2>& a, const point<T, 2>& b)
+{
+    const static_vector<T, 2> t1 = (b - a).to_vector();
+    static_vector<T, 2>       nor;
+    nor(0) = -t1(1);
+    nor(1) = t1(0);
+
+    return nor / nor.norm();
+}
+
+template<typename T>
+static_vector<T, 3>
+compute_normal(const point<T, 3>& p1, const point<T, 3>& p2, const point<T, 3>& p3)
+{
+    static_vector<T, 3> t1 = (p2 - p1).to_vector();
+    static_vector<T, 3> t2 = (p3 - p1).to_vector();
+
+    t1 /= t1.norm();
+    t2 /= t2.norm();
+
+    static_vector<T, 3> nor = cross(t1, t2);
+
+    return nor / nor.norm();
+}
+
+template<typename Mesh, typename Elem, typename ElemBasis, typename T>
+T
+compute_gap_fb(const Mesh&                msh,
+               const Elem&                elem,
+               const ElemBasis&           eb,
+               const dynamic_vector<T>&   tab_coeff,
+               const point<T, 2>&         pt,
+               const static_vector<T, 2>& n)
+{
+    const point<T, 2>         pt_def = new_pt(eb, tab_coeff, pt);
+    const auto                pts    = points(msh, elem);
+    const static_vector<T, 2> n_ref  = compute_normal(pts[0], pts[1]);
+
+    const point<T, 2> pta_def = new_pt(eb, tab_coeff, pts[0]);
+    const point<T, 2> ptb_def = new_pt(eb, tab_coeff, pts[1]);
+
+    const T sign = std::copysign(T(1), n.dot(n_ref));
+
+    const static_vector<T, 2> n_def = sign * compute_normal(pta_def, ptb_def);
+
+    // std::cout << "pt: " << pt << std::endl;
+    // std::cout << "pta: " << pts[0] << std::endl;
+    // std::cout << "ptb: " << pts[1] << std::endl;
+    // std::cout << "pt def: " << pt_def << std::endl;
+    // std::cout << "pta def: " << pta_def << std::endl;
+    // std::cout << "ptb def: " << ptb_def << std::endl;
+
+    // std::cout << "normal: " << n.transpose() << std::endl;
+    // std::cout << "normal ref: " << n_ref.transpose() << std::endl;
+    // std::cout << "normal def: " << n_def.transpose() << std::endl;
+
+    return compute_g0(pt_def, n_def);
+}
+
+template<typename Mesh, typename Elem, typename ElemBasis, typename T>
+T
+compute_gap_fb(const Mesh&                msh,
+               const Elem&                elem,
+               const ElemBasis&           eb,
+               const dynamic_vector<T>&   tab_coeff,
+               const point<T, 3>&         pt,
+               const static_vector<T, 3>& n)
+{
+    const point<T, 3>         pt_def = new_pt(eb, tab_coeff, pt);
+    const auto                pts    = points(msh, elem);
+    const static_vector<T, 3> n_ref  = compute_normal(pts[0], pts[1], pts[2]);
+
+    const point<T, 3> pt0_def = new_pt(eb, tab_coeff, pts[0]);
+    const point<T, 3> pt1_def = new_pt(eb, tab_coeff, pts[1]);
+    const point<T, 3> pt2_def = new_pt(eb, tab_coeff, pts[2]);
+
+    const T sign = std::copysign(T(1), n.dot(n_ref));
+
+    const static_vector<T, 3> n_def = sign * compute_normal(pt0_def, pt1_def, pt2_def);
+
+    return compute_g0(pt_def, n_def);
+}
 }
 
 template<typename MeshType>
@@ -860,7 +956,7 @@ class tresca
                         const vector_type uF_n = make_hho_u_n(n, fb, qp.point());
 
                         const scalar_type phi_n_1_u =
-                          eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                          eval_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
 
                         // Heaviside(-phi_n_1(u))
                         if (phi_n_1_u <= scalar_type(0))
@@ -935,7 +1031,7 @@ class tresca
                     {
                         const vector_type uF_n = make_hho_u_n(n, fb, qp.point());
                         const scalar_type phi_n_1_u =
-                          eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                          eval_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
 
                         // [phi_n_1_u]_R-
                         if (phi_n_1_u <= scalar_type(0))
@@ -1438,7 +1534,8 @@ class tresca
 
     template<typename GradBasis, typename FaceBasis>
     scalar_type
-    eval_phi_n_uF(const vector_type&   stress_coeff,
+    eval_phi_n_uF(const face_type&     fc,
+                  const vector_type&   stress_coeff,
                   const GradBasis&     gb,
                   const FaceBasis&     fb,
                   const vector_type&   uTF,
@@ -1451,13 +1548,18 @@ class tresca
         const scalar_type sigma_nn = eval_stress_nn(stress_coeff, gb, n, pt);
         const scalar_type uF_n     = eval_uF_n(fb, uF, n, pt);
         const scalar_type g0       = make_hho_distance(pt, n);
+        const scalar_type gap      = priv::compute_gap_fb(m_msh, fc, fb, uF, pt, n);
 
-        return sigma_nn - gamma_F * (uF_n - g0);
+        // std::cout << gap << std::endl;
+
+        return sigma_nn + gamma_F * gap;
+        //return sigma_nn - gamma_F * (uF_n - g0);
     }
 
     template<typename GradBasis, typename FaceBasis>
     scalar_type
-    eval_proj_phi_n_uF(const vector_type&   stress_coeff,
+    eval_proj_phi_n_uF(const face_type&     fc,
+                       const vector_type&   stress_coeff,
                        const GradBasis&     gb,
                        const FaceBasis&     fb,
                        const vector_type&   uTF,
@@ -1466,7 +1568,7 @@ class tresca
                        const scalar_type&   gamma_F,
                        const point_type&    pt) const
     {
-        const scalar_type phi_n_1_u = eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, pt);
+        const scalar_type phi_n_1_u = eval_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, pt);
 
         if (phi_n_1_u <= scalar_type(0))
             return phi_n_1_u;

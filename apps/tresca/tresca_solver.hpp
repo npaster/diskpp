@@ -933,7 +933,8 @@ class tresca_solver
                     {
                         const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, facedeg);
                         const auto n            = normal(m_msh, cl, fc);
-                        const auto qp_deg       = std::max(m_hdi.cell_degree(), m_hdi.face_degree());
+                        const auto qp_deg       = 0;
+                        //std::max(m_hdi.cell_degree(), m_hdi.face_degree());
                         const auto qps          = integrate(m_msh, fc, 2 * qp_deg);
                         const auto hF           = diameter(m_msh, fc);
                         const auto gamma_F      = m_rp.m_gamma_0 / hF;
@@ -974,9 +975,9 @@ class tresca_solver
                             {
                                 const auto        uF = uTF.segment(offset, fbs);
                                 const scalar_type phi_n_1_u =
-                                  elem.eval_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                  elem.eval_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
                                 const scalar_type phi_n_1_u_proj =
-                                  elem.eval_proj_phi_n_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                  elem.eval_proj_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
                                 const scalar_type uT_n_u = elem.eval_uF_n(fb, uF, n, qp.point());
                                 const auto        phi_t_1_u =
                                   elem.eval_phi_t_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());

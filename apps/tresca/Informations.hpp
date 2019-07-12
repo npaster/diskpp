@@ -146,4 +146,10 @@ class SolverInfo
         std::cout << "------------------------------------------------------- " << std::endl;
         std::cout << " " << std::endl;
     }
+
+    size_t
+    total_newton_iterations() const
+    {
+        return m_iter;
+    }
 };
