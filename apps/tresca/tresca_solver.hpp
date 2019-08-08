@@ -556,13 +556,9 @@ class tresca_solver
 
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr  = m_gradient_precomputed.at(cell_i);
-
-            const matrix_type ET     = gr;
-            const vector_type ET_uTF = ET * uTF;
-            const auto        gb     = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
-            const auto        cb     = disk::make_vector_monomial_basis(m_msh, cl, m_hdi.cell_degree());
+            const auto gb           = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+            const auto law_cell     = m_law.getCellIVs(cell_i);
+            const auto stress_coeff = law_cell.projectStressSymOnCell(m_msh, cl, m_hdi, m_material_data);
 
             const auto hT = diameter(m_msh, cl);
 
@@ -585,7 +581,7 @@ class tresca_solver
                 {
                     const scalar_type pres_sol = as(qp.point());
 
-                    const auto stress = elem.eval_stress(ET_uTF, gb, qp.point());
+                    const auto stress = elem.eval_stress(stress_coeff, gb, qp.point());
 
                     const scalar_type pres_comp = stress(1, 1);
 
@@ -678,12 +674,10 @@ class tresca_solver
         size_t nb_nodes = 0;
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr  = m_gradient_precomputed.at(cell_i);
-
-            const vector_type       ETuTF      = gr * uTF;
-            const auto              gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
-            const auto              cell_nodes = disk::cell_nodes(m_msh, cl);
+            const auto              gb           = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+            const auto              law_cell     = m_law.getCellIVs(cell_i);
+            const auto              stress_coeff = law_cell.projectStressSymOnCell(m_msh, cl, m_hdi, m_material_data);
+            const auto              cell_nodes   = disk::cell_nodes(m_msh, cl);
             std::vector<gmsh::Node> new_nodes;
 
             // loop on the nodes of the cell
@@ -693,7 +687,7 @@ class tresca_solver
                 const auto point_ids = cell_nodes[i];
                 const auto pt        = storage->points[point_ids];
 
-                const auto stress = elem.eval_stress(ETuTF, gb, pt);
+                const auto stress = elem.eval_stress(stress_coeff, gb, pt);
 
                 const std::vector<double>   tens = disk::convertToVectorGmsh(stress);
                 const std::array<double, 3> coor = disk::init_coor(pt);
@@ -722,8 +716,9 @@ class tresca_solver
     void
     compute_continuous_stress(const std::string& filename) const
     {
-        const gmsh::Gmesh& gmsh    = gmesh_io.gmesh();
-        auto               storage = gmesh_io.post_mesh().mesh().backend_storage();
+        const gmsh::Gmesh& gmsh      = gmesh_io.gmesh();
+        const auto&        post_mesh = gmesh_io.post_mesh();
+        auto               storage   = post_mesh.mesh().backend_storage();
 
         const static_matrix<scalar_type, dimension, dimension> vzero =
           static_matrix<scalar_type, dimension, dimension>::Zero();
@@ -741,19 +736,17 @@ class tresca_solver
 
         for (auto& cl : m_msh)
         {
-            const auto  uTF = m_solution.at(cell_i);
-            matrix_type gr  = m_gradient_precomputed.at(cell_i);
-
-            const vector_type ETuTF      = gr * uTF;
-            const auto        gb         = disk::make_sym_matrix_monomial_basis(m_msh, cl, grad_degree);
-            const auto        cell_nodes = gmesh_io.post_mesh().nodes_cell(cell_i);
+            const auto gb           = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+            const auto law_cell     = m_law.getCellIVs(cell_i);
+            const auto stress_coeff = law_cell.projectStressSymOnCell(m_msh, cl, m_hdi, m_material_data);
+            const auto cell_nodes   = post_mesh.nodes_cell(cell_i);
 
             // Loop on the nodes of the cell
             for (auto& point_id : cell_nodes)
             {
                 const auto pt = storage->points[point_id];
 
-                const auto stress = elem.eval_stress(ETuTF, gb, pt);
+                const auto stress = elem.eval_stress(stress_coeff, gb, pt);
 
                 value[point_id].first++;
                 value[point_id].second += stress;
@@ -863,6 +856,97 @@ class tresca_solver
     }
 
     void
+    compute_continuous_pres(const std::string& filename) const
+    {
+        const gmsh::Gmesh& gmsh      = gmesh_io.gmesh();
+        const auto&        post_mesh = gmesh_io.post_mesh();
+        auto               storage   = post_mesh.mesh().backend_storage();
+
+        const static_matrix<scalar_type, dimension, dimension> vzero =
+          static_matrix<scalar_type, dimension, dimension>::Zero();
+
+        const size_t nb_nodes(gmsh.getNumberofNodes());
+
+        // first(number of data at this node), second(cumulated value)
+        std::vector<std::pair<size_t, scalar_type>> value(nb_nodes, std::make_pair(0, 0.0));
+
+        const size_t                grad_degree = m_hdi.grad_degree();
+        const MK::tresca<mesh_type> elem(m_msh, m_hdi, m_material_data, m_rp, m_bnd);
+
+        int cell_i = 0;
+
+        for (auto& cl : m_msh)
+        {
+            const auto        fcs = disk::faces(m_msh, cl);
+            std::vector<bool> fcs_bnd;
+            bool              at_least_one = false;
+
+            for (auto fc : fcs)
+            {
+                const bool l_bnd = m_msh.is_boundary(fc);
+                fcs_bnd.push_back(l_bnd);
+
+                if (l_bnd)
+                {
+                    at_least_one = true;
+                }
+            }
+
+            if (at_least_one)
+            {
+                const auto gb           = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
+                const auto law_cell     = m_law.getCellIVs(cell_i);
+                const auto stress_coeff = law_cell.projectStressSymOnCell(m_msh, cl, m_hdi, m_material_data);
+
+                size_t face_i = 0;
+                for (auto fc : fcs)
+                {
+
+                    if (fcs_bnd[face_i++])
+                    {
+                        const auto face_nodes = post_mesh.nodes_face(m_msh.lookup(fc));
+                        const auto n          = disk::normal(m_msh, cl, fc);
+
+                        // Loop on the nodes of the cell
+                        for (auto& point_id : face_nodes)
+                        {
+                            const auto pt = storage->points[point_id];
+
+                            const auto stress_nn = elem.eval_stress_nn(stress_coeff, gb, n, pt);
+
+                            value[point_id].first++;
+                            value[point_id].second += stress_nn;
+                        }
+                    }
+                }
+            }
+
+            cell_i++;
+        }
+
+        std::vector<gmsh::Data>    data;    // create data
+        std::vector<gmsh::SubData> subdata; // create subdata
+        data.reserve(nb_nodes);             // data has a size of nb_node
+
+        // Compute the average value and save it
+        for (int i_node = 0; i_node < value.size(); i_node++)
+        {
+            scalar_type stress_avr = 0.0;
+
+            if (value[i_node].first > 0)
+                stress_avr = value[i_node].second / double(value[i_node].first);
+
+            const gmsh::Data tmp_data(i_node + 1, disk::convertToVectorGmsh(stress_avr));
+            data.push_back(tmp_data);
+        }
+
+        // Create and init a nodedata view
+        gmsh::NodeData nodedata(1, 0.0, "press_node_cont", data, subdata);
+        // Save the view
+        nodedata.saveNodeData(filename, gmsh);
+    }
+
+    void
     contact_quantities(const std::string& filename) const
     {
         std::ofstream output;
@@ -931,10 +1015,10 @@ class tresca_solver
 
                     if (m_bnd.is_contact_face(fc))
                     {
-                        const auto fb           = disk::make_vector_monomial_basis(m_msh, fc, facedeg);
-                        const auto n            = normal(m_msh, cl, fc);
-                        const auto qp_deg       = 0;
-                        //std::max(m_hdi.cell_degree(), m_hdi.face_degree());
+                        const auto fb     = disk::make_vector_monomial_basis(m_msh, fc, facedeg);
+                        const auto n      = normal(m_msh, cl, fc);
+                        const auto qp_deg = 0;
+                        // std::max(m_hdi.cell_degree(), m_hdi.face_degree());
                         const auto qps          = integrate(m_msh, fc, 2 * qp_deg);
                         const auto hF           = diameter(m_msh, fc);
                         const auto gamma_F      = m_rp.m_gamma_0 / hF;
@@ -976,8 +1060,8 @@ class tresca_solver
                                 const auto        uF = uTF.segment(offset, fbs);
                                 const scalar_type phi_n_1_u =
                                   elem.eval_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
-                                const scalar_type phi_n_1_u_proj =
-                                  elem.eval_proj_phi_n_uF(fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                                const scalar_type phi_n_1_u_proj = elem.eval_proj_phi_n_uF(
+                                  fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
                                 const scalar_type uT_n_u = elem.eval_uF_n(fb, uF, n, qp.point());
                                 const auto        phi_t_1_u =
                                   elem.eval_phi_t_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());

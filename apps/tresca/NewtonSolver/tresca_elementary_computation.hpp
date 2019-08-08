@@ -468,6 +468,53 @@ make_vector_static_condensation_withMatrix(const Mesh&                          
 
 namespace priv
 {
+
+template<typename T>
+T
+compute_g0_gv(const point<T, 3>& pt, const static_vector<T, 3>& n)
+{
+    // distance to the cylinder z^2+y^2 = r^2 (axe x)
+
+    const T r = 8.77;
+
+    // eq in a* t^2 + b *t + c =0
+    const T a = n(1) * n(1) + n(2) * n(2);
+    const T b = 2 * (n(1) * pt.y() + n(2) * pt.z());
+    const T c = pt.y() * pt.y() + pt.z() * pt.z() - r * r;
+
+    const T delta = b * b - 4.0 * a * c;
+
+    if (abs(delta) <= 1E-12)
+    {
+        throw std::invalid_argument("wrong prjoection for GV");
+    }
+
+    const T t1 = (-b + sqrt(delta)) / (2.0 * a);
+    const T t2 = (-b - sqrt(delta)) / (2.0 * a);
+
+    const static_vector<T, 3> p_0 = pt.to_vector();
+    const static_vector<T, 3> p_1 = p_0 + t1 * n;
+    const static_vector<T, 3> p_2 = p_0 + t2 * n;
+
+    const T gap_1 = (p_1 - p_0).dot(n);
+    const T gap_2 = (p_2 - p_0).dot(n);
+
+    //    std::cout << "pt : " << pt << std::endl;
+    //    std::cout << "n : " << n.transpose() << std::endl;
+    //    std::cout << "p1 : " << p_1.transpose() << std::endl;
+    //    std::cout << "p2 : " << p_2.transpose() << std::endl;
+    //    std::cout << sqrt(p_0(1)*p_0(1) + p_0(2)*p_0(2)) << " " << sqrt(p_1(1)*p_1(1) + p_1(2)*p_1(2)) << " " <<
+    //    sqrt(p_2(1)*p_2(1) + p_2(2)*p_2(2)) << std::endl; std::cout << (p_1 - p_0).norm() << " " << (p_2 - p_0).norm()
+    //    << std::endl; std::cout << gap_1 << " " << gap_2 << std::endl;
+
+    if (abs(gap_1) < abs(gap_2))
+    {
+        return gap_1;
+    }
+
+    return gap_2;
+}
+
 template<typename T>
 T
 compute_g0(const point<T, 2>& pt, const static_vector<T, 2>& n)
@@ -599,7 +646,7 @@ compute_gap_fb(const Mesh&                msh,
 
     const static_vector<T, 3> n_def = sign * compute_normal(pt0_def, pt1_def, pt2_def);
 
-    return compute_g0(pt_def, n_def);
+    return compute_g0_gv(pt_def, n_def);
 }
 }
 
@@ -1198,7 +1245,7 @@ class tresca
     matrix_type K_int;
     vector_type RTF;
     vector_type F_int;
-    double      time_contact;
+    double      time_contact, time_law;
 
     tresca(const mesh_type&     msh,
            const hdi_type&      hdi,
@@ -1206,7 +1253,7 @@ class tresca
            const param_type&    rp,
            const bnd_type&      bnd) :
       m_msh(msh),
-      m_hdi(hdi), m_material_data(material_data), m_rp(rp), m_bnd(bnd)
+      m_hdi(hdi), m_material_data(material_data), m_rp(rp), m_bnd(bnd), time_contact(0.0), time_law(0.0)
     {
         cell_basis_size = disk::vector_basis_size(m_hdi.cell_degree(), dimension, dimension);
         grad_basis_size = disk::sym_matrix_basis_size(m_hdi.grad_degree(), dimension, dimension);
@@ -1256,6 +1303,9 @@ class tresca
 
         auto gb = disk::make_sym_matrix_monomial_basis(m_msh, cl, m_hdi.grad_degree());
 
+        time_contact = 0.0;
+        time_law     = 0.0;
+
         for (auto& qp : law_quadpoints)
         {
             // std::cout << "qp: " << qp.point() << std::endl;
@@ -1275,6 +1325,7 @@ class tresca
             tc.tic();
             const auto tensor_behavior = qp.compute_whole(GsT_iqn, m_material_data, true);
             tc.toc();
+            time_law = tc.to_double();
 
             //  std::cout << "module " << tensor_behavior.second << std::endl;
 
@@ -1340,7 +1391,6 @@ class tresca
         RTF.head(cell_basis_size) = make_rhs(m_msh, cl, cb, load, 2);
 
         // contact contribution
-        time_contact = 0.0;
         if (has_vector_face)
         {
             tc.tic();
@@ -1553,7 +1603,7 @@ class tresca
         // std::cout << gap << std::endl;
 
         return sigma_nn + gamma_F * gap;
-        //return sigma_nn - gamma_F * (uF_n - g0);
+        // return sigma_nn - gamma_F * (uF_n - g0);
     }
 
     template<typename GradBasis, typename FaceBasis>

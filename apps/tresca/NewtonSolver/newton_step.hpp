@@ -189,6 +189,7 @@ class NewtonRaphson_step_tresca
             tc.toc();
             ai.m_time_elem += tc.to_double();
             ai.m_time_contact += elem.time_contact;
+            ai.m_time_law += elem.time_law;
 
             // Static Condensation
             tc.tic();
