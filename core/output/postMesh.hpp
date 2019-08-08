@@ -181,6 +181,13 @@ class PostMesh<Mesh<T, 2, Storage>>
    {
       return list_cell_nodes.at(cell_id);
    }
+   
+   auto
+   nodes_face(const size_t face_id) const
+   {
+        auto storage = post_mesh.backend_storage();
+        return (storage->edges[face_id]).point_ids();
+   }
 };
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -365,6 +372,12 @@ class PostMesh<Mesh<T, 3, Storage>>
    nodes_cell(const size_t cell_id) const
    {
       return list_cell_nodes.at(cell_id);
+   }
+   
+   list_type
+   nodes_face(const size_t face_id) const
+   {
+      return list_face_nodes.at(face_id);
    }
 };
 

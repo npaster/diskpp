@@ -293,72 +293,62 @@ class gmsh_io
                                            const hho_degree_info&          hdi,
                                            const std::vector<vector_type>& cells_solution) const
     {
-        gmsh::Gmesh gmsh(dimension);
-        auto        storage = msh.backend_storage();
+        gmsh::Gmesh gmsh = m_gmsh;
+        
+        auto storage = m_post_msh.mesh().backend_storage();
 
         const static_vector<scalar_type, dimension> vzero = static_vector<scalar_type, dimension>::Zero();
-        const size_t                                nb_nodes(msh.points_size());
+
         const auto cbs = vector_basis_size(hdi.cell_degree(), dimension, dimension);
+        
+        const auto nb_nodes = m_gmsh.getNumberofNodes();
 
         // first(number of data at this node), second(cumulated value)
-        std::vector<std::pair<size_t, static_vector<scalar_type, dimension>>> value(nb_nodes, std::make_pair(0, vzero));
+        std::vector<std::pair<size_t, static_vector<scalar_type, dimension>>> value(nb_nodes,
+                                                                                    std::make_pair(0, vzero));
 
         int cell_i = 0;
         for (auto& cl : msh)
         {
-            const auto              cb         = disk::make_vector_monomial_basis(msh, cl, hdi.cell_degree());
-            const vector_type x          = cells_solution.at(cell_i++).head(cbs);
-            const auto        cell_nodes = disk::cell_nodes(msh, cl);
+            const auto        cb         = make_vector_monomial_basis(msh, cl, hdi.cell_degree());
+            const vector_type x          = cells_solution.at(cell_i).head(cbs);
+            const auto        cell_nodes = m_post_msh.nodes_cell(cell_i);
 
             // Loop on the nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
+            for (auto& point_id : cell_nodes)
             {
-                const auto point_ids = cell_nodes[i];
-                const auto pt        = storage->points[point_ids];
+                const auto pt = storage->points[point_id];
 
-                const auto phi  = cb.eval_functions(pt);
-                const auto depl = eval(x, phi);
+                const auto phi = cb.eval_functions(pt);
+                const auto sol = eval(x, phi);
 
                 // Add displacement at node
-                value[point_ids].first++;
-                value[point_ids].second += depl;
+                value[point_id].first++;
+                value[point_id].second += sol;
             }
+            cell_i++;
         }
 
-        // New coordinate
-        int i_node = 0;
-        for (auto itor = msh.points_begin(); itor != msh.points_end(); itor++)
+
+        std::vector<gmsh::Node> new_nodes = gmsh.getNodes();
+
+        // Compute the average value and change the cooridinates
+        for (int i_node = 0; i_node < nb_nodes; i_node++)
         {
-            const auto            pt   = *itor;
-            std::array<double, 3> coor = init_coor(pt);
-
-            const static_vector<scalar_type, dimension> depl_avr = value[i_node].second / double(value[i_node].first);
-
-            for (int j = 0; j < dimension; j++)
-                coor[j] += depl_avr(j);
-
-            i_node++;
-            const gmsh::Node tmp_node(coor, i_node, 0);
-            gmsh.addNode(tmp_node);
-        }
-        const auto Nodes = gmsh.getNodes();
-
-        // Add new elements
-        for (auto& cl : msh)
-        {
-            const auto              cell_nodes = disk::cell_nodes(msh, cl);
-            std::vector<gmsh::Node> new_nodes;
-
-            // Loop on nodes of the cell
-            for (int i = 0; i < cell_nodes.size(); i++)
+            std::array<double, 3> coor_node = new_nodes[i_node].getCoordinate();
+            const static_vector<scalar_type, dimension> sol_avr = value[i_node].second / double(value[i_node].first);
+            
+            for(size_t i = 0; i<dimension; i++)
             {
-                const auto point_ids = cell_nodes[i];
-
-                new_nodes.push_back(Nodes[point_ids]);
+                coor_node[i] += sol_avr(i);
             }
-            // Add new element
-            disk::add_element(gmsh, new_nodes);
+            
+            new_nodes[i_node].changeCoordinates(coor_node);
         }
+        
+        
+        gmsh.computeDeformed(new_nodes);
+        
         // Save mesh
         gmsh.writeGmesh(filename, 2);
     }

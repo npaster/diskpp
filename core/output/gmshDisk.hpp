@@ -148,7 +148,7 @@ template<typename T>
 std::vector<double>
 convertToVectorGmsh(const T& field)
 {
-   std::vector<double> ret(3, 0);
+   std::vector<double> ret(1, 0);
 
    ret[0] = field;
 
