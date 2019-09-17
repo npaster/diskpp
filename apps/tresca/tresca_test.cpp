@@ -254,8 +254,9 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&         msh,
     error.error_L2 = nl.compute_l2_displacement_error(solution);
     error.error_H1 = nl.compute_H1_error(solution);
 
-    // nl.compute_stress_GP("stress2D_GP_test.msh");
-    // nl.compute_continuous_displacement("depl2D_cont_test.msh");
+    nl.compute_stress_GP("stress2D_GP_test.msh");
+    nl.compute_continuous_displacement("depl2D_cont_test.msh");
+    nl.compute_continuous_deformed("deformed2D_cont_test.msh");
 
     return error;
 }
@@ -340,6 +341,59 @@ run_tresca_solver(const Mesh<T, 3, Storage>&   msh,
     return error;
 }
 
+template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type
+run_plaque_solver(const Mesh<T, 3, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+{
+    typedef Mesh<T, 3, Storage>                         mesh_type;
+    typedef static_vector<T, 3>                         result_type;
+    typedef static_matrix<T, 3, 3>                      grad_type;
+    typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
+
+    timecounter tc;
+    tc.tic();
+
+    auto load = [material_data](const point<T, 3>& p) -> result_type {
+        T fz = 0.8 * M_PI * M_PI * material_data.getMu() * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+        return result_type{0.0, 0.0, fz};
+    };
+
+    auto solution = [material_data](const point<T, 3>& p) -> result_type {
+        T z     = p.z();
+        T x     = p.x();
+        T exz   = std::exp(x * z);
+        T coeff = 1.0 / (1.0 + material_data.getLambda());
+
+        return result_type{p.x() / material_data.getLambda(),
+                           p.y() / material_data.getLambda(),
+                           p.z() / material_data.getLambda() + 0.4 * sin(M_PI * p.x()) * sin(M_PI * p.y())};
+    };
+
+    Bnd_type bnd(msh);
+
+    bnd.addDirichletEverywhere(solution);
+
+    tresca_solver<mesh_type> nl(msh, bnd, rp, material_data);
+    nl.init_solution(solution);
+
+    SolverInfo solve_info = nl.compute(load);
+
+    if (nl.verbose())
+    {
+        solve_info.printInfo();
+    }
+
+    error_type error;
+    error.h        = average_diameter(msh);
+    error.degree   = rp.m_face_degree;
+    error.nb_dof   = nl.getDofs();
+    error.error_L2 = nl.compute_l2_displacement_error(solution);
+    error.error_H1 = nl.compute_H1_error(solution);
+
+    return error;
+}
+
 void
 printResults(const std::vector<error_type>& error)
 {
@@ -396,8 +450,7 @@ printResults2(const std::vector<error_type>& error)
 
         std::cout << "Robustesse test for k = " << error[0].degree << std::endl;
         std::cout << "-----------------------------------------------------------------------------------" << std::endl;
-        std::cout << "| Lambda coef| Displacement | Difference  | Displacem  | Difference  |    Total   |"
-                  << std::endl;
+        std::cout << "| Lambda coef| Displacement | Difference  | Displacem  | Difference  |    Total   |" << std::endl;
         std::cout << "|    nu       |   L2 error   |             |  H1 error  |             | faces DOF  |"
                   << std::endl;
         std::cout << "-----------------------------------------------------------------------------------" << std::endl;
@@ -480,14 +533,14 @@ template<typename T>
 void
 test_hexagons(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data, const bool cell_based)
 {
-    int runs = 5;
+    int runs = 1;
 
     std::vector<std::string> paths;
-    paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
+    // paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_1.typ1");
+    // paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_2.typ1");
+     paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_3.typ1");
+    //paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_4.typ1");
+    //paths.push_back("../../../diskpp/meshes/2D_hex/fvca5/hexagonal_5.typ1");
 
     std::vector<error_type> error_sumup;
 
@@ -801,6 +854,32 @@ test_polyhedra_fvca6_robust(const ParamRun<T>& rp, disk::MaterialData<T>& materi
     printResults2(error_sumup);
 }
 
+template<typename T>
+void
+test_plaque(const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
+{
+    int runs = 7;
+
+    std::vector<std::string> paths;
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_1.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_2.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_4.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_8.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_16.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_32.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_64.medit3d");
+    paths.push_back("../../../meshes/Tests/Coque/plaque3d_128.medit3d");
+
+    std::vector<error_type> error_sumup;
+
+    for (int i = 0; i < runs; i++)
+    {
+        auto msh = disk::load_medit_3d_mesh<T>(paths[i].c_str());
+        error_sumup.push_back(run_plaque_solver(msh, rp, material_data));
+    }
+    printResults(error_sumup);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -854,7 +933,7 @@ main(int argc, char** argv)
                     degree = 1;
                 }
                 rp.m_face_degree = degree;
-                rp.m_cell_degree = degree+1;
+                rp.m_cell_degree = degree + 1;
                 rp.m_grad_degree = degree;
                 break;
 
@@ -891,6 +970,13 @@ main(int argc, char** argv)
     {
         rp.m_gamma_0 *= (rp.m_face_degree + 1.0) * (rp.m_face_degree + dim);
     }
+
+    // tc.tic();
+    // std::cout << "-plaque:" << std::endl;
+    // test_plaque<RealType>(rp, material_data);
+    // tc.toc();
+    // std::cout << "Time to test plaque: " << tc.to_double() << std::endl;
+    // std::cout << " " << std::endl;
 
     std::cout << " Test convergence rates for: " << std::endl;
     std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
@@ -963,19 +1049,19 @@ main(int argc, char** argv)
     {
         if (robust)
         {
-            tc.tic();
-            std::cout << "-Triangles fvca5:" << std::endl;
-            test_triangles_fvca5_robust<RealType>(rp, material_data, cell_based);
-            tc.toc();
-            std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
-            std::cout << " " << std::endl;
+            // tc.tic();
+            // std::cout << "-Triangles fvca5:" << std::endl;
+            // test_triangles_fvca5_robust<RealType>(rp, material_data, cell_based);
+            // tc.toc();
+            // std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
+            // std::cout << " " << std::endl;
 
-            tc.tic();
-            std::cout << "-Quadrangles diskpp:" << std::endl;
-            test_quads_diskpp_robust<RealType>(rp, material_data, cell_based);
-            tc.toc();
-            std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
-            std::cout << " " << std::endl;
+            // tc.tic();
+            // std::cout << "-Quadrangles diskpp:" << std::endl;
+            // test_quads_diskpp_robust<RealType>(rp, material_data, cell_based);
+            // tc.toc();
+            // std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
+            // std::cout << " " << std::endl;
 
             tc.tic();
             std::cout << "-Hexagons:" << std::endl;
@@ -1000,26 +1086,26 @@ main(int argc, char** argv)
             std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
             std::cout << " " << std::endl;
 
-            tc.tic();
-            std::cout << "-Triangles netgen:" << std::endl;
-            test_triangles_netgen<RealType>(rp, material_data, cell_based);
-            tc.toc();
-            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-            std::cout << " " << std::endl;
+            // tc.tic();
+            // std::cout << "-Triangles netgen:" << std::endl;
+            // test_triangles_netgen<RealType>(rp, material_data, cell_based);
+            // tc.toc();
+            // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            // std::cout << " " << std::endl;
 
-            tc.tic();
-            std::cout << "-Quadrangles fvca5:" << std::endl;
-            test_quads_fvca5<RealType>(rp, material_data, cell_based);
-            tc.toc();
-            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-            std::cout << " " << std::endl;
+            // tc.tic();
+            // std::cout << "-Quadrangles fvca5:" << std::endl;
+            // test_quads_fvca5<RealType>(rp, material_data, cell_based);
+            // tc.toc();
+            // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            // std::cout << " " << std::endl;
 
-            tc.tic();
-            std::cout << "-Quadrangles diskpp:" << std::endl;
-            test_quads_diskpp<RealType>(rp, material_data, cell_based);
-            tc.toc();
-            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-            std::cout << " " << std::endl;
+            // tc.tic();
+            // std::cout << "-Quadrangles diskpp:" << std::endl;
+            // test_quads_diskpp<RealType>(rp, material_data, cell_based);
+            // tc.toc();
+            // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            // std::cout << " " << std::endl;
 
             tc.tic();
             std::cout << "-Hexagons:" << std::endl;
