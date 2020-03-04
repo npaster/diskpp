@@ -243,11 +243,13 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree)
 
      T error = 0.0;
 
+     vector_type flux_faces = vector_type::Zero(msh.faces_size());
+
      for (auto& cl : msh)
      {
          const auto cb  = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
          const auto gr  = make_vector_hho_gradrec_RT(msh, cl, hdi, diffusion_tensor);
-         const auto rhs = make_rhs(msh, cl, cb, rhs_fun);
+         const auto rhs = make_rhs(msh, cl, cb, rhs_fun, 2);
 
          vector_type locsol = assembler.take_local_solution(msh, cl, bnd, sol);
 
@@ -257,7 +259,45 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree)
 
          const auto diff = realsol - sol;
          error += diff.dot(gr.second * diff);
+
+         const vector_type grad_u = gr.first * sol;
+         const auto        gb     = make_vector_monomial_basis_RT(msh, cl, hdi.grad_degree());
+         assert(grad_u.size() == gb.size());
+
+
+         const auto fcs = faces(msh, cl);
+
+         for (auto& fc : fcs)
+         {
+
+             const auto no = normal(msh, cl, fc);
+             // over-intergation by security
+             const auto qpf = integrate(msh, fc, hdi.grad_degree() + 2);
+
+             // compute fluxes F = grad(u).n + coeff_stab*(uF-uT)
+             T flux_grad = T(0);
+
+             for (auto& qp : qpf)
+             {
+                 // eval velocity
+                 const auto gphi = gb.eval_functions(qp.point());
+                 const auto grad = eval(grad_u, gphi);
+                 flux_grad += qp.weight() * (diffusion_tensor(qp.point())* grad).dot(no);
+             }
+
+             flux_faces(msh.lookup(fc)) += flux_grad;
+             //std::cout << msh.lookup(fc) << " -> " << flux_grad << std::endl;
+         }
     }
+
+    for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+    {
+        const auto bfc      = *itor;
+        const auto face_id  = msh.lookup(bfc);
+        flux_faces(face_id) = 0.;
+    }
+    std::cout << "error flux: " << flux_faces.norm() << std::endl;
+    // std::cout << flux_faces.transpose() <<std::endl;
 
     return std::sqrt(error);
 }
