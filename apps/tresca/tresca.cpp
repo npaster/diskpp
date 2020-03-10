@@ -254,13 +254,13 @@ void run_tresca_solver(Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const di
     auto s = [rp](const point<T, 2>& p) -> T { return rp.m_threshold; };
 
     // Bostan2
-    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    // auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
+    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
 
-    // bnd.addContactBC(disk::SIGNORINI_FACE, 6, s);
-    // bnd.addDirichletBC(disk::DIRICHLET, 10, zero);
-    // // bnd.addDirichletBC(disk::DX, 6, zero);
-    // bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+    bnd.addContactBC(disk::SIGNORINI_FACE, 6, s);
+    bnd.addDirichletBC(disk::DIRICHLET, 10, zero);
+    // bnd.addDirichletBC(disk::DX, 6, zero);
+    bnd.addNeumannBC(disk::NEUMANN, 3, neum);
 
     // // Hertz
     // auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -5.0}; };
@@ -275,34 +275,34 @@ void run_tresca_solver(Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const di
     // bnd.addDirichletBC(disk::DY, 19, depl);
 
     // GV
-    renumber_boundaries_gv2d(msh);
+    // renumber_boundaries_gv2d(msh);
 
-    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    auto neum = [material_data](const point<T, 2>& p) -> result_type {
-        const result_type n     = result_type{0.0, 1.0};
-        const result_type t     = result_type{1.0, 0};
-        const T           coeff = 11200;
+    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    // auto neum = [material_data](const point<T, 2>& p) -> result_type {
+    //     const result_type n     = result_type{0.0, 1.0};
+    //     const result_type t     = result_type{1.0, 0};
+    //     const T           coeff = 11200;
 
-        if (p.x() >= 18.0 && p.x() <= 30.0)
-        {
-            return 1.2 * coeff * (-n);
-        }
-        else if (p.x() <= 50.0)
-        {
-            return coeff * (-n - 0.06 * t);
-        }
-        else if (p.x() <= 60.0)
-        {
-            return 0.45 * coeff * (-n - 0.06 * t);
-        }
+    //     if (p.x() >= 18.0 && p.x() <= 30.0)
+    //     {
+    //         return 1.2 * coeff * (-n);
+    //     }
+    //     else if (p.x() <= 50.0)
+    //     {
+    //         return coeff * (-n - 0.06 * t);
+    //     }
+    //     else if (p.x() <= 60.0)
+    //     {
+    //         return 0.45 * coeff * (-n - 0.06 * t);
+    //     }
 
-        return result_type::Zero();
-    };
+    //     return result_type::Zero();
+    // };
 
-    bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
-    bnd.addNeumannBC(disk::NEUMANN, 2, neum);
-    bnd.addDirichletBC(disk::CLAMPED, 5, zero);
-    bnd.addDirichletBC(disk::DY, 3, zero);
+    // bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
+    // bnd.addNeumannBC(disk::NEUMANN, 2, neum);
+    // bnd.addDirichletBC(disk::CLAMPED, 5, zero);
+    // bnd.addDirichletBC(disk::DY, 3, zero);
 
     // solver
 
@@ -458,11 +458,11 @@ main(int argc, char** argv)
     // material_data.setLambda(E, nu);
 
     // GV
-    RealType E  = 210E3;
-    RealType nu = 0.3;
+    // RealType E  = 210E3;
+    // RealType nu = 0.3;
 
-    material_data.setMu(E, nu);
-    material_data.setLambda(E, nu);
+    // material_data.setMu(E, nu);
+    // material_data.setLambda(E, nu);
 
     // Hertz plasticity
     // RealType E  = 70;
@@ -479,8 +479,8 @@ main(int argc, char** argv)
     // material_data.setLambda(1000.0);
 
     // Bostan
-    // material_data.setMu(1000, 0.3);
-    // material_data.setLambda(1000, 0.3);
+    material_data.setMu(1000, 0.3);
+    material_data.setLambda(1000, 0.3);
 
     int ch;
 

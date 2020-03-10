@@ -215,13 +215,22 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&         msh,
         return result_type{x * exy * (1.0 + coeff), y * exy * (-1.0 + coeff)} / 6.0;
     };
 
+    // auto s = [rp, material_data](const point<T, 2>& p) -> T {
+    //     T y      = p.y();
+    //     T x      = p.x();
+    //     T mu     = material_data.getMu();
+    //     T lambda = material_data.getLambda();
+
+    //     return mu * x * x * (0.5 * lambda + 1.0) / (3 * lambda + 3.0);
+    // };
+
     auto s = [rp, material_data](const point<T, 2>& p) -> T {
         T y      = p.y();
         T x      = p.x();
         T mu     = material_data.getMu();
         T lambda = material_data.getLambda();
 
-        return mu * x * x * (0.5 * lambda + 1.0) / (3 * lambda + 3.0);
+        return 0.1;
     };
 
     Bnd_type bnd(msh);
@@ -257,6 +266,8 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&         msh,
     nl.compute_stress_GP("stress2D_GP_test.msh");
     nl.compute_continuous_displacement("depl2D_cont_test.msh");
     nl.compute_continuous_deformed("deformed2D_cont_test.msh");
+
+    assert(false);
 
     return error;
 }
@@ -301,12 +312,20 @@ run_tresca_solver(const Mesh<T, 3, Storage>&   msh,
         return result_type{x * exz * (1.0 + coeff), 0.0, z * exz * (-1.0 + coeff)} / 6.0;
     };
 
+    // auto s = [rp, material_data](const point<T, 3>& p) -> T {
+    //     T x      = p.x();
+    //     T mu     = material_data.getMu();
+    //     T lambda = material_data.getLambda();
+
+    //     return mu * x * x * (0.5 * lambda + 1.0) / (3 * lambda + 3.0);
+    // };
+
     auto s = [rp, material_data](const point<T, 3>& p) -> T {
         T x      = p.x();
         T mu     = material_data.getMu();
         T lambda = material_data.getLambda();
 
-        return mu * x * x * (0.5 * lambda + 1.0) / (3 * lambda + 3.0);
+        return 0.3;
     };
 
     Bnd_type bnd(msh);
@@ -490,9 +509,9 @@ test_triangles_fvca5(const ParamRun<T>& rp, const disk::MaterialData<T>& materia
     int runs = 4;
 
     std::vector<std::string> paths;
-    paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_1.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_2.typ1");
-    paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_3.typ1");
+    // paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_1.typ1");
+    // paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_2.typ1");
+    // paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_3.typ1");
     paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_4.typ1");
     paths.push_back("../../../diskpp/meshes/2D_triangles/fvca5/mesh1_5.typ1");
 
