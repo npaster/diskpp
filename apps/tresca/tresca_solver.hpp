@@ -1067,14 +1067,16 @@ class tresca_solver
                                   elem.eval_phi_t_uF(stress_coeff, gb, fb, uTF, offset, n, gamma_F, qp.point());
                                 const auto phi_t_1_u_proj = elem.eval_proj_phi_t_uF(
                                   stress_coeff, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
+                                const auto phi_t_1_u_proj_coulomb = elem.eval_proj_coulomb_phi_t_uF(
+                                  fc, stress_coeff, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
                                 const auto uF_t_u = elem.eval_uF_t(fb, uF, n, qp.point());
 
                                 output << qp.point().x() << "\t" << qp.point().y() << "\t" << uT_n_u << "\t"
                                        << sigma_nn_u << "\t" << phi_n_1_u << "\t" << phi_n_1_u_proj << "\t"
                                        << uF_t_u.transpose() << "\t" << sigma_nt_u.transpose() << "\t"
-                                       << phi_t_1_u.transpose() << "\t" << phi_t_1_u_proj.transpose() << "\t"
-                                       << phi_t_1_u.norm() << "\t" << phi_t_1_u_proj.norm() << "\t"
-                                       << phi_t_1_u_proj.norm() / m_rp.m_threshold << "\t" << r << std ::endl;
+                                       << phi_t_1_u.transpose() << "\t" << phi_t_1_u_proj_coulomb.transpose() << "\t"
+                                       << phi_t_1_u.norm() << "\t" << phi_t_1_u_proj_coulomb.norm() << "\t"
+                                       << phi_t_1_u_proj_coulomb.norm() / m_rp.m_threshold << "\t" << r << std ::endl;
                             }
                         }
                     }

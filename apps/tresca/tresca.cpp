@@ -236,6 +236,64 @@ renumber_boundaries_gv3d(Mesh& msh)
     std::cout << "b9: " << b9 << std::endl;
 }
 
+template<typename Mesh>
+void
+renumber_square_boundaries_2d(Mesh& msh)
+{
+    using T      = typename Mesh::coordinate_type;
+    auto storage = msh.backend_storage();
+
+    auto is_close_to = [](const T val, const T ref) -> bool {
+        T eps = 1E-7;
+        return std::abs(ref - val) < eps;
+    };
+
+    /*          -----------------
+     *           !    4     3    !
+     *      5    !               !
+     *           !               ! 2
+     *      6    !               !
+     *           !               !
+     *           -----------------
+     *                   1
+     * */
+
+    for (size_t face_i = 0; face_i < msh.faces_size(); face_i++)
+    {
+        auto fc = *std::next(msh.faces_begin(), face_i);
+        if (storage->boundary_info.at(face_i).is_boundary)
+        {
+            const auto bar = barycenter(msh, fc);
+            if (is_close_to(bar.y(), T(0)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 1;
+            }
+            else if (is_close_to(bar.x(), T(1)))
+            {
+                storage->boundary_info.at(face_i).boundary_id = 2;
+            }
+            else if (is_close_to(bar.y(), T(1)))
+            {
+                if (bar.x() > 0.5)
+                    storage->boundary_info.at(face_i).boundary_id = 3;
+                else
+                    storage->boundary_info.at(face_i).boundary_id = 4;
+            }
+            else if (is_close_to(bar.x(), T(0)))
+            {
+                if (bar.y() > 0.5)
+                    storage->boundary_info.at(face_i).boundary_id = 5;
+                else
+                    storage->boundary_info.at(face_i).boundary_id = 6;
+            }
+            else
+            {
+                throw std::invalid_argument("dont find the boundaries");
+            }
+        }
+    }
+}
+
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 void run_tresca_solver(Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const disk::MaterialData<T>& material_data)
 {
@@ -254,13 +312,13 @@ void run_tresca_solver(Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const di
     auto s = [rp](const point<T, 2>& p) -> T { return rp.m_threshold; };
 
     // Bostan2
-    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
-    auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
+    // auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    // auto neum = [material_data](const point<T, 2>& p) -> result_type { return result_type{400.0, 0}; };
 
-    bnd.addContactBC(disk::SIGNORINI_FACE, 6, s);
-    bnd.addDirichletBC(disk::DIRICHLET, 10, zero);
-    // bnd.addDirichletBC(disk::DX, 6, zero);
-    bnd.addNeumannBC(disk::NEUMANN, 3, neum);
+    // bnd.addContactBC(disk::SIGNORINI_FACE, 6, s);
+    // bnd.addDirichletBC(disk::DIRICHLET, 10, zero);
+    // // bnd.addDirichletBC(disk::DX, 6, zero);
+    // bnd.addNeumannBC(disk::NEUMANN, 3, neum);
 
     // // Hertz
     // auto depl = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -5.0}; };
@@ -303,6 +361,17 @@ void run_tresca_solver(Mesh<T, 2, Storage>& msh, const ParamRun<T>& rp, const di
     // bnd.addNeumannBC(disk::NEUMANN, 2, neum);
     // bnd.addDirichletBC(disk::CLAMPED, 5, zero);
     // bnd.addDirichletBC(disk::DY, 3, zero);
+
+    // Lleras
+    renumber_square_boundaries_2d(msh);
+    auto zero = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, 0}; };
+    auto neum1 = [material_data](const point<T, 2>& p) -> result_type { return result_type{0.0, -1.0}; };
+    auto neum2 = [material_data](const point<T, 2>& p) -> result_type { return result_type{1.0, 0}; };
+
+    bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
+    bnd.addDirichletBC(disk::DX, 2, zero);
+    bnd.addNeumannBC(disk::NEUMANN, 3, neum1);
+    bnd.addNeumannBC(disk::NEUMANN, 5, neum2);
 
     // solver
 
@@ -479,8 +548,12 @@ main(int argc, char** argv)
     // material_data.setLambda(1000.0);
 
     // Bostan
-    material_data.setMu(1000, 0.3);
-    material_data.setLambda(1000, 0.3);
+    // material_data.setMu(1000, 0.3);
+    // material_data.setLambda(1000, 0.3);
+
+    // Lleras
+    material_data.setMu(10000., 0.2);
+    material_data.setLambda(10000., 0.2);
 
     int ch;
 
