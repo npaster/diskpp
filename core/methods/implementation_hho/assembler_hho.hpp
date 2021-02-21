@@ -166,7 +166,8 @@ class diffusion_condensed_assembler
              const typename Mesh::cell_type& cl,
              const matrix_type&              lhs,
              const vector_type&              rhs,
-             const Function&                 dirichlet_bf)
+             const Function&                 dirichlet_bf,
+             size_t                          odi=1)
     {
         if (use_bnd)
             throw std::invalid_argument("diffusion_assembler: you have to use boundary type");
@@ -196,7 +197,7 @@ class diffusion_condensed_assembler
             if (dirichlet)
             {
                 dirichlet_data.block(face_i * fbs, 0, fbs, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_bf, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_bf, odi);
             }
         }
 
@@ -222,7 +223,8 @@ class diffusion_condensed_assembler
              const typename Mesh::cell_type& cl,
              const boundary_type&            bnd,
              const matrix_type&              lhs,
-             const vector_type&              rhs)
+             const vector_type&              rhs,
+             size_t                          odi = 1)
     {
         if (!use_bnd)
             throw std::invalid_argument("diffusion_assembler: you have to use boundary type in the constructor");
@@ -252,7 +254,7 @@ class diffusion_condensed_assembler
                 auto dirichlet_fun = bnd.dirichlet_boundary_func(face_id);
 
                 dirichlet_data.block(face_i * fbs, 0, fbs, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_fun, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_fun, odi);
             }
         }
 
@@ -274,7 +276,7 @@ class diffusion_condensed_assembler
     } // assemble()
 
     void
-    impose_neumann_boundary_conditions(const Mesh& msh, const boundary_type& bnd)
+    impose_neumann_boundary_conditions(const Mesh& msh, const boundary_type& bnd, size_t odi = 1)
     {
         if (!use_bnd)
             throw std::invalid_argument("diffusion_assembler: you have to use boundary type in the constructor");
@@ -314,7 +316,7 @@ class diffusion_condensed_assembler
                         }
 
                         auto        fb      = make_scalar_monomial_basis(msh, bfc, face_degree);
-                        vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), face_degree);
+                        vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), odi);
 
                         assert(neumann.size() == num_face_dofs);
                         for (size_t i = 0; i < neumann.size(); i++)
@@ -330,7 +332,7 @@ class diffusion_condensed_assembler
     }
 
     void
-    impose_robin_boundary_conditions(const Mesh& msh, const boundary_type& bnd)
+    impose_robin_boundary_conditions(const Mesh& msh, const boundary_type& bnd, size_t odi = 1)
     {
         if (!use_bnd)
             throw std::invalid_argument("diffusion_assembler: you have to use boundary type in the constructor");
@@ -382,7 +384,7 @@ class diffusion_condensed_assembler
                             asm_map.push_back(assembly_index(face_LHS_offset + i, true));
 
                         auto        fb    = make_scalar_monomial_basis(msh, bfc, face_degree);
-                        vector_type robin = make_rhs(msh, bfc, fb, bnd.robin_boundary_func(face_id), face_degree);
+                        vector_type robin = make_rhs(msh, bfc, fb, bnd.robin_boundary_func(face_id), odi);
                         assert(robin.size() == num_face_dofs);
 
                         matrix_type mass = make_mass_matrix(msh, bfc, fb);
@@ -408,7 +410,8 @@ class diffusion_condensed_assembler
     take_local_solution(const Mesh&                     msh,
                         const typename Mesh::cell_type& cl,
                         const vector_type&              solution,
-                        const Function&                 dirichlet_bf)
+                        const Function&                 dirichlet_bf,
+                        size_t                          odi = 1)
     {
         const auto fbs = scalar_basis_size(di.face_degree(), Mesh::dimension - 1);
         const auto fcs = faces(msh, cl);
@@ -428,7 +431,7 @@ class diffusion_condensed_assembler
             if (dirichlet)
             {
                 ret.block(face_i * fbs, 0, fbs, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_bf, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_bf, odi);
             }
             else
             {
@@ -447,7 +450,8 @@ class diffusion_condensed_assembler
     take_local_data(const Mesh&                     msh,
                     const typename Mesh::cell_type& cl,
                     const vector_type&              solution,
-                    const Function&                 dirichlet_bf)
+                    const Function&                 dirichlet_bf,
+                    size_t                          odi = 1)
     {
         return this->take_local_solution(msh, cl, solution, dirichlet_bf);
     }
@@ -456,7 +460,8 @@ class diffusion_condensed_assembler
     take_local_data(const Mesh&                     msh,
                     const typename Mesh::cell_type& cl,
                     const boundary_type&            bnd,
-                    const vector_type&              solution)
+                    const vector_type&              solution,
+                    size_t                          odi = 1)
     {
         const auto fbs = scalar_basis_size(di.face_degree(), Mesh::dimension - 1);
         const auto fcs = faces(msh, cl);
@@ -481,7 +486,7 @@ class diffusion_condensed_assembler
                 const auto dirichlet_bf = bnd.dirichlet_boundary_func(face_id);
 
                 ret.block(face_i * fbs, 0, fbs, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_bf, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_bf, odi);
             }
             else
             {
@@ -776,7 +781,7 @@ class stokes_assembler
                 auto dirichlet_fun = m_bnd.dirichlet_boundary_func(face_id);
 
                 dirichlet_data.block(cbs_A + face_i * fbs_A, 0, fbs_A, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_fun, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_fun, 2);
             }
         }
 
@@ -873,7 +878,7 @@ class stokes_assembler
                 auto velocity = m_bnd.dirichlet_boundary_func(face_id);
 
                 svel.block(cbs_A + i * fbs_A, 0, fbs_A, 1) =
-                  project_function(msh, fc, di.face_degree(), velocity, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), velocity, 2);
             }
             else
             {
@@ -1083,7 +1088,7 @@ class stokes_assembler_alg
                 auto dirichlet_fun = m_bnd.dirichlet_boundary_func(face_id);
 
                 dirichlet_data.block(cbs_A + face_i * fbs_A, 0, fbs_A, 1) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_fun, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), dirichlet_fun, 2);
             }
         }
 
@@ -1216,7 +1221,7 @@ class stokes_assembler_alg
                 auto velocity = m_bnd.dirichlet_boundary_func(face_id);
 
                 svel.block(cbs_A + i * fbs_A, 0, fbs_A, 1) =
-                  project_function(msh, fc, di.face_degree(), velocity, di.face_degree());
+                  project_function(msh, fc, di.face_degree(), velocity, 2);
             }
             else
             {
@@ -2223,7 +2228,7 @@ class assembler_mechanics
     }
 
     void
-    impose_neumann_boundary_conditions(const mesh_type& msh, const bnd_type& bnd)
+    impose_neumann_boundary_conditions(const mesh_type& msh, const bnd_type& bnd, size_t di = 1)
     {
         const auto face_degree   = m_hdi.face_degree();
         const auto num_face_dofs = vector_basis_size(face_degree, dimension - 1, dimension);
@@ -2239,7 +2244,7 @@ class assembler_mechanics
                 {
                     const size_t      face_offset = face_compress_map.at(face_id);
                     auto              fb          = make_vector_monomial_basis(msh, bfc, face_degree);
-                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), face_degree);
+                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), di);
 
                     assert(neumann.size() == num_face_dofs);
 
@@ -2477,7 +2482,8 @@ class scalar_primal_hho_assembler
              const cell_type&     cl,
              const boundary_type& bnd,
              const matrix_type&   lhs,
-             const vector_type&   rhs)
+             const vector_type&   rhs,
+             size_t               odi = 1)
     {
         const auto                  fcs_id = faces_id(msh, cl);
         std::vector<assembly_index> asm_map;
@@ -2504,7 +2510,7 @@ class scalar_primal_hho_assembler
                 const auto fc = *std::next(msh.faces_begin(), face_id);
 
                 dirichlet_data.segment(face_i * fbs, fbs) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_fun, 2);
+                  project_function(msh, fc, di.face_degree(), dirichlet_fun, odi);
             }
         }
 
@@ -2544,7 +2550,7 @@ class scalar_primal_hho_assembler
     }
 
     vector_type
-    expand_solution(const mesh_type& msh, const boundary_type& bnd, const vector_type& solution)
+    expand_solution(const mesh_type& msh, const boundary_type& bnd, const vector_type& solution, size_t odi = 1)
     {
         assert(solution.size() == system_size);
 
@@ -2562,7 +2568,7 @@ class scalar_primal_hho_assembler
                 size_t sol_ind = 0;
 
                 const vector_type proj_bcf =
-                  project_function(msh, bfc, di.face_degree(), bnd.dirichlet_boundary_func(face_id), 2);
+                  project_function(msh, bfc, di.face_degree(), bnd.dirichlet_boundary_func(face_id), odi);
 
                 assert(proj_bcf.size() == fbs);
 
@@ -2578,7 +2584,11 @@ class scalar_primal_hho_assembler
     }
 
     vector_type
-    take_local_solution(const Mesh& msh, const cell_type& cl, const boundary_type& bnd, const vector_type& sol) const
+    take_local_solution(const Mesh&          msh,
+                        const cell_type&     cl,
+                        const boundary_type& bnd,
+                        const vector_type&   sol,
+                        size_t               odi = 1) const
     {
         const auto fcs_id    = faces_id(msh, cl);
         const auto num_faces = fcs_id.size();
@@ -2594,7 +2604,7 @@ class scalar_primal_hho_assembler
                 const auto dirichlet_bf = bnd.dirichlet_boundary_func(face_id);
                 const auto fc           = *std::next(msh.faces_begin(), face_id);
                 ret.segment(face_i * fbs, fbs) =
-                  project_function(msh, fc, di.face_degree(), dirichlet_bf, 2);
+                  project_function(msh, fc, di.face_degree(), dirichlet_bf, odi);
             }
             else
             {
@@ -2606,7 +2616,7 @@ class scalar_primal_hho_assembler
     }
 
     void
-    impose_neumann_boundary_conditions(const Mesh& msh, const boundary_type& bnd)
+    impose_neumann_boundary_conditions(const Mesh& msh, const boundary_type& bnd, size_t odi=1)
     {
         if (bnd.nb_faces_neumann() > 0)
         {
@@ -2642,7 +2652,7 @@ class scalar_primal_hho_assembler
 
                         const auto        fb = make_scalar_monomial_basis(msh, bfc, face_degree);
                         const vector_type neumann =
-                          make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), face_degree);
+                          make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), odi);
 
                         assert(neumann.size() == fbs);
                         for (size_t i = 0; i < neumann.size(); i++)
@@ -2656,7 +2666,7 @@ class scalar_primal_hho_assembler
     }
 
     void
-    impose_robin_boundary_conditions(const Mesh& msh, const boundary_type& bnd)
+    impose_robin_boundary_conditions(const Mesh& msh, const boundary_type& bnd, size_t odi = 1)
     {
         if (bnd.nb_faces_robin() > 0)
         {
@@ -2701,7 +2711,7 @@ class scalar_primal_hho_assembler
                             asm_map.push_back(assembly_index(face_LHS_offset + i, true));
 
                         const auto        fb    = make_scalar_monomial_basis(msh, bfc, face_degree);
-                        const vector_type robin = make_rhs(msh, bfc, fb, bnd.robin_boundary_func(face_id), face_degree);
+                        const vector_type robin = make_rhs(msh, bfc, fb, bnd.robin_boundary_func(face_id), odi);
                         assert(robin.size() == fbs);
 
                         const matrix_type mass = make_mass_matrix(msh, bfc, fb);
@@ -2951,7 +2961,7 @@ class vector_primal_hho_assembler
              const boundary_type& bnd,
              const matrix_type&   lhs,
              const vector_type&   rhs,
-             int                  di = 0)
+             int                  di = 1)
     {
         const auto fcs_id       = faces_id(msh, cl);
         const auto fcs          = faces(msh, cl);
@@ -3197,7 +3207,7 @@ class vector_primal_hho_assembler
                         const typename Mesh::face_type& fc,
                         const boundary_type&            bnd,
                         const vector_type&              solution,
-                        size_t                          di = 0) const
+                        size_t                          di = 1) const
     {
         const auto face_id = msh.lookup(fc);
 
@@ -3330,7 +3340,7 @@ class vector_primal_hho_assembler
                         const typename Mesh::cell_type& cl,
                         const boundary_type&            bnd,
                         const vector_type&              solution,
-                        size_t                          di = 0) const
+                        size_t                          di = 1) const
     {
 
         const auto fcs    = faces(msh, cl);
@@ -3386,7 +3396,7 @@ class vector_primal_hho_assembler
                        const matrix_type&              lhs,
                        const vector_type&              rhs,
                        const std::vector<vector_type>& sol_F,
-                       int                             di = 0)
+                       int                             di = 1)
     {
         assert(sol_F.size() == msh.faces_size());
         const auto fcs_id       = faces_id(msh, cl);
@@ -3642,7 +3652,7 @@ class vector_primal_hho_assembler
                                   const boundary_type&            bnd,
                                   const vector_type&              solution,
                                   const std::vector<vector_type>& sol_F,
-                                  size_t                          di = 0) const
+                                  size_t                          di = 1) const
     {
         const auto fcs    = faces(msh, cl);
         const auto fcs_id = faces_id(msh, cl);
@@ -3673,7 +3683,7 @@ class vector_primal_hho_assembler
                                   const boundary_type&            bnd,
                                   const vector_type&              solution,
                                   const std::vector<vector_type>& sol_F,
-                                  size_t                          di = 0) const
+                                  size_t                          di = 1) const
     {
         const auto face_id = msh.lookup(fc);
 
@@ -3828,7 +3838,7 @@ class vector_primal_hho_assembler
     }
 
     void
-    impose_neumann_boundary_conditions(const mesh_type& msh, const boundary_type& bnd)
+    impose_neumann_boundary_conditions(const mesh_type& msh, const boundary_type& bnd, size_t di = 1)
     {
         if (bnd.nb_faces_neumann() > 0)
         {
@@ -3845,7 +3855,7 @@ class vector_primal_hho_assembler
                 if (bnd.is_neumann_face(face_id))
                 {
                     const auto        fb      = make_vector_monomial_basis(msh, bfc, face_degree);
-                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), 1);
+                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), di);
 
                     assert(neumann.size() == n_face_dofs);
 
@@ -4090,7 +4100,7 @@ class vector_mechanics_hho_assembler
                               const matrix_type&              lhs,
                               const vector_type&              rhs,
                               const std::vector<vector_type>& sol_F,
-                              int                             di = 0) const
+                              int                             di = 1) const
     {
         assert(sol_F.size() == msh.faces_size());
         const auto fcs_id       = faces_id(msh, cl);
@@ -4512,7 +4522,7 @@ class vector_mechanics_hho_assembler
                        const matrix_type&              lhs,
                        const vector_type&              rhs,
                        const std::vector<vector_type>& sol_F,
-                       int                             di = 0)
+                       int                             di = 1)
     {
         const auto [rhs_bc, asm_map] = create_local_connectivity(msh, cl, bnd, lhs, rhs, sol_F, di);
 
@@ -4559,7 +4569,7 @@ class vector_mechanics_hho_assembler
                        const matrix_type&              lhs,
                        const vector_type&              rhs,
                        const std::vector<vector_type>& sol_F,
-                       int                             di = 0)
+                       int                             di = 1)
     {
         auto [rhs_bc, asm_map] = create_local_connectivity(msh, cl, bnd, lhs, rhs, sol_F, di);
 
@@ -4641,7 +4651,7 @@ class vector_mechanics_hho_assembler
                                   const boundary_type&            bnd,
                                   const vector_type&              solution,
                                   const std::vector<vector_type>& sol_F,
-                                  size_t                          di = 0) const
+                                  size_t                          di = 1) const
     {
         const auto fcs    = faces(msh, cl);
         const auto fcs_id = faces_id(msh, cl);
@@ -4672,7 +4682,7 @@ class vector_mechanics_hho_assembler
                                   const boundary_type&            bnd,
                                   const vector_type&              solution,
                                   const std::vector<vector_type>& sol_F,
-                                  size_t                          di = 0) const
+                                  size_t                          di = 1) const
     {
         const auto face_id = msh.lookup(fc);
 
@@ -4851,7 +4861,7 @@ class vector_mechanics_hho_assembler
                               const boundary_type&            bnd,
                               const vector_type&              solution,
                               const std::vector<vector_type>& sol_F,
-                              int                             di = 0) const
+                              int                             di = 1) const
     {
         assert(solution.size() == system_size);
         assert(sol_F.size() == msh.faces_size());
@@ -4875,7 +4885,7 @@ class vector_mechanics_hho_assembler
     }
 
     void
-    impose_neumann_boundary_conditions(const mesh_type& msh, const boundary_type& bnd)
+    impose_neumann_boundary_conditions(const mesh_type& msh, const boundary_type& bnd, size_t di = 1)
     {
         if (bnd.nb_faces_neumann() > 0)
         {
@@ -4892,7 +4902,7 @@ class vector_mechanics_hho_assembler
                 if (bnd.is_neumann_face(face_id))
                 {
                     const auto        fb      = make_vector_monomial_basis(msh, bfc, face_degree);
-                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), 1);
+                    const vector_type neumann = make_rhs(msh, bfc, fb, bnd.neumann_boundary_func(face_id), di);
 
                     assert(neumann.size() == n_face_dofs);
 
