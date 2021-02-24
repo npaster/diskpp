@@ -220,14 +220,15 @@ std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typenam
 make_vector_hho_gradrec(const Mesh&                     msh,
                         const typename Mesh::cell_type& cl,
                         const hho_degree_info&          di,
-                        const TensorField&              mfield)
+                        const TensorField&              mfield,
+                        size_t odi = 0)
 {
     const auto gradrec = make_vector_hho_gradrec(msh, cl, di);
 
     const auto graddeg = di.grad_degree();
     const auto gb      = make_vector_monomial_basis(msh, cl, graddeg);
 
-    const auto mass = make_mass_matrix(msh, cl, gb, mfield);
+    const auto mass = make_mass_matrix(msh, cl, gb, mfield, odi);
     const auto LHS  = gradrec.first.transpose() * mass * gradrec.first;
 
     return std::make_pair(gradrec.first, LHS);
@@ -257,7 +258,8 @@ std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typenam
 make_vector_hho_gradrec(const Mesh&                     msh,
                         const typename Mesh::cell_type& cl,
                         const MeshDegreeInfo<Mesh>&     msh_infos,
-                        const TensorField&              mfield)
+                        const TensorField&              mfield,
+                        size_t odi = 0)
 {
     const auto cell_infos = msh_infos.cellDegreeInfo(msh, cl);
     const auto gradrec    = make_vector_hho_gradrec(msh, cl, msh_infos);
@@ -265,7 +267,7 @@ make_vector_hho_gradrec(const Mesh&                     msh,
     const auto graddeg = cell_infos.grad_degree();
     const auto gb      = make_vector_monomial_basis(msh, cl, graddeg);
 
-    const auto mass = make_mass_matrix(msh, cl, gb, mfield);
+    const auto mass = make_mass_matrix(msh, cl, gb, mfield, odi);
     const auto LHS  = gradrec.first.transpose() * mass * gradrec.first;
 
     return std::make_pair(gradrec.first, LHS);
@@ -364,14 +366,15 @@ std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typenam
 make_vector_hho_gradrec_RT(const Mesh&                     msh,
                            const typename Mesh::cell_type& cl,
                            const hho_degree_info&          di,
-                           const TensorField&              mfield)
+                           const TensorField&              mfield,
+                           size_t odi = 0)
 {
     const auto gradrec_RT = make_vector_hho_gradrec_RT(msh, cl, di);
 
     const auto graddeg = di.grad_degree();
     const auto gb      = make_vector_monomial_basis_RT(msh, cl, graddeg);
 
-    const auto mass = make_mass_matrix(msh, cl, gb, mfield);
+    const auto mass = make_mass_matrix(msh, cl, gb, mfield, odi);
     const auto LHS  = gradrec_RT.first.transpose() * mass * gradrec_RT.first;
 
     return std::make_pair(gradrec_RT.first, LHS);
@@ -404,14 +407,15 @@ std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typenam
 make_vector_hho_gradrec_RT(const Mesh&                     msh,
                            const typename Mesh::cell_type& cl,
                            const MeshDegreeInfo<Mesh>&     msh_infos,
-                           const TensorField&              mfield)
+                           const TensorField&              mfield,
+                           size_t odi = 0)
 {
     const auto gradrec_RT = make_vector_hho_gradrec_RT(msh, cl, msh_infos);
 
     const auto graddeg = msh_infos.cellDegreeInfo(msh, cl).grad_degree();
     const auto gb      = make_vector_monomial_basis_RT(msh, cl, graddeg);
 
-    const auto mass = make_mass_matrix(msh, cl, gb, mfield);
+    const auto mass = make_mass_matrix(msh, cl, gb, mfield, odi);
     const auto LHS  = gradrec_RT.first.transpose() * mass * gradrec_RT.first;
 
     return std::make_pair(gradrec_RT.first, LHS);
