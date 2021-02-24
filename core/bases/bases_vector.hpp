@@ -837,9 +837,12 @@ struct scaled_monomial_vector_basis_RT
 /* RT Basis 'factory'. */
 template<typename MeshType, typename ElementType>
 auto
-make_vector_monomial_basis_RT(const MeshType& msh, const ElementType& elem, const size_t degree)
+make_vector_monomial_basis_RT(const MeshType&    msh,
+                              const ElementType& elem,
+                              const size_t       degree,
+                              bool               use_inertia_axes = USE_INERTIA_AXES)
 {
-    return scaled_monomial_vector_basis_RT<MeshType, ElementType>(msh, elem, degree);
+    return scaled_monomial_vector_basis_RT<MeshType, ElementType>(msh, elem, degree, use_inertia_axes);
 }
 
 /* Specialization for 3D meshes, cells */
@@ -871,9 +874,13 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 3, Storage>, typename Mesh<T, 3, S
     vector_basis_type                                          vector_basis;
 
   public:
-    scaled_monomial_vector_basis_RT(const mesh_type& msh, const cell_type& cl, const size_t degree) :
-      basis_degree(degree), basis_size(vector_basis_size_RT(degree, 3, 3)), scalar_basis(msh, cl, degree - 1),
-      vector_basis(msh, cl, degree - 1, false), base(msh, cl, false)
+    scaled_monomial_vector_basis_RT(const mesh_type& msh,
+                                    const cell_type& cl,
+                                    const size_t     degree,
+                                    bool             use_inertia_axes = false) :
+      basis_degree(degree),
+      basis_size(vector_basis_size_RT(degree, 3, 3)), scalar_basis(msh, cl, degree - 1, use_inertia_axes),
+      vector_basis(msh, cl, degree - 1, use_inertia_axes), base(msh, cl, use_inertia_axes)
     {
         if (degree <= 0)
             throw std::invalid_argument("Raviart-Thomas basis: degree has to be > 0");
@@ -982,9 +989,13 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
     vector_basis_type                                          vector_basis;
 
   public:
-    scaled_monomial_vector_basis_RT(const mesh_type& msh, const cell_type& cl, const size_t degree) :
-      basis_degree(degree), basis_size(vector_basis_size_RT(degree, 2, 2)), scalar_basis(msh, cl, degree - 1),
-      vector_basis(msh, cl, degree - 1, false), base(msh, cl, false)
+    scaled_monomial_vector_basis_RT(const mesh_type&        msh,
+                                    const cell_type&        cl,
+                                    const size_t degree,
+                                    bool use_inertia_axes = false) :
+      basis_degree(degree),
+      basis_size(vector_basis_size_RT(degree, 2, 2)), scalar_basis(msh, cl, degree - 1, use_inertia_axes),
+      vector_basis(msh, cl, degree - 1, use_inertia_axes), base(msh, cl, use_inertia_axes)
     {
         if (degree <= 0)
             throw std::invalid_argument("Raviart-Thomas basis: degree has to be > 0");
