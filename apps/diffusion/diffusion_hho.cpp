@@ -129,7 +129,7 @@ struct gradient_functor<Mesh<T, 2, Storage>>
         auto gx = cos_px * sin_py;
         auto gy = sin_px * cos_py;
 
-        return -M_PI * result_type{gx, gy};
+        return M_PI * result_type{gx, gy};
     }
 };
 
@@ -154,7 +154,7 @@ struct gradient_functor<Mesh<T, 3, Storage>>
         auto gx = cos_px * sin_py * sin_pz;
         auto gy = sin_px * cos_py * sin_pz;
         auto gz = sin_px * sin_py * cos_pz;
-        return -M_PI * result_type{gx, gy, gz};
+        return M_PI * result_type{gx, gy, gz};
     }
 };
 
@@ -187,10 +187,9 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
 
     for (auto& cl : msh)
     {
-        auto cb = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        auto gr = make_scalar_hho_laplacian(msh, cl, hdi);
-        // auto stab = make_scalar_hho_stabilization(msh, cl, gr.first, hdi, stab_diam_F);
-        auto        stab = make_scalar_hdg_stabilization(msh, cl, hdi, stab_diam_F);
+        auto        cb   = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
+        auto        gr   = make_scalar_hho_laplacian(msh, cl, hdi);
+        auto        stab = make_scalar_hho_stabilization(msh, cl, gr.first, hdi, stab_diam_F);
         auto        rhs  = make_rhs(msh, cl, cb, rhs_fun, odi);
         matrix_type A    = gr.second + stab;
         auto        sc   = make_scalar_static_condensation(msh, cl, hdi, A, rhs);
@@ -226,12 +225,11 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
 
     for (auto& cl : msh)
     {
-        auto cb   = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        auto gr   = make_scalar_hho_laplacian(msh, cl, hdi);
-        auto stab = make_scalar_hdg_stabilization(msh, cl, hdi, stab_diam_F);
-        // auto        stab = make_scalar_hho_stabilization(msh, cl, gr.first, hdi, stab_diam_F);
-        auto        rhs = make_rhs(msh, cl, cb, rhs_fun, odi);
-        matrix_type A   = gr.second + stab;
+        auto        cb   = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
+        auto        gr   = make_scalar_hho_laplacian(msh, cl, hdi);
+        auto        stab = make_scalar_hho_stabilization(msh, cl, gr.first, hdi, stab_diam_F);
+        auto        rhs  = make_rhs(msh, cl, cb, rhs_fun, odi);
+        matrix_type A    = gr.second + stab;
 
         vector_type locsol = assembler.take_local_data(msh, cl, sol, sol_fun, odi);
 
@@ -251,7 +249,7 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
 
         const auto fcs = faces(msh, cl);
 
-        const auto        adjoint = make_scalar_hdg_stabilization_adjoint(msh, cl, hdi, stab_diam_F);
+        const auto        adjoint = make_scalar_hho_stabilization_adjoint(msh, cl, gr.first, hdi, stab_diam_F);
         const vector_type flux_u  = adjoint * fullsol;
 
         size_t fc_off = 0;
@@ -259,8 +257,6 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
         for (auto& fc : fcs)
         {
             const auto no = normal(msh, cl, fc);
-            // over-intergation by security
-            const auto qpf = integrate(msh, fc, hdi.grad_degree() + odi);
 
             const auto diff_deg = std::max(hdi.face_degree(), hdi.cell_degree());
             const auto db       = make_scalar_monomial_basis(msh, fc, diff_deg);
@@ -268,9 +264,11 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
 
             const vector_type flux_uF = flux_u.segment(fc_off, dbs);
 
-            // compute fluxes F = -grad(u).n + coeff_stab*(uF-uT)
+            // compute fluxes F = -grad(u).n - coeff_stab*(uF-uT)
             T flux_grad = T(0);
             T flux_stab = T(0);
+
+            const auto qpf = integrate(msh, fc, std::max(hdi.grad_degree(), diff_deg));
 
             for (auto& qp : qpf)
             {
@@ -278,32 +276,35 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
                 const Eigen::Matrix<T, Eigen::Dynamic, Mesh::dimension> gphi =
                   gb.eval_gradients(qp.point()).block(1, 0, gbs, Mesh::dimension);
                 const auto grad = eval(grad_u, gphi);
-                flux_grad += qp.weight() * grad.dot(no);
+                flux_grad -= qp.weight() * grad.dot(no);
 
                 // eval stabilization term
                 const auto dphi = db.eval_functions(qp.point());
-                flux_stab += qp.weight() * (eval(flux_uF, dphi));
+                flux_stab -= qp.weight() * (eval(flux_uF, dphi));
             }
 
-            flux_faces(msh.lookup(fc)) += flux_grad + flux_stab;
+            const auto face_id = msh.lookup(fc);
+            flux_faces(face_id) += flux_grad + flux_stab;
             fc_off += dbs;
-            // std::cout << msh.lookup(fc) << " -> " << flux_grad << std::endl;
+
+            if (msh.is_boundary(face_id))
+            {
+                T flux_diri = T(0);
+                // accuracy of fluxes is really dependent of the integration order
+                const auto qpg = integrate(msh, fc, 6);
+
+                for (auto& qp : qpg)
+                {
+                    flux_diri += qp.weight() * grad_fun(qp.point()).dot(-no);
+                }
+
+                flux_faces(face_id) -= flux_diri;
+            }
         }
 
         // L2-norm
-        // Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> MM = make_mass_matrix(msh, cl, cb);
-
-        // error += diff.segment(0, cb.size()).dot(MM * diff.segment(0, cb.size()));
-    }
-
-    for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
-    {
-        const auto bfc     = *itor;
-        const auto face_id = msh.lookup(bfc);
-
-        // const auto qpf = integrate(msh, bfc, hdi.grad_degree() + odi);
-
-        flux_faces(face_id) = 0.;
+        // matrix_type MM = make_mass_matrix(msh, cl, cb);
+        // error += diff.head(cb.size()).dot(MM * diff.head(cb.size()));
     }
 
     if (print)
@@ -311,7 +312,7 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F,
         std::cout << "h = " << disk::average_diameter(msh) << " ";
         std::cout << "err = " << std::sqrt(error) << std::endl;
     }
-    std::cout << "Equilibrated fluxes = " << flux_faces.sum() << std::endl;
+    std::cout << "Equilibrated fluxes = " << flux_faces.norm() << std::endl;
 
     return std::sqrt(error);
 }
@@ -366,15 +367,15 @@ main(int argc, char** argv)
 
     if (use_mesh)
     {
-        // /* FVCA5 2D */
-        // if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$")))
-        // {
-        //     std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
-        // disk::generic_mesh<T, 2> msh;
-        // disk::load_mesh_fvca5_2d(mesh_filename, msh);
-        //     run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
-        //     return 0;
-        // }
+        /* FVCA5 2D */
+        if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$")))
+        {
+            std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
+            disk::generic_mesh<T, 2> msh;
+            disk::load_mesh_fvca5_2d(mesh_filename, msh);
+            run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
+            return 0;
+        }
 
         /* Netgen 2D */
         if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$")))
@@ -386,35 +387,35 @@ main(int argc, char** argv)
             return 0;
         }
 
-        // /* DiSk++ cartesian 2D */
-        // if (std::regex_match(mesh_filename, std::regex(".*\\.quad$")))
-        // {
-        //     std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
-        //     disk::cartesian_mesh<T, 2> msh;
-        // disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
-        //     run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
-        //     return 0;
-        // }
+        /* DiSk++ cartesian 2D */
+        if (std::regex_match(mesh_filename, std::regex(".*\\.quad$")))
+        {
+            std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
+            disk::cartesian_mesh<T, 2> msh;
+            disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
+            run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
+            return 0;
+        }
 
-        // /* Netgen 3D */
-        // if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$")))
-        // {
-        //     std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
-        //     disk::simplicial_mesh<T, 3> msh;
-        // disk::load_mesh_netgen(mesh_filename, msh);
-        //     run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
-        //     return 0;
-        // }
+        /* Netgen 3D */
+        if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$")))
+        {
+            std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
+            disk::simplicial_mesh<T, 3> msh;
+            disk::load_mesh_netgen(mesh_filename, msh);
+            run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
+            return 0;
+        }
 
-        // /* DiSk++ cartesian 3D */
-        // if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
-        // {
-        //     std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
-        //     disk::cartesian_mesh<T, 3> msh;
-        // disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
-        //     run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
-        //     return 0;
-        // }
+        /* DiSk++ cartesian 3D */
+        if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
+        {
+            std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
+            disk::cartesian_mesh<T, 3> msh;
+            disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
+            run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
+            return 0;
+        }
 
         /* FVCA6 3D */
         if (std::regex_match(mesh_filename, std::regex(".*\\.msh$")))
@@ -428,8 +429,8 @@ main(int argc, char** argv)
     }
     else
     {
-        // tester<test_functor> tstr;
-        // tstr.run();
-        // return 0;
+        tester<test_functor> tstr;
+        tstr.run();
+        return 0;
     }
 }
