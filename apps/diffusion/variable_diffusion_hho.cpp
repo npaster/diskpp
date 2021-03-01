@@ -454,7 +454,7 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, const bo
         print_error(degree, average_diameter(msh), error, flux_faces.sum());
     }
     else
-        std::cout << "Equilibrated fluxes: " << flux_faces.sum() << std::endl;
+        std::cout << "Equilibrated fluxes: " << flux_faces.norm() << std::endl;
 
     return std::sqrt(error);
 }

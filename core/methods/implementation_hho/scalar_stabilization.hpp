@@ -675,7 +675,7 @@ make_scalar_hho_stabilization(const Mesh&                                       
  */
 template<typename Mesh>
 dynamic_matrix<typename Mesh::coordinate_type>
-make_scalar_hho_stabilization_adjoint(const Mesh&                                           msh,
+make_scalar_hho_stabilization_diff(const Mesh&                                           msh,
                                      const typename Mesh::cell_type&                       cl,
                                      const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
                                      const CellDegreeInfo<Mesh>&                           cell_infos,
@@ -754,17 +754,43 @@ make_scalar_hho_stabilization_adjoint(const Mesh&                               
  * @param msh mesh
  * @param cl cell
  * @param reconstruction reconstruction operator \f$ R^{k+1}_T \f$
- * @param di hho degree information
+ * @param cell_infos cell degree information
  * @param hF use diameter of face for scaling if true (or cell diameter if false)
  * @return dynamic_matrix<typename Mesh::coordinate_type> return the stabilization term
  */
 template<typename Mesh>
 dynamic_matrix<typename Mesh::coordinate_type>
-make_scalar_hho_stabilization_adjoint(const Mesh&                                           msh,
-                                     const typename Mesh::cell_type&                       cl,
-                                     const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
-                                     const hho_degree_info&                                di,
-                                     bool                                                  hF = true)
+make_scalar_hho_stabilization_adjoint(const Mesh&                                         msh,
+                                    const typename Mesh::cell_type&                       cl,
+                                    const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
+                                    const CellDegreeInfo<Mesh>&                           cell_infos,
+                                    bool                                                  hF = true)
+{
+    const auto stab    = make_scalar_hdg_stabilization_diff(msh, cl, cell_infos, hF);
+    const auto adjoint = make_scalar_stabilization_adjoint(msh, cl, cell_infos, stab, hF);
+    return adjoint * make_scalar_hho_difference(msh, cl, cell_infos);
+}
+
+  /**
+   * @brief compute the stabilization term \f$\sum_{F \in F_T} 1/h_F(u_F - u_T + \Pi^k_T R^{k+1}_T(\hat{u}_T) -
+   * R^{k+1}_T(\hat{u}_T), v_F - v_T + \Pi^k_T R^{k+1}_T(\hat{v}_T) - R^{k+1}_T(\hat{v}_T))_F \f$ for scalar HHO
+   * unknowns
+   *
+   * @tparam Mesh type of the mesh
+   * @param msh mesh
+   * @param cl cell
+   * @param reconstruction reconstruction operator \f$ R^{k+1}_T \f$
+   * @param di hho degree information
+   * @param hF use diameter of face for scaling if true (or cell diameter if false)
+   * @return dynamic_matrix<typename Mesh::coordinate_type> return the stabilization term
+   */
+  template<typename Mesh>
+  dynamic_matrix<typename Mesh::coordinate_type> make_scalar_hho_stabilization_adjoint(
+    const Mesh&                                           msh,
+    const typename Mesh::cell_type&                       cl,
+    const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
+    const hho_degree_info&                                di,
+    bool                                                  hF = true)
 {
     const CellDegreeInfo<Mesh> cell_infos(msh, cl, di.cell_degree(), di.face_degree(), di.grad_degree());
 
