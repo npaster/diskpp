@@ -207,7 +207,6 @@ class scaled_monomial_scalar_basis<Mesh<T, 2, Storage>, typename Mesh<T, 2, Stor
     typedef Mesh<T, 2, Storage>                 mesh_type;
     typedef ScalarType                          scalar_type;
     typedef typename mesh_type::coordinate_type coordinate_type;
-    ;
     typedef typename mesh_type::cell        cell_type;
     typedef typename mesh_type::point_type  point_type;
     typedef Matrix<scalar_type, Dynamic, 2> gradient_type;
