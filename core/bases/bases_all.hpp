@@ -110,6 +110,13 @@ class scaled_monomial_abstract_basis<Mesh, typename Mesh::cell, ScalarType>
         return point_type(this->passage_old2new() * (pt - _bar).to_vector());
     }
 
+    /* This function maps a point to rcentered point axes * (pt - bar)  */
+    point_type
+    centered_point(const point_type& pt) const
+    {
+        return point_type((pt - _bar).to_vector());
+    }
+
     // This matrix convert coordinates in the canonical basis to the user basis (rotation of axes)
     matrix_type
     passage_old2new() const
