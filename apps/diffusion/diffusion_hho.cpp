@@ -169,7 +169,7 @@ using namespace disk;
 
 template<typename Mesh>
 typename Mesh::coordinate_type
-run_hho_diffusion_solver(const Mesh& msh, size_t degree, const bool stab_diam_F, bool print = false)
+run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_diam_F, bool print = false)
 {
     using T = typename Mesh::coordinate_type;
     typedef Eigen::Matrix<T, Eigen::Dynamic, 1>              vector_type;
@@ -333,7 +333,7 @@ struct test_functor
     typename Mesh::coordinate_type
     operator()(const Mesh& msh, size_t degree) const
     {
-        return run_hho_diffusion_solver(msh, degree, false, false);
+        return run_hho_diffusion_solver(msh, degree, StabSize::hR, false);
     }
 
     size_t
@@ -352,7 +352,7 @@ main(int argc, char** argv)
 
     size_t degree        = 1;
     char*  mesh_filename = nullptr;
-    bool   stab_diam_F   = true;
+    StabSize   stab_diam_F   = StabSize::hF;
     bool   use_mesh      = false;
 
     int ch;
@@ -360,7 +360,7 @@ main(int argc, char** argv)
     {
         switch (ch)
         {
-            case 'c': stab_diam_F = false; break;
+            case 'c': stab_diam_F = StabSize::hT; break;
 
             case 'k': degree = std::stoi(optarg); break;
 

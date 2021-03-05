@@ -319,7 +319,7 @@ run_hho_variable_diffusion_solver_RT(const Mesh& msh, const size_t degree, bool 
 
 template<typename Mesh>
 typename Mesh::coordinate_type
-run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, const bool stab_diam_F, bool print = false)
+run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, const StabSize stab_diam_F, bool print = false)
 {
     using T = typename Mesh::coordinate_type;
     typedef Eigen::Matrix<T, Eigen::Dynamic, 1>              vector_type;
@@ -467,7 +467,7 @@ class test_functor
     typename Mesh::coordinate_type
     operator()(const Mesh& msh, size_t degree) const
     {
-        return run_hho_variable_diffusion_solver(msh, degree, false, false);
+        return run_hho_variable_diffusion_solver(msh, degree, StabSize::hR, false);
     }
 
     size_t
@@ -515,7 +515,7 @@ main(int argc, char** argv)
 
     bool   use_mesh = false;
     bool   use_RT   = false;
-    bool   use_stab_F = true;
+    StabSize use_stab_F = StabSize::hF;
     size_t degree     = 1;
     int    ch;
 
@@ -523,7 +523,7 @@ main(int argc, char** argv)
     {
         switch (ch)
         {
-            case 'c': use_stab_F = false; break;
+            case 'c': use_stab_F = StabSize::hT; break;
 
             case 'k': degree = std::stoi(optarg); break;
 
