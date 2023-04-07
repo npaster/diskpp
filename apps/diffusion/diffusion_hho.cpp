@@ -348,8 +348,8 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_dia
     {
         std::cout << "h = " << disk::average_diameter(msh) << " ";
         std::cout << "err = " << std::sqrt(error) << std::endl;
+        std::cout << "Equilibrated fluxes -> norm: " << flux_faces.norm() << ", sum: " << flux_faces.sum() << std::endl;
     }
-    std::cout << "Equilibrated fluxes -> norm: " << flux_faces.norm() << ", sum: " << flux_faces.sum() << std::endl;
 
     return std::sqrt(error);
 }
@@ -379,7 +379,8 @@ main(int argc, char** argv)
     size_t      num_elems = 16;
     size_t      degree = 1;
     char *      mesh_filename = nullptr;
-    bool        stat_cond = true, stab_diam_F = true;
+    bool        stat_cond     = true, use_mesh;
+    StabSize    stab_diam_F   = StabSize::hF;
 
     int ch;
     while ( (ch = getopt(argc, argv, "k:m:twN:")) != -1 )
@@ -405,24 +406,7 @@ main(int argc, char** argv)
         }
     }
 
-    if (mesh_filename == nullptr)
-    {
-        std::cout << "Mesh format: 1D uniform" << std::endl;
-
-        typedef disk::generic_mesh<T, 1>  mesh_type;
-
-        mesh_type msh;
-        disk::uniform_mesh_loader<T, 1> loader(0, 1, num_elems);
-        loader.populate_mesh(msh);
-
-        stab_diam_F = false;
-        run_hho_diffusion_solver(msh, degree, stat_cond, stab_diam_F);
-
-        return 0;
-    }
-
-    /* FVCA5 2D */
-    if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$") ))
+    if (use_mesh)
     {
         /* FVCA5 2D */
         if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$")))
