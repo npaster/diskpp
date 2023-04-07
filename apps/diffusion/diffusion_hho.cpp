@@ -205,6 +205,11 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_dia
 
     hho_degree_info hdi(degree, degree, degree);
 
+    if (print)
+    {
+        std::cout << "Mesh has " << msh.cells_size() << " elements." << std::endl;
+    }
+
     const size_t odi = 2;
 
     auto rhs_fun  = make_rhs_function(msh);
@@ -231,7 +236,6 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_dia
 
     if (print)
     {
-        std::cout << "Mesh has " << msh.cells_size() << " elements." << std::endl;
         std::cout << "System has " << assembler.LHS.rows() << " unknowns and ";
         std::cout << assembler.LHS.nonZeros() << " nonzeros." << std::endl;
     }
@@ -434,6 +438,16 @@ main(int argc, char** argv)
             std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
             disk::cartesian_mesh<T, 2> msh;
             disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
+            run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
+            return 0;
+        }
+
+        /* Poly 2d*/
+        if (std::regex_match(mesh_filename, std::regex(".*\\.poly2d$")))
+        {
+            std::cout << "Guessed mesh format: Poly2D format" << std::endl;
+            disk::generic_mesh<double, 2> msh;
+            disk::load_mesh_poly2d<double>(mesh_filename, msh);
             run_hho_diffusion_solver(msh, degree, stab_diam_F, true);
             return 0;
         }

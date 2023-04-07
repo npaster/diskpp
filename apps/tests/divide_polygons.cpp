@@ -113,4 +113,13 @@ void split_2D_polygons(MeshType& msh)
         return 0;
     }
 
+    /* Poly 2d*/
+    if (std::regex_match(mesh_filename, std::regex(".*\\.poly2d$")))
+    {
+        std::cout << "Guessed mesh format: Poly2D format" << std::endl;
+        disk::generic_mesh<RealType, 2> msh;
+        disk::load_mesh_poly2d<RealType>(mesh_filename, msh);
+        split_2D_polygons(msh);
+        return 0;
+    }
 }
