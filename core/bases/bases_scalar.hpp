@@ -65,6 +65,7 @@ struct scaled_monomial_scalar_basis
 
 /* Basis 'factory'. */
 #ifndef USE_LEGENDRE
+#ifndef USE_LEGENDRE_1D
 template<typename MeshType, typename ElementType, typename ScalarType = typename MeshType::coordinate_type>
 auto
 make_scalar_monomial_basis(const MeshType&    msh,
@@ -74,6 +75,18 @@ make_scalar_monomial_basis(const MeshType&    msh,
 {
     return scaled_monomial_scalar_basis<MeshType, ElementType, ScalarType>(msh, elem, degree, use_inertia_axes);
 }
+#else
+template<typename MeshType, typename ScalarType = typename MeshType::coordinate_type>
+auto
+make_scalar_monomial_basis(const MeshType&    msh,
+                           const typename MeshType::cell& elem,
+                           size_t             degree,
+                           bool               use_inertia_axes = USE_INERTIA_AXES)
+{
+    return scaled_monomial_scalar_basis<MeshType, typename MeshType::cell, ScalarType>(
+      msh, elem, degree, use_inertia_axes);
+}
+#endif
 #endif
 
 /***************************************************************************************************/
@@ -194,7 +207,6 @@ class scaled_monomial_scalar_basis<Mesh<T, 2, Storage>, typename Mesh<T, 2, Stor
     typedef Mesh<T, 2, Storage>                 mesh_type;
     typedef ScalarType                          scalar_type;
     typedef typename mesh_type::coordinate_type coordinate_type;
-    ;
     typedef typename mesh_type::cell        cell_type;
     typedef typename mesh_type::point_type  point_type;
     typedef Matrix<scalar_type, Dynamic, 2> gradient_type;
@@ -1123,6 +1135,35 @@ make_scalar_monomial_basis(const MeshType&    msh,
                            bool               use_inertia_axes = USE_INERTIA_AXES)
 {
     return make_scalar_legendre_basis<MeshType, ElementType, ScalarType>(msh, elem, degree, use_inertia_axes);
+}
+#endif
+
+#ifdef USE_LEGENDRE_1D
+template<template<typename, size_t, typename> class Mesh,
+         typename T,
+         typename Storage,
+         typename ScalarType = typename Mesh<T, 2, Storage>::coordinate_type>
+auto
+make_scalar_monomial_basis(const Mesh<T, 2, Storage>&                msh,
+                           const typename Mesh<T, 2, Storage>::face& elem,
+                           size_t                                    degree,
+                           bool                                      use_inertia_axes = USE_INERTIA_AXES)
+{
+    return make_scalar_legendre_basis(msh, elem, degree, use_inertia_axes);
+}
+
+template<template<typename, size_t, typename> class Mesh,
+         typename T,
+         typename Storage,
+         typename ScalarType = typename Mesh<T, 3, Storage>::coordinate_type>
+auto
+make_scalar_monomial_basis(const Mesh<T, 3, Storage>&                msh,
+                           const typename Mesh<T, 3, Storage>::face& elem,
+                           size_t                                    degree,
+                           bool                                      use_inertia_axes = USE_INERTIA_AXES)
+{
+    return scaled_monomial_scalar_basis<Mesh<T, 3, Storage>, typename Mesh<T, 3, Storage>::face, ScalarType>(
+      msh, elem, degree, use_inertia_axes);
 }
 #endif
 

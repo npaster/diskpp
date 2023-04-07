@@ -58,7 +58,7 @@ make_vector_hho_stabilization(const Mesh&                                       
                               const typename Mesh::cell_type&                       cl,
                               const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
                               const CellDegreeInfo<Mesh>&                           cell_infos,
-                              const bool hF = true)
+                              StabSize                                              h = StabSize::hF)
 {
     using T = typename Mesh::coordinate_type;
     typedef Matrix<T, Dynamic, Dynamic> matrix_type;
@@ -75,11 +75,11 @@ make_vector_hho_stabilization(const Mesh&                                       
 
     const matrix_type mass_mat = make_mass_matrix(msh, cl, cb);
 
-    T h = 0;
-    if (!hF)
-    {
-        h = diameter(msh, cl);
-    }
+    T hd = 0., mT = 0.;
+    if (h == StabSize::hT)
+        hd = diameter(msh, cl);
+    else if (h == StabSize::hR)
+        mT = measure(msh, cl);
 
     // Build \pi_F^k (v_F - P_T^K v) equations (21) and (22)
 
@@ -109,8 +109,10 @@ make_vector_hho_stabilization(const Mesh&                                       
         if (fdi.hasUnknowns())
         {
             const auto fc = fcs[face_i];
-            if(hF)
-                h = diameter(msh, fc);
+            if (h == StabSize::hF)
+                hd = diameter(msh, fc);
+            else if (h == StabSize::hR)
+                hd = Mesh::dimension * mT / measure(msh, fc);
 
             const auto facdeg = fdi.degree();
             const auto fb     = make_vector_monomial_basis(msh, fc, facdeg);
@@ -141,7 +143,7 @@ make_vector_hho_stabilization(const Mesh&                                       
             const matrix_type proj3 = piKF.solve(MR2 * proj1);
             const matrix_type BRF   = proj2 + proj3;
 
-            data += BRF.transpose() * face_mass_matrix * BRF / h;
+            data += BRF.transpose() * face_mass_matrix * BRF / hd;
 
             offset += fbs;
         }
@@ -169,9 +171,9 @@ make_vector_hho_stabilization(const Mesh&                                       
                               const typename Mesh::cell_type&                       cl,
                               const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
                               const MeshDegreeInfo<Mesh>&                           msh_infos,
-                              const bool                                            hF = true)
+                              StabSize                                              h = StabSize::hF)
 {
-    return make_vector_hho_stabilization(msh, cl, reconstruction, msh_infos.cellDegreeInfo(msh, cl), hF);
+    return make_vector_hho_stabilization(msh, cl, reconstruction, msh_infos.cellDegreeInfo(msh, cl), h);
 }
 
 /**
@@ -193,12 +195,12 @@ make_vector_hho_stabilization(const Mesh&                                       
                               const typename Mesh::cell_type&                       cl,
                               const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction,
                               const hho_degree_info&                                di,
-                              const bool                                            hF = true)
+                              StabSize                                              h = StabSize::hF)
 {
     const CellDegreeInfo<Mesh> cell_infos(
       msh, cl, di.cell_degree(), di.face_degree(), di.grad_degree());
 
-    return make_vector_hho_stabilization(msh, cl, reconstruction, cell_infos, hF);
+    return make_vector_hho_stabilization(msh, cl, reconstruction, cell_infos, h);
 }
 
 /**
@@ -217,9 +219,9 @@ dynamic_matrix<typename Mesh::coordinate_type>
 make_vector_hdg_stabilization(const Mesh&                     msh,
                               const typename Mesh::cell_type& cl,
                               const hho_degree_info&          di,
-                              const bool                      hF = true)
+                              StabSize                        h = StabSize::hF)
 {
-    const auto hdg_scalar_stab = make_scalar_hdg_stabilization(msh, cl, di, hF);
+    const auto hdg_scalar_stab = make_scalar_hdg_stabilization(msh, cl, di, h);
 
     return priv::compute_lhs_vector(msh, cl, di, hdg_scalar_stab);
 }
@@ -240,9 +242,9 @@ dynamic_matrix<typename Mesh::coordinate_type>
 make_vector_hdg_stabilization(const Mesh&                     msh,
                               const typename Mesh::cell_type& cl,
                               const MeshDegreeInfo<Mesh>&     msh_infos,
-                              const bool                      hF = true)
+                              StabSize h = StabSize::hF)
 {
-    const auto hdg_scalar_stab = make_scalar_hdg_stabilization(msh, cl, msh_infos, hF);
+    const auto hdg_scalar_stab = make_scalar_hdg_stabilization(msh, cl, msh_infos, h);
 
     return priv::compute_lhs_vector(msh, cl, msh_infos.cellDegreeInfo(msh, cl), hdg_scalar_stab);
 }
@@ -263,9 +265,9 @@ dynamic_matrix<typename Mesh::coordinate_type>
 make_vector_dg_stabilization(const Mesh&                     msh,
                              const typename Mesh::cell_type& cl,
                              const hho_degree_info&          di,
-                             const bool                      hF = true)
+                             StabSize                        h = StabSize::hF)
 {
-    const auto dg_scalar_stab = make_scalar_dg_stabilization(msh, cl, di, hF);
+    const auto dg_scalar_stab = make_scalar_dg_stabilization(msh, cl, di, h);
 
     return priv::compute_lhs_vector(msh, cl, di, dg_scalar_stab);
 }
@@ -286,9 +288,9 @@ dynamic_matrix<typename Mesh::coordinate_type>
 make_vector_dg_stabilization(const Mesh&                     msh,
                              const typename Mesh::cell_type& cl,
                              const MeshDegreeInfo<Mesh>&     msh_infos,
-                             const bool                      hF = true)
+                             StabSize                        h = StabSize::hF)
 {
-    const auto dg_scalar_stab = make_scalar_dg_stabilization(msh, cl, msh_infos, hF);
+    const auto dg_scalar_stab = make_scalar_dg_stabilization(msh, cl, msh_infos, h);
 
     return priv::compute_lhs_vector(msh, cl, msh_infos.cellDegreeInfo(msh, cl), dg_scalar_stab);
 }
@@ -300,9 +302,9 @@ make_vector_hho_stabilization_optim(const Mesh&                                 
                                     const typename Mesh::cell_type&                       cl,
                                     const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction_scalar,
                                     const hho_degree_info&                                hdi,
-                                    const bool                                            hF = true)
+                                    StabSize                                              h = StabSize::hF)
 {
-    const auto hho_scalar_stab = make_scalar_hho_stabilization(msh, cl, reconstruction_scalar, hdi, hF);
+    const auto hho_scalar_stab = make_scalar_hho_stabilization(msh, cl, reconstruction_scalar, hdi, h);
 
     return priv::compute_lhs_vector(msh, cl, hdi, hho_scalar_stab);
 }
@@ -313,9 +315,9 @@ make_vector_hho_stabilization_optim(const Mesh&                                 
                                     const typename Mesh::cell_type&                       cl,
                                     const dynamic_matrix<typename Mesh::coordinate_type>& reconstruction_scalar,
                                     const MeshDegreeInfo<Mesh>&                           msh_infos,
-                                    const bool                                            hF = true)
+                                    StabSize                                              h = StabSize::hF)
 {
-    const auto hho_scalar_stab = make_scalar_hho_stabilization(msh, cl, reconstruction_scalar, msh_infos, hF);
+    const auto hho_scalar_stab = make_scalar_hho_stabilization(msh, cl, reconstruction_scalar, msh_infos, h);
 
     return priv::compute_lhs_vector(msh, cl, msh_infos.cellDegreeInfo(msh, cl), hho_scalar_stab);
 }

@@ -473,6 +473,138 @@ inertia_axes(const Mesh& msh, const Elem& elem)
     return es.eigenvectors();
 }
 
+/**
+ * \brief Compute information about a 2D-cell. It return a map with the following keys:
+ * - hT : diameter of the cell
+ * - hF_min, hF_max : diameter min and max of faces  ( = length )
+ * - hR_min, hR_max : radius min and max of faces [ 2 * area(cell) / diam(face)]
+ * - mT : area of the cell (= measure)
+ * - Q : aspect ratio of the cell [ 4*srqt(3)*area(cell) / sum(diameter(face)^2) ]
+ * - Q_min, Q_max : aspect ratio min and max of triangles used for quadrature
+ *
+ * \param msh a reference to the mesh
+ * \param cl a 2D cell
+ * \return compute informations about a 2D-cell (std::amp)
+ *
+ */
+template<template<typename, size_t, typename> class Mesh,
+         typename T, typename Storage>
+std::map<std::string, T>
+infos(const Mesh<T, 2, Storage>& msh,
+       const typename Mesh<T, 2, Storage>::cell& cl)
+{
+    std::map<std::string, T> info;
+
+    const auto pts = points(msh, cl);
+    const auto fcs = faces(msh, cl);
+
+    const auto hT     = diameter(msh, cl);
+    const auto mT     = measure(msh, cl);
+
+    T hF_min = 10E99, hF_max = -1.;
+    T hR_min = 10E99, hR_max = -1.;
+    T Ek = 0;
+
+    for(auto& fc : fcs)
+    {
+        const auto hF = diameter(msh, fc);
+        const auto mF = measure(msh, fc);
+        const auto hR = 2.0 * mT / mF;
+
+        hF_min = std::min(hF_min, hF);
+        hF_max = std::max(hF_max, hF);
+        hR_min = std::min(hR_min, hR);
+        hR_max = std::max(hR_max, hR);
+
+        Ek += mF * mF;
+    }
+
+    info["hT"] = hT;
+    info["hF_min"] = hF_min;
+    info["hF_max"] = hF_max;
+    info["hR_min"] = hR_min;
+    info["hR_max"] = hR_max;
+    info["mT"]     = mT;
+    info["Q"]      = 4.0 * sqrt(3.) * mT / Ek;
+
+    const auto rss = split_in_raw_triangles(msh, cl);
+
+    T Q_max = -1, Q_min = 10E99;
+    for (auto& rs : rss)
+    {
+        const auto pts = rs.points();
+        assert(pts.size() == 3);
+        const auto meas = area_triangle_kahan(pts[0], pts[1], pts[2]);
+        const T    l1   = (pts[0] - pts[1]).to_vector().norm();
+        const T    l2   = (pts[0] - pts[2]).to_vector().norm();
+        const T    l3   = (pts[2] - pts[1]).to_vector().norm();
+
+        const T Q = 4.0 * sqrt(3.) * meas / (l1*l1 + l2*l2 + l3*l3);
+
+        Q_min = std::min(Q_min, Q);
+        Q_max = std::max(Q_max, Q);
+    }
+
+    info["Q_min"] = Q_min;
+    info["Q_max"] = Q_max;
+
+    return info;
+}
+
+/**
+ * \brief Compute information about a 2D-cell. It return a map with the following keys:
+ * - hT : diameter of the cell
+ * - hF_min, hF_max : diameter min and max of the faces
+ * - hR_min, hR_max : radius min and max of the faces [ 3 * volume(cell) / area(face)]
+ * - mT : volume of the cell
+ * - Q : aspect ratio of the cell [ 12/srqt(6)*volume(cell) / sum(area(face)) / max(length(edge)) ]
+ *
+ * \param msh a reference to the mesh
+ * \param cl a 3D cell
+ * \return compute informations about a 3D-cell (std::amp)
+ *
+ */
+template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
+std::map<std::string, T>
+infos(const Mesh<T, 3, Storage>& msh, const typename Mesh<T, 3, Storage>::cell& cl)
+{
+    std::map<std::string, T> info;
+
+    const auto pts = points(msh, cl);
+    const auto fcs = faces(msh, cl);
+
+    const auto hT = diameter(msh, cl);
+    const auto mT = measure(msh, cl);
+
+    T hF_min = 10E99, hF_max = -1.;
+    T hR_min = 10E99, hR_max = -1.;
+    T Sk = 0;
+
+    for (auto& fc : fcs)
+    {
+        const auto hF = diameter(msh, fc);
+        const auto mF = measure(msh, fc);
+        const auto hR = 3.0 * mT / mF;
+
+        hF_min = std::min(hF_min, hF);
+        hF_max = std::max(hF_max, hF);
+        hR_min = std::min(hR_min, hR);
+        hR_max = std::max(hR_max, hR);
+
+        Sk += mF ;
+    }
+
+    info["hT"]     = hT;
+    info["hF_min"] = hF_min;
+    info["hF_max"] = hF_max;
+    info["hR_min"] = hR_min;
+    info["hR_max"] = hR_max;
+    info["mT"]     = mT;
+    info["Q"]      = 12.0 / sqrt(6.) * mT / (Sk * hF_max);
+
+    return info;
+}
+
 } // namespace disk
 
 #endif /* _GEOMETRY_ALL_HPP_ */

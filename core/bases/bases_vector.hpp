@@ -837,9 +837,12 @@ struct scaled_monomial_vector_basis_RT
 /* RT Basis 'factory'. */
 template<typename MeshType, typename ElementType>
 auto
-make_vector_monomial_basis_RT(const MeshType& msh, const ElementType& elem, const size_t degree)
+make_vector_monomial_basis_RT(const MeshType&    msh,
+                              const ElementType& elem,
+                              const size_t       degree,
+                              bool               use_inertia_axes = USE_INERTIA_AXES)
 {
-    return scaled_monomial_vector_basis_RT<MeshType, ElementType>(msh, elem, degree);
+    return scaled_monomial_vector_basis_RT<MeshType, ElementType>(msh, elem, degree, use_inertia_axes);
 }
 
 /* Specialization for 3D meshes, cells */
@@ -871,9 +874,13 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 3, Storage>, typename Mesh<T, 3, S
     vector_basis_type                                          vector_basis;
 
   public:
-    scaled_monomial_vector_basis_RT(const mesh_type& msh, const cell_type& cl, const size_t degree) :
-      basis_degree(degree), basis_size(vector_basis_size_RT(degree, 3, 3)), scalar_basis(msh, cl, degree - 1),
-      vector_basis(msh, cl, degree - 1, false), base(msh, cl, false)
+    scaled_monomial_vector_basis_RT(const mesh_type& msh,
+                                    const cell_type& cl,
+                                    const size_t     degree,
+                                    bool             use_inertia_axes = false) :
+      basis_degree(degree),
+      basis_size(vector_basis_size_RT(degree, 3, 3)), scalar_basis(msh, cl, degree - 1, use_inertia_axes),
+      vector_basis(msh, cl, degree - 1, use_inertia_axes), base(msh, cl, use_inertia_axes)
     {
         if (degree <= 0)
             throw std::invalid_argument("Raviart-Thomas basis: degree has to be > 0");
@@ -973,7 +980,6 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
 
   private:
     size_t basis_degree, basis_size;
-    point_type cell_bar;
 
     typedef scaled_monomial_scalar_basis<mesh_type, cell_type, scalar_type> scalar_basis_type;
     scalar_basis_type                                          scalar_basis;
@@ -982,17 +988,19 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
     vector_basis_type                                          vector_basis;
 
   public:
-    scaled_monomial_vector_basis_RT(const mesh_type& msh, const cell_type& cl, const size_t degree) :
-      basis_degree(degree), basis_size(vector_basis_size_RT(degree, 2, 2)), scalar_basis(msh, cl, degree - 1),
-      vector_basis(msh, cl, degree - 1, false), base(msh, cl, false)
+    scaled_monomial_vector_basis_RT(const mesh_type&        msh,
+                                    const cell_type&        cl,
+                                    const size_t degree,
+                                    bool use_inertia_axes = false) :
+      basis_degree(degree),
+      basis_size(vector_basis_size_RT(degree, 2, 2)), scalar_basis(msh, cl, degree - 1, use_inertia_axes),
+      vector_basis(msh, cl, degree - 1, use_inertia_axes), base(msh, cl, use_inertia_axes)
     {
         if (degree <= 0)
             throw std::invalid_argument("Raviart-Thomas basis: degree has to be > 0");
 
         if (points(msh, cl).size() != 3)
             throw std::invalid_argument("Raviart-Thomas basis: available only on triangles");
-
-        cell_bar = barycenter(msh, cl);
     }
 
     function_type
@@ -1009,14 +1017,13 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
         const auto beg    = scalar_basis_size(basis_degree - 2, 2);
         const auto offset = vector_basis.size();
 
-        const auto bx = (pt.x() - cell_bar.x());
-        const auto by = (pt.y() - cell_bar.y());
+        const auto bp = this->centered_point(pt);
 
         // compute x P^(k-1)_H (monomial of degree exactly k - 1)
         for (size_t i = beg; i < scalar_basis.size(); i++)
         {
-            ret(offset + i - beg, 0) = bx * sphi(i);
-            ret(offset + i - beg, 1) = by * sphi(i);
+            ret(offset + i - beg, 0) = bp.x() * sphi(i);
+            ret(offset + i - beg, 1) = bp.y() * sphi(i);
         }
 
         return ret;
@@ -1037,13 +1044,12 @@ class scaled_monomial_vector_basis_RT<Mesh<T, 2, Storage>, typename Mesh<T, 2, S
         const auto beg    = scalar_basis_size(basis_degree - 2, 2);
         const auto offset = vector_basis.size();
 
-        const auto bx = (pt.x() - cell_bar.x());
-        const auto by = (pt.y() - cell_bar.y());
+        const auto bp = this->centered_point(pt);
 
         /// compute P^(k-1)_H + x.grad(P^(k-1)_H) (monomial of degree exactly k - 1)
         for (size_t i = beg; i < scalar_basis.size(); i++)
         {
-            ret(offset + i - beg) = 2 * sphi(i) + bx * sdphi(i, 0) + by * sdphi(i, 1);
+            ret(offset + i - beg) = 2 * sphi(i) + bp.x() * sdphi(i, 0) + bp.y() * sdphi(i, 1);
         }
 
         return ret;

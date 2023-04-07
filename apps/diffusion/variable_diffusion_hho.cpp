@@ -193,11 +193,13 @@ make_diffusion_tensor(const Mesh& msh)
 
 using namespace disk;
 
-void print_error(const size_t& degree, const double diam, const double H1_error)
+void
+print_error(const size_t& degree, const double diam, const double H1_error, const double flux)
 {
     std::cout << "Degree: " << degree << std::endl;
     std::cout << "h-diameter: " << diam << std::endl;
     std::cout << "H1-error: " << H1_error << std::endl;
+    std::cout << "Equilibrated fluxes: " << flux << std::endl;
 }
 
 /* Solve anisotropic diffusion with HHO method on simplicial meshes using Raviart-Thomas */
@@ -208,6 +210,7 @@ run_hho_variable_diffusion_solver_RT(const Mesh& msh, const size_t degree, bool 
 {
     using T = typename Mesh::coordinate_type;
     typedef Eigen::Matrix<T, Eigen::Dynamic, 1> vector_type;
+    const size_t                                odi = 2;
 
     hho_degree_info hdi(degree, degree, degree + 1);
 
@@ -223,12 +226,12 @@ run_hho_variable_diffusion_solver_RT(const Mesh& msh, const size_t degree, bool 
     for (auto& cl : msh)
     {
         const auto cb  = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        const auto gr  = make_vector_hho_gradrec_RT(msh, cl, hdi, diffusion_tensor);
-        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, 2);
+        const auto gr  = make_vector_hho_gradrec_RT(msh, cl, hdi, diffusion_tensor, odi);
+        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, odi);
 
         const auto sc = make_scalar_static_condensation(msh, cl, hdi, gr.second, rhs);
 
-        assembler.assemble(msh, cl, bnd, sc.first, sc.second);
+        assembler.assemble(msh, cl, bnd, sc.first, sc.second, odi);
     }
 
     assembler.impose_neumann_boundary_conditions(msh, bnd);
@@ -238,9 +241,12 @@ run_hho_variable_diffusion_solver_RT(const Mesh& msh, const size_t degree, bool 
     size_t systsz = assembler.LHS.rows();
     size_t nnz    = assembler.LHS.nonZeros();
 
-    //  std::cout << "Mesh elements: " << msh.cells_size() << std::endl;
-    //  std::cout << "systsz: " << systsz << std::endl;
-    //  std::cout << "nnz: " << nnz << std::endl;
+    if (print)
+    {
+        std::cout << "Mesh elements: " << msh.cells_size() << std::endl;
+        std::cout << "systsz: " << systsz << std::endl;
+        std::cout << "nnz: " << nnz << std::endl;
+    }
 
     vector_type sol = vector_type::Zero(systsz);
 
@@ -248,35 +254,72 @@ run_hho_variable_diffusion_solver_RT(const Mesh& msh, const size_t degree, bool 
     pparams.report_factorization_Mflops = false;
     mkl_pardiso(pparams, assembler.LHS, assembler.RHS, sol);
 
-    T error = 0.0;
+    T           error      = 0.0;
+    vector_type flux_faces = vector_type::Zero(msh.faces_size());
 
     for (auto& cl : msh)
     {
         const auto cb  = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        const auto gr  = make_vector_hho_gradrec_RT(msh, cl, hdi, diffusion_tensor);
-        const auto rhs = make_rhs(msh, cl, cb, rhs_fun);
+        const auto gr  = make_vector_hho_gradrec_RT(msh, cl, hdi, diffusion_tensor, odi);
+        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, odi);
 
-        vector_type locsol = assembler.take_local_solution(msh, cl, bnd, sol);
+        vector_type locsol = assembler.take_local_solution(msh, cl, bnd, sol, odi);
 
         vector_type sol = make_scalar_static_decondensation(msh, cl, hdi, gr.second, rhs, locsol);
 
-        vector_type realsol = project_function(msh, cl, hdi, sol_fun, 2);
+        vector_type realsol = project_function(msh, cl, hdi, sol_fun, odi);
 
         const auto diff = realsol - sol;
         error += diff.dot(gr.second * diff);
+
+        const vector_type grad_u = gr.first * sol;
+        const auto        gb     = make_vector_monomial_basis_RT(msh, cl, hdi.grad_degree());
+        assert(grad_u.size() == gb.size());
+
+        const auto fcs = faces(msh, cl);
+
+        for (auto& fc : fcs)
+        {
+            const auto no = normal(msh, cl, fc);
+            // over-intergation by security
+            const auto qpf = integrate(msh, fc, hdi.grad_degree() + odi);
+
+            // compute fluxes F = grad(u).n
+            T flux_grad = T(0);
+
+            for (auto& qp : qpf)
+            {
+                // eval velocity
+                const auto gphi = gb.eval_functions(qp.point());
+                const auto grad = eval(grad_u, gphi);
+                flux_grad += qp.weight() * (diffusion_tensor(qp.point()) * grad).dot(no);
+            }
+
+            flux_faces(msh.lookup(fc)) -= flux_grad;
+            // std::cout << msh.lookup(fc) << " -> " << flux_grad << std::endl;
+        }
     }
 
-    if(print)
+    for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
     {
-        print_error(degree, average_diameter(msh), error);
+        const auto bfc      = *itor;
+        const auto face_id  = msh.lookup(bfc);
+        flux_faces(face_id) = 0.;
     }
+
+    if (print)
+    {
+        print_error(degree, average_diameter(msh), error, flux_faces.sum());
+    }
+    else
+        std::cout << "Equilibrated fluxes: " << flux_faces.norm() << std::endl;
 
     return std::sqrt(error);
 }
 
 template<typename Mesh>
 typename Mesh::coordinate_type
-run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, bool print = false)
+run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, const StabSize stab_diam_F, bool print = false)
 {
     using T = typename Mesh::coordinate_type;
     typedef Eigen::Matrix<T, Eigen::Dynamic, 1>              vector_type;
@@ -284,9 +327,13 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, bool pri
 
     hho_degree_info hdi(degree + 1, degree, degree);
 
+    const size_t odi = 2;
+
     const auto rhs_fun          = make_rhs_function(msh);
     const auto sol_fun          = make_solution_function(msh);
     const auto diffusion_tensor = make_diffusion_tensor(msh);
+
+    const T coeff_stab = 1.;
 
     scalar_boundary_conditions<Mesh> bnd(msh);
     bnd.addDirichletEverywhere(sol_fun);
@@ -295,17 +342,17 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, bool pri
 
     for (auto& cl : msh)
     {
-        const auto gr   = make_vector_hho_gradrec(msh, cl, hdi, diffusion_tensor);
-        const auto stab = make_scalar_hdg_stabilization(msh, cl, hdi);
+        const auto gr   = make_vector_hho_gradrec(msh, cl, hdi, diffusion_tensor, odi);
+        const auto stab = make_scalar_hdg_stabilization(msh, cl, hdi, stab_diam_F);
 
-        matrix_type A = gr.second + stab;
+        matrix_type A = gr.second + coeff_stab * stab;
 
         const auto cb  = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, 2);
+        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, odi);
 
         const auto sc = make_scalar_static_condensation(msh, cl, hdi, A, rhs);
 
-        assembler.assemble(msh, cl, bnd, sc.first, sc.second);
+        assembler.assemble(msh, cl, bnd, sc.first, sc.second, odi);
     }
 
     assembler.impose_neumann_boundary_conditions(msh, bnd);
@@ -315,9 +362,12 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, bool pri
     size_t systsz = assembler.LHS.rows();
     size_t nnz    = assembler.LHS.nonZeros();
 
-    //  std::cout << "Mesh elements: " << msh.cells_size() << std::endl;
-    //  std::cout << "systsz: " << systsz << std::endl;
-    //  std::cout << "nnz: " << nnz << std::endl;
+    if (print)
+    {
+        std::cout << "Mesh elements: " << msh.cells_size() << std::endl;
+        std::cout << "systsz: " << systsz << std::endl;
+        std::cout << "nnz: " << nnz << std::endl;
+    }
 
     vector_type sol = vector_type::Zero(systsz);
 
@@ -325,32 +375,86 @@ run_hho_variable_diffusion_solver(const Mesh& msh, const size_t degree, bool pri
     pparams.report_factorization_Mflops = false;
     mkl_pardiso(pparams, assembler.LHS, assembler.RHS, sol);
 
-    T error = 0.0;
+    vector_type flux_faces = vector_type::Zero(msh.faces_size());
+    T           error      = 0.0;
 
     for (auto& cl : msh)
     {
-        const auto gr   = make_vector_hho_gradrec(msh, cl, hdi, diffusion_tensor);
-        const auto stab = make_scalar_hdg_stabilization(msh, cl, hdi);
+        const auto gr   = make_vector_hho_gradrec(msh, cl, hdi, diffusion_tensor, odi);
+        const auto stab = make_scalar_hdg_stabilization(msh, cl, hdi, stab_diam_F);
 
-        matrix_type A = gr.second + stab;
+        matrix_type A = gr.second + coeff_stab * stab;
 
         const auto cb  = make_scalar_monomial_basis(msh, cl, hdi.cell_degree());
-        const auto rhs = make_rhs(msh, cl, cb, rhs_fun);
+        const auto rhs = make_rhs(msh, cl, cb, rhs_fun, odi);
 
-        vector_type locsol = assembler.take_local_solution(msh, cl, bnd, sol);
+        vector_type locsol = assembler.take_local_solution(msh, cl, bnd, sol, odi);
 
         vector_type sol = make_scalar_static_decondensation(msh, cl, hdi, A, rhs, locsol);
 
-        vector_type realsol = project_function(msh, cl, hdi, sol_fun, 2);
+        vector_type realsol = project_function(msh, cl, hdi, sol_fun, odi);
 
         const auto diff = realsol - sol;
-        error += diff.dot(gr.second * diff);
+        error += diff.dot(A * diff);
+
+        const vector_type grad_u = gr.first * sol;
+        const auto        gb     = make_vector_monomial_basis(msh, cl, hdi.grad_degree());
+        assert(grad_u.size() == gb.size());
+
+        const auto fcs = faces(msh, cl);
+
+        const auto        adjoint = make_scalar_hdg_stabilization_adjoint(msh, cl, hdi, stab_diam_F);
+        const vector_type flux_u  = adjoint * sol;
+
+        size_t fc_off = 0;
+
+        for (auto& fc : fcs)
+        {
+            const auto no = normal(msh, cl, fc);
+            // over-intergation by security
+            const auto qpf = integrate(msh, fc, hdi.grad_degree() + odi);
+
+            const auto diff_deg = std::max(hdi.face_degree(), hdi.cell_degree());
+            const auto db       = make_scalar_monomial_basis(msh, fc, diff_deg);
+            const auto dbs      = db.size();
+
+            const vector_type flux_uF = flux_u.segment(fc_off, dbs);
+
+            // compute fluxes F = -grad(u).n + coeff_stab*(uF-uT)
+            T flux_grad = T(0);
+            T flux_stab = T(0);
+
+            for (auto& qp : qpf)
+            {
+                // eval velocity
+                const auto gphi = gb.eval_functions(qp.point());
+                const auto grad = eval(grad_u, gphi);
+                flux_grad += qp.weight() * (diffusion_tensor(qp.point()) * grad).dot(no);
+
+                // eval stabilization term
+                const auto dphi = db.eval_functions(qp.point());
+                flux_stab += qp.weight() * (eval(flux_uF, dphi));
+            }
+
+            flux_faces(msh.lookup(fc)) += flux_grad + coeff_stab * flux_stab;
+            fc_off += dbs;
+            // std::cout << msh.lookup(fc) << " -> " << flux_grad << std::endl;
+        }
+    }
+
+    for (auto itor = msh.boundary_faces_begin(); itor != msh.boundary_faces_end(); itor++)
+    {
+        const auto bfc      = *itor;
+        const auto face_id  = msh.lookup(bfc);
+        flux_faces(face_id) = 0.;
     }
 
     if (print)
     {
-        print_error(degree, average_diameter(msh), error);
+        print_error(degree, average_diameter(msh), error, flux_faces.sum());
     }
+    else
+        std::cout << "Equilibrated fluxes: " << flux_faces.norm() << std::endl;
 
     return std::sqrt(error);
 }
@@ -363,7 +467,7 @@ class test_functor
     typename Mesh::coordinate_type
     operator()(const Mesh& msh, size_t degree) const
     {
-        return run_hho_variable_diffusion_solver(msh, degree, false);
+        return run_hho_variable_diffusion_solver(msh, degree, StabSize::hR, false);
     }
 
     size_t
@@ -397,7 +501,8 @@ print_info()
     std::cout << "Arguments" << std::endl;
     std::cout << "-m : use the specified mesh file" << std::endl;
     std::cout << "-k : degree of the HHO method" << std::endl;
-    std::cout << "-r : use Raiart-Thomas gradient" << std::endl;
+    std::cout << "-r : use Raviart-Thomas gradient" << std::endl;
+    std::cout << "-c : use cell diameter for stabilization" << std::endl;
     std::cout << "default: convergence test" << std::endl;
 }
 
@@ -410,13 +515,16 @@ main(int argc, char** argv)
 
     bool   use_mesh = false;
     bool   use_RT   = false;
-    size_t degree   = 1;
+    StabSize use_stab_F = StabSize::hF;
+    size_t degree     = 1;
     int    ch;
 
-    while ((ch = getopt(argc, argv, "k:m:r")) != -1)
+    while ((ch = getopt(argc, argv, "ck:m:r")) != -1)
     {
         switch (ch)
         {
+            case 'c': use_stab_F = StabSize::hT; break;
+
             case 'k': degree = std::stoi(optarg); break;
 
             case 'm':
@@ -448,7 +556,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
 
             return 0;
@@ -467,7 +575,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
 
             return 0;
@@ -486,7 +594,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
             return 0;
         }
@@ -504,7 +612,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
 
             return 0;
@@ -523,7 +631,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
             return 0;
         }
@@ -541,7 +649,7 @@ main(int argc, char** argv)
             }
             else
             {
-                run_hho_variable_diffusion_solver(msh, degree, true);
+                run_hho_variable_diffusion_solver(msh, degree, use_stab_F, true);
             }
 
             return 0;
