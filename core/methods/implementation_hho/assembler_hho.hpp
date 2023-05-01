@@ -209,12 +209,12 @@ class diffusion_condensed_assembler
             for (size_t j = 0; j < lhs.cols(); j++)
             {
                 if (asm_map[j].assemble())
-                    triplets.push_back(Triplet<T>(asm_map[i], asm_map[j], lhs(i, j)));
+                    triplets.push_back(Triplet<T>(size_t(asm_map[i]), size_t(asm_map[j]), lhs(i, j)));
                 else
-                    RHS(asm_map[i]) -= lhs(i, j) * dirichlet_data(j);
+                    RHS(size_t(asm_map[i])) -= lhs(i, j) * dirichlet_data(j);
             }
 
-            RHS(asm_map[i]) += rhs(i);
+            RHS(size_t(asm_map[i])) += rhs(i);
         }
     } // assemble()
 
@@ -266,12 +266,12 @@ class diffusion_condensed_assembler
             for (size_t j = 0; j < lhs.cols(); j++)
             {
                 if (asm_map[j].assemble())
-                    triplets.push_back(Triplet<T>(asm_map[i], asm_map[j], lhs(i, j)));
+                    triplets.push_back(Triplet<T>(size_t(asm_map[i]), size_t(asm_map[j]), lhs(i, j)));
                 else
-                    RHS(asm_map[i]) -= lhs(i, j) * dirichlet_data(j);
+                    RHS(size_t(asm_map[i])) -= lhs(i, j) * dirichlet_data(j);
             }
 
-            RHS(asm_map[i]) += rhs(i);
+            RHS(size_t(asm_map[i])) += rhs(i);
         }
     } // assemble()
 
@@ -321,7 +321,7 @@ class diffusion_condensed_assembler
                         assert(neumann.size() == num_face_dofs);
                         for (size_t i = 0; i < neumann.size(); i++)
                         {
-                            RHS(asm_map[i]) += neumann[i];
+                            RHS(size_t(asm_map[i])) += neumann[i];
                         }
                     }
                 }
@@ -391,12 +391,12 @@ class diffusion_condensed_assembler
 
                         for (size_t i = 0; i < num_face_dofs; i++)
                         {
-                            RHS(asm_map[i]) += robin[i];
+                            RHS(size_t(asm_map[i])) += robin[i];
 
                             for (size_t j = 0; j < num_face_dofs; j++)
                             {
                                 if (asm_map[j].assemble())
-                                    triplets.push_back(Triplet<T>(asm_map[i], asm_map[j], mass(i, j)));
+                                    triplets.push_back(Triplet<T>(size_t(asm_map[i]), size_t(asm_map[j]), mass(i, j)));
                             }
                         }
                     }

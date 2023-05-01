@@ -320,7 +320,7 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_dia
             }
 
             const auto face_id = msh.lookup(fc);
-            flux_faces(face_id) += flux_grad + flux_stab;
+            flux_faces(size_t(face_id)) += flux_grad + flux_stab;
             fc_off += dbs;
 
             if (msh.is_boundary(face_id))
@@ -343,7 +343,7 @@ run_hho_diffusion_solver(const Mesh& msh, size_t degree, const StabSize stab_dia
                 // flux_faces(face_id) += flux_diri;
 
                 // For the moment I do not know how to compute Dirichlet boundary
-                flux_faces(face_id) = 0.;
+                flux_faces(size_t(face_id)) = 0.;
             }
         }
     }
