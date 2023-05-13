@@ -60,6 +60,11 @@ area_triangle_kahan(const point<T, N>& p0, const point<T, N>& p1, const point<T,
     const T b = length[1];
     const T c = length[0];
 
+    auto form = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c));
+    if(form < T(0.0)){
+        throw std::runtime_error("Area is negative");
+    }
+
     return T(0.25) * std::sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
 }
 
@@ -81,8 +86,8 @@ std::tuple<point<T, N>, point<T, N>, point<T, N>>
 integration_basis(const point<T, N>& p0, const point<T, N>& p1, const point<T, N>& p2)
 {
     const std::array<point<T, N>, 3> pts   = {p0, p1, p2};
-    size_t                           node  = 0;
-    T                                pscal = T(1);
+    size_t                           node  = -1;
+    T                                pscal = T(2.);
 
     for (size_t i = 0; i < 3; i++)
     {
@@ -92,13 +97,17 @@ integration_basis(const point<T, N>& p0, const point<T, N>& p1, const point<T, N
         const auto v0n = v0 / v0.norm();
         const auto v1n = v1 / v1.norm();
 
-        if (v0n.dot(v1n) < pscal) // we want the maximum angle;
+        const auto ps = std::abs(v0n.dot(v1n));
+
+        if (ps < pscal) // we want the most orthonal basis;
         {
             node  = i;
-            pscal = v0n.dot(v1n);
+            pscal = ps;
             //std::cout << "node: " << node << ", pscal: " << pscal << std::endl;
         }
     }
+
+    assert(node >= 0);
 
     const point<T, N> pbasis = pts[node];
     const point<T, N> b0     = pts[(node + 1) % 3] - pts[node];

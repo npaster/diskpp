@@ -79,8 +79,22 @@ public:
      * @return std::array<point_type, N+1> vertex
      */
     std::array<point_type, N+1> points() const { return m_points; }
-
 };
+
+template<typename PtT, size_t N>
+std::ostream&
+operator<<(std::ostream& os, const raw_simplex<PtT, N>& p)
+{
+    auto pts = p.points();
+
+    os << "Number of vertices: " << pts.size() << std::endl;
+    for (size_t i = 0; i < pts.size(); i++)
+    {
+        os << "v" << i << ": " << pts[i] << std::endl;
+    }
+
+    return os;
+}
 
 /**
  * @brief Compute the measure, i.e. the area of the specified triangle
@@ -95,7 +109,6 @@ measure(const raw_simplex<PtT,2>& rs)
 {
     const auto pts = rs.points();
     assert(pts.size() == 3);
-
     return area_triangle_kahan(pts[0], pts[1], pts[2]);
 }
 
@@ -249,7 +262,16 @@ split_in_raw_triangles(const Mesh& msh, const typename Mesh::cell& cl)
 
     for(auto& tri : triangles)
     {
-        raw_simplices.push_back(raw_simplex_type({pts[tri[0]], pts[tri[1]], pts[tri[2]]}));
+        auto rs = raw_simplex_type({pts[tri[0]], pts[tri[1]], pts[tri[2]]});
+        try
+        {
+            auto meas = measure(rs);
+            raw_simplices.push_back(rs);
+        }
+        catch(const std::runtime_error& e)
+        {
+            // This is a not a real triangle
+        }
     }
 
     return raw_simplices;
