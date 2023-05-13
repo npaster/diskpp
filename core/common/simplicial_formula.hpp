@@ -60,9 +60,8 @@ area_triangle_kahan(const point<T, N>& p0, const point<T, N>& p1, const point<T,
     const T b = length[1];
     const T c = length[0];
 
-    auto form = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c));
-    if(form < T(0.0)){
-        throw std::runtime_error("Area is negative");
+    if((c-(a-b)) < T(0.0)){
+        throw std::runtime_error("Triangle is flat");
     }
 
     return T(0.25) * std::sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
