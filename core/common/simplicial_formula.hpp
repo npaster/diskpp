@@ -60,11 +60,40 @@ area_triangle_kahan(const point<T, N>& p0, const point<T, N>& p1, const point<T,
     const T b = length[1];
     const T c = length[0];
 
-    if((c-(a-b)) < T(0.0)){
-        throw std::runtime_error("Triangle is flat");
+    if((c-(a-b)) <= T(0.0)){
+        return T(0.0);
     }
 
     return T(0.25) * std::sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
+}
+
+template<typename T, size_t N>
+bool
+is_triangle_flat(const point<T, N>& p0, const point<T, N>& p1, const point<T, N>& p2)
+{
+    const T l10 = (p1 - p0).to_vector().norm();
+    const T l20 = (p2 - p0).to_vector().norm();
+    const T l21 = (p2 - p1).to_vector().norm();
+
+    std::array<T, 3> length = {l10, l20, l21};
+
+    std::sort(length.begin(), length.end());
+
+    const T a = length[2];
+    const T b = length[1];
+    const T c = length[0];
+
+    if ((c - (a - b)) < T(0.0))
+    {
+        return true;
+    }
+
+    const T form = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c));
+    if(form < T(0.0)){
+        throw std::runtime_error("Triangle is degenerated");
+    }
+
+    return false;
 }
 
 /**

@@ -112,6 +112,15 @@ measure(const raw_simplex<PtT,2>& rs)
     return area_triangle_kahan(pts[0], pts[1], pts[2]);
 }
 
+template<typename PtT>
+bool
+is_flat(const raw_simplex<PtT, 2>& rs)
+{
+    const auto pts = rs.points();
+    assert(pts.size() == 3);
+    return is_triangle_flat(pts[0], pts[1], pts[2]);
+}
+
 /**
  * @brief Compute the measure, i.e. the volume of the specified tetrahedra
  *
@@ -263,16 +272,17 @@ split_in_raw_triangles(const Mesh& msh, const typename Mesh::cell& cl)
     for(auto& tri : triangles)
     {
         auto rs = raw_simplex_type({pts[tri[0]], pts[tri[1]], pts[tri[2]]});
-        try
+        if (!is_flat(rs))
         {
-            auto meas = measure(rs);
             raw_simplices.push_back(rs);
         }
-        catch(const std::runtime_error& e)
-        {
-            // This is a not a real triangle
-        }
     }
+
+    if(raw_simplices.empty()){
+        throw std::runtime_error("Error during splitting");
+    }
+
+    // std::cout << "Number of triangle removed: " << triangles.size() - raw_simplices.size() << std::endl;
 
     return raw_simplices;
 }
@@ -291,6 +301,7 @@ split_in_raw_triangles_index(const Mesh& msh, const typename Mesh::cell& cl)
 {
     static_assert(Mesh::dimension == 2);
     using Triangle = std::array<point_identifier<2>, 3>;
+    typedef raw_simplex<typename Mesh::point_type, 2> raw_simplex_type;
 
     const auto pts = points(msh, cl);
     const auto pts_id = cl.point_ids();
@@ -305,11 +316,23 @@ split_in_raw_triangles_index(const Mesh& msh, const typename Mesh::cell& cl)
 
     for (auto& tri : triangles)
     {
-        raw_simplices.push_back(Triangle{
-            point_identifier<2>(pts_id[tri[0]]),
-            point_identifier<2>(pts_id[tri[1]]),
-            point_identifier<2>(pts_id[tri[2]])});
+        auto rs = raw_simplex_type({pts[tri[0]], pts[tri[1]], pts[tri[2]]});
+        if (!is_flat(rs))
+        {
+            raw_simplices.push_back(Triangle{point_identifier<2>(pts_id[tri[0]]),
+                                             point_identifier<2>(pts_id[tri[1]]),
+                                             point_identifier<2>(pts_id[tri[2]])});
+        }
     }
+
+    if (raw_simplices.empty())
+    {
+        throw std::runtime_error("Error during splitting");
+    }
+
+    // std::cout << "Number of triangle index removed: " << triangles.size() - raw_simplices.size() << std::endl;
+
+
     return raw_simplices;
 }
 
@@ -400,7 +423,7 @@ triangulation_earcut_algorithm(const std::vector<point<T, 2>>& pts)
     // Returns array of indices that refer to the vertices of the input polygon.
     // e.g: the index 6 would refer to {25, 75} in this example.
     // Three subsequent indices form a triangle. Output triangles are clockwise.
-    const auto indices = mapbox::earcut<std::size_t>(polygon);
+    const auto indices = mapbox::earcut(polygon);
     const auto nb_ind  = indices.size();
 
     std::vector<Triangle> triangles;
