@@ -453,7 +453,7 @@ class diffusion_condensed_assembler
                     const Function&                 dirichlet_bf,
                     size_t                          odi = 1)
     {
-        return this->take_local_solution(msh, cl, solution, dirichlet_bf);
+        return this->take_local_solution(msh, cl, solution, dirichlet_bf, odi);
     }
 
     vector_type
