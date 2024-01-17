@@ -306,7 +306,11 @@ class scaled_monomial_vector_basis<Mesh<T, 3, Storage>, typename Mesh<T, 3, Stor
   private:
     size_t basis_degree, basis_size;
 
+#ifdef USE_LEGENDRE_1D
+    typedef scaled_legendre_scalar_basis<mesh_type, face_type, scalar_type> scalar_basis_type;
+#else
     typedef scaled_monomial_scalar_basis<mesh_type, face_type, scalar_type> scalar_basis_type;
+#endif
     scalar_basis_type                                          scalar_basis;
 
   public:
@@ -753,7 +757,11 @@ class scaled_monomial_vector_basis<Mesh<T, 2, Storage>, typename Mesh<T, 2, Stor
   private:
     size_t basis_degree, basis_size;
 
+#ifdef USE_LEGENDRE_1D
+    typedef scaled_legendre_scalar_basis<mesh_type, face_type, scalar_type> scalar_basis_type;
+#else
     typedef scaled_monomial_scalar_basis<mesh_type, face_type, scalar_type> scalar_basis_type;
+#endif
     scalar_basis_type                                          scalar_basis;
 
   public:

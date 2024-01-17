@@ -239,19 +239,19 @@ struct test_functor_dg
 int
 main(void)
 {
-    // std::cout << red << "Test HHO-stabilization operator" << std::endl;
-    // // face order: k, cell order: k
-    // std::cout << blue << "Face order: k and Cell order: k" << std::endl;
-    // tester<test_functor_hho_equal_order> tstr1;
-    // tstr1.run();
-    // // face order: k, cell order: k+1
-    // std::cout << blue << "Face order: k and Cell order: k+1" << std::endl;
-    // tester<test_functor_hho_mixed_order1> tstr2;
-    // tstr2.run();
-    // // face order: k, cell order: k-1
-    // std::cout << blue << "Face order: k and Cell order: k-1" << std::endl;
-    // tester<test_functor_hho_mixed_order2> tstr3;
-    // tstr3.run(1, 3);
+    std::cout << red << "Test HHO-stabilization operator" << std::endl;
+    // face order: k, cell order: k
+    std::cout << blue << "Face order: k and Cell order: k" << std::endl;
+    tester<test_functor_hho_equal_order> tstr1;
+    tstr1.run();
+    // face order: k, cell order: k+1
+    std::cout << blue << "Face order: k and Cell order: k+1" << std::endl;
+    tester<test_functor_hho_mixed_order1> tstr2;
+    tstr2.run();
+    // face order: k, cell order: k-1
+    std::cout << blue << "Face order: k and Cell order: k-1" << std::endl;
+    tester<test_functor_hho_mixed_order2> tstr3;
+    tstr3.run(1, 3);
 
     std::cout << red << "Test HDG-stabilization operator" << std::endl;
     // face order: k, cell order: k+1
