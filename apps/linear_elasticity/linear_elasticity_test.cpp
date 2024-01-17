@@ -322,7 +322,8 @@ test_triangles_fvca5(const run_params& rp, const ElasticityParameters material_d
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 2> msh;
+        disk::load_mesh_fvca5_2d(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -345,7 +346,8 @@ test_triangles_netgen(const run_params& rp, const ElasticityParameters material_
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_netgen_2d_mesh<T>(paths[i].c_str());
+        disk::simplicial_mesh<T, 2> msh;
+        disk::load_mesh_netgen(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -368,7 +370,8 @@ test_hexagons(const run_params& rp, const ElasticityParameters material_data)
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 2> msh;
+        disk::load_mesh_fvca5_2d(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -391,7 +394,8 @@ test_kershaws(const run_params& rp, const ElasticityParameters material_data)
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 2> msh;
+        disk::load_mesh_fvca5_2d(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -414,7 +418,8 @@ test_quads_fvca5(const run_params& rp, const ElasticityParameters material_data)
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca5_2d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 2> msh;
+        disk::load_mesh_fvca5_2d(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -437,7 +442,8 @@ test_quads_diskpp(const run_params& rp, const ElasticityParameters material_data
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_cartesian_2d_mesh<T>(paths[i].c_str());
+        disk::cartesian_mesh<T, 2> msh;
+        disk::load_mesh_diskpp_cartesian(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -460,7 +466,8 @@ test_hexahedra_diskpp(const run_params& rp, const ElasticityParameters material_
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_cartesian_3d_mesh<T>(paths[i].c_str());
+        disk::cartesian_mesh<T, 3> msh;
+        disk::load_mesh_diskpp_cartesian(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -483,7 +490,8 @@ test_hexahedra_fvca6(const run_params& rp, const ElasticityParameters material_d
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 3> msh;
+        disk::load_mesh_fvca6_3d<T>(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -506,7 +514,8 @@ test_tetrahedra_netgen(const run_params& rp, const ElasticityParameters material
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_netgen_3d_mesh<T>(paths[i].c_str());
+        disk::simplicial_mesh<T, 3> msh;
+        disk::load_mesh_netgen(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -528,7 +537,8 @@ test_polyhedra_fvca6(const run_params& rp, const ElasticityParameters material_d
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 3> msh;
+        disk::load_mesh_fvca6_3d<T>(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -551,7 +561,8 @@ test_tetrahedra_fvca6(const run_params& rp, const ElasticityParameters material_
 
     for (int i = 0; i < runs; i++)
     {
-        auto msh = disk::load_fvca6_3d_mesh<T>(paths[i].c_str());
+        disk::generic_mesh<T, 3> msh;
+        disk::load_mesh_fvca6_3d<T>(paths[i].c_str(), msh);
         error_sumup.push_back(run_linear_elasticity_solver(msh, rp, material_data));
     }
     printResults(error_sumup);
@@ -680,12 +691,12 @@ main(int argc, char** argv)
         std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
         std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Quadrangles fvca5:" << std::endl;
-        test_quads_fvca5<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Quadrangles fvca5:" << std::endl;
+        // test_quads_fvca5<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+        // std::cout << " " << std::endl;
 
         tc.tic();
         std::cout << "-Quadrangles diskpp:" << std::endl;

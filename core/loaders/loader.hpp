@@ -29,43 +29,43 @@
  * DOI: 10.1016/j.cam.2017.09.017
  */
 
- /*
-  * Copyright (C) 2013-2016, Matteo Cicuttin - matteo.cicuttin@uniud.it
-  * Department of Electrical Engineering, University of Udine
-  * All rights reserved.
-  *
-  * Redistribution and use in source and binary forms, with or without
-  * modification, are permitted provided that the following conditions are met:
-  *     * Redistributions of source code must retain the above copyright
-  *       notice, this list of conditions and the following disclaimer.
-  *     * Redistributions in binary form must reproduce the above copyright
-  *       notice, this list of conditions and the following disclaimer in the
-  *       documentation and/or other materials provided with the distribution.
-  *     * Neither the name of the University of Udine nor the
-  *       names of its contributors may be used to endorse or promote products
-  *       derived from this software without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(s) ``AS IS'' AND ANY
-  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE AUTHOR(s) BE LIABLE FOR ANY
-  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  */
+/*
+ * Copyright (C) 2013-2016, Matteo Cicuttin - matteo.cicuttin@uniud.it
+ * Department of Electrical Engineering, University of Udine
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the University of Udine nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(s) ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHOR(s) BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #pragma once
 
 #include <array>
-#include <tuple>
 #include <cassert>
 #include <fstream>
 #include <regex>
 #include <set>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "geometry/geometry.hpp"
@@ -74,23 +74,34 @@
 #include "mapped_file.h"
 #include "strtot.hpp"
 
-namespace disk {
+namespace disk
+{
 
 template<typename mesh_type>
 class mesh_loader
 {
-    bool    m_verbose;
+    bool m_verbose;
 
-public:
-    mesh_loader()
-        : m_verbose(false)
-    {}
+  public:
+    mesh_loader() : m_verbose(false) {}
 
-    virtual bool    read_mesh(const std::string&) { return false; }
-    virtual bool    populate_mesh(mesh_type&)    = 0;
+    virtual bool
+    read_mesh(const std::string&)
+    {
+        return false;
+    }
+    virtual bool populate_mesh(mesh_type&) = 0;
 
-    bool    verbose(void) const     { return m_verbose; }
-    void    verbose(bool v)         { m_verbose = v; }
+    bool
+    verbose(void) const
+    {
+        return m_verbose;
+    }
+    void
+    verbose(bool v)
+    {
+        m_verbose = v;
+    }
 
     virtual ~mesh_loader() {}
 };
@@ -102,30 +113,29 @@ class uniform_mesh_loader
 };
 
 template<typename T>
-class uniform_mesh_loader<T,1> : public mesh_loader<generic_mesh<T, 1>>
+class uniform_mesh_loader<T, 1> : public mesh_loader<generic_mesh<T, 1>>
 {
-    typedef generic_mesh<T,1>                       mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
+    typedef generic_mesh<T, 1>             mesh_type;
+    typedef typename mesh_type::point_type point_type;
+    typedef typename mesh_type::node_type  node_type;
+    typedef typename mesh_type::edge_type  edge_type;
 
-    T       m_h, m_x_min, m_x_max;
-    size_t  m_number_of_elements;
+    T      m_h, m_x_min, m_x_max;
+    size_t m_number_of_elements;
 
-public:
-    uniform_mesh_loader()
-        : m_x_min(T(0)), m_x_max(T(1)), m_number_of_elements(8)
+  public:
+    uniform_mesh_loader() : m_x_min(T(0)), m_x_max(T(1)), m_number_of_elements(8)
     {
         m_h = fabs(m_x_max - m_x_min) / m_number_of_elements;
     }
 
-    uniform_mesh_loader(T x_min, T x_max, size_t N)
-        : m_x_min(x_min), m_x_max(x_max), m_number_of_elements(N)
+    uniform_mesh_loader(T x_min, T x_max, size_t N) : m_x_min(x_min), m_x_max(x_max), m_number_of_elements(N)
     {
         m_h = fabs(m_x_max - m_x_min) / m_number_of_elements;
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         if (this->verbose())
             std::cout << " *** POPULATING UNIFORM 1D MESH ***" << std::endl;
@@ -141,12 +151,12 @@ public:
 
         for (size_t i = 0; i < num_edges; i++)
         {
-            storage->points.at(i)   = point_type({m_x_min + (m_h * i)});
-            storage->points.at(i+1) = point_type({m_x_min + (m_h * (i + 1))});
+            storage->points.at(i)     = point_type({m_x_min + (m_h * i)});
+            storage->points.at(i + 1) = point_type({m_x_min + (m_h * (i + 1))});
 
             auto n0 = typename node_type::id_type(i);
-            auto n1 = typename node_type::id_type(i+1);
-            auto e = edge_type(n0, n1);
+            auto n1 = typename node_type::id_type(i + 1);
+            auto e  = edge_type(n0, n1);
 
             /*
             std::vector<point_identifier<1>> pts(2);
@@ -162,7 +172,7 @@ public:
 
         storage->boundary_info.resize(num_nodes);
         boundary_descriptor bi(0, true);
-        storage->boundary_info.at(0) = bi;
+        storage->boundary_info.at(0)             = bi;
         storage->boundary_info.at(num_nodes - 1) = bi;
 
         return true;
@@ -176,36 +186,57 @@ class fvca5_mesh_loader
 };
 
 template<typename T>
-class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
+class fvca5_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
 {
-    typedef generic_mesh<T,2>                       mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
+    typedef generic_mesh<T, 2>               mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
 
     struct fvca5_poly
     {
-        std::vector<size_t>                 nodes;
-        std::set<std::array<size_t, 2>>     attached_edges;
-        size_t                              domain_id;
+        std::vector<size_t>             nodes;
+        std::set<std::array<size_t, 2>> attached_edges;
+        size_t                          domain_id;
 
         fvca5_poly() : domain_id(0) {}
 
-        bool operator<(const fvca5_poly& other) {
+        bool
+        operator<(const fvca5_poly& other)
+        {
             return nodes < other.nodes;
         }
     };
 
-    std::vector<point_type>                         m_points;
-    std::vector<fvca5_poly>                         m_polys;
-    std::vector<std::array<ident_raw_t, 2>>        m_boundary_edges;
-    std::vector<std::array<ident_raw_t, 4>>        m_edges;
+    std::vector<point_type>                 m_points;
+    std::vector<fvca5_poly>                 m_polys;
+    std::vector<std::array<ident_raw_t, 2>> m_boundary_edges;
+    std::vector<std::array<ident_raw_t, 4>> m_edges;
 
-    bool fvca5_read_points(std::ifstream& ifs)
+    std::vector<int>
+    split_line_to_int(std::string& line)
     {
-        size_t      elements_to_read;
-        T           x, y;
+        std::string         s;
+        std::vector<int> v;
+        std::stringstream   ss(line);
+
+        while (std::getline(ss, s, ' '))
+        {
+            // store token string in the vector
+            if (!s.empty())
+            {
+                v.push_back(std::stoi(s));
+            }
+        }
+        return v;
+    }
+
+    bool
+    fvca5_read_points(std::ifstream& ifs)
+    {
+        size_t elements_to_read;
+        T      x, y;
 
         ifs >> elements_to_read;
 
@@ -217,15 +248,16 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         for (size_t i = 0; i < elements_to_read; i++)
         {
             ifs >> x >> y;
-            m_points.push_back(point_type{x,y});
+            m_points.push_back(point_type{x, y});
         }
 
         return true;
     }
 
-    bool fvca5_read_polygons(std::ifstream& ifs, size_t polynum)
+    bool
+    fvca5_read_polygons(std::ifstream& ifs, size_t polynum)
     {
-        size_t      elements_to_read;
+        size_t elements_to_read;
 
         ifs >> elements_to_read;
         if (this->verbose())
@@ -235,16 +267,18 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         {
             fvca5_poly p;
 
+            std::string line;
+            std::getline(ifs >> std::ws, line);
+            auto values = split_line_to_int(line);
+
             for (size_t j = 0; j < polynum; j++)
             {
-                ident_raw_t val;
-                ifs >> val;
-                p.nodes.push_back(val-1);
+                ident_raw_t val = values[j];
+                p.nodes.push_back(val - 1);
             }
 
-            ifs >> std::ws;
-            if ( std::isdigit(ifs.peek()) )
-                ifs >> p.domain_id;
+            if (values.size() > polynum)
+                p.domain_id = values.back();
 
             m_polys.push_back(p);
         }
@@ -252,9 +286,10 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         return true;
     }
 
-    bool fvca5_read_boundary_edges(std::ifstream& ifs)
+    bool
+    fvca5_read_boundary_edges(std::ifstream& ifs)
     {
-        size_t      elements_to_read;
+        size_t elements_to_read;
 
         ifs >> elements_to_read;
         if (this->verbose())
@@ -264,9 +299,12 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
 
         for (size_t i = 0; i < elements_to_read; i++)
         {
-            std::array<ident_raw_t, 2> b_edge;
-            ifs >> b_edge[0]; b_edge[0] -= 1;
-            ifs >> b_edge[1]; b_edge[1] -= 1;
+            std::string line;
+            std::getline(ifs >> std::ws, line);
+            auto values = split_line_to_int(line);
+
+            std::array<ident_raw_t, 2> b_edge = {
+              ident_raw_t(values[0] - 1), ident_raw_t(values[1] - 1)};
 
             assert(b_edge[0] != b_edge[1]);
 
@@ -276,17 +314,13 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
             m_boundary_edges.push_back({b_edge[0], b_edge[1]});
         }
 
-        while( not std::isalpha(ifs.get()) and not ifs.eof() )
-            ;
-        ifs.unget();
-
-        int len = ifs.tellg();
+        int         len = ifs.tellg();
         std::string line;
         getline(ifs, line);
 
-        if ( not std::regex_match(line, std::regex(".*edges of transmission.*") ) )
-        {  
-            ifs.seekg(len ,std::ios_base::beg);
+        if (not std::regex_match(line, std::regex(".*edges of transmission.*")))
+        {
+            ifs.seekg(len, std::ios_base::beg);
             return true;
         }
 
@@ -294,13 +328,15 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         if (this->verbose())
             std::cout << "Reading " << elements_to_read << " transmission edges" << std::endl;
 
-        //m_boundary_edges.reserve(elements_to_read);
+        // m_boundary_edges.reserve(elements_to_read);
 
         for (size_t i = 0; i < elements_to_read; i++)
         {
-            std::array<ident_raw_t, 2> b_edge;
-            ifs >> b_edge[0]; b_edge[0] -= 1;
-            ifs >> b_edge[1]; b_edge[1] -= 1;
+            std::string line;
+            std::getline(ifs >> std::ws, line);
+            auto values = split_line_to_int(line);
+
+            std::array<ident_raw_t, 2> b_edge = {ident_raw_t(values[0] - 1), ident_raw_t(values[1] - 1)};
 
             assert(b_edge[0] != b_edge[1]);
 
@@ -313,9 +349,10 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         return true;
     }
 
-    bool fvca5_read_edges(std::ifstream& ifs)
+    bool
+    fvca5_read_edges(std::ifstream& ifs)
     {
-        size_t      elements_to_read;
+        size_t elements_to_read;
 
         ifs >> elements_to_read;
         if (this->verbose())
@@ -325,27 +362,22 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
 
         for (size_t i = 0; i < elements_to_read; i++)
         {
-            std::array<ident_raw_t, 4> edge;
-            ifs >> edge[0]; edge[0] -= 1;
-            ifs >> edge[1]; edge[1] -= 1;
-            ifs >> edge[2];
-            ifs >> edge[3];
+            std::string line;
+            std::getline(ifs >> std::ws, line);
+            auto                       values = split_line_to_int(line);
 
-            ident_raw_t dummy;
-            ifs >> std::ws;
-            if ( std::isdigit(ifs.peek()) )
-                ifs >> dummy;
-            
+            std::array<ident_raw_t, 4> edge = {ident_raw_t(values[0] - 1), ident_raw_t(values[1] - 1), ident_raw_t(values[2]), ident_raw_t(values[3])};
+
             assert(edge[0] != edge[1]);
 
             if (edge[0] > edge[1])
                 std::swap(edge[0], edge[1]);
 
             if (edge[2] != 0)
-                m_polys.at(edge[2]-1).attached_edges.insert({edge[0], edge[1]});
+                m_polys.at(edge[2] - 1).attached_edges.insert({edge[0], edge[1]});
 
             if (edge[3] != 0)
-                m_polys.at(edge[3]-1).attached_edges.insert({edge[0], edge[1]});
+                m_polys.at(edge[3] - 1).attached_edges.insert({edge[0], edge[1]});
 
             m_edges.push_back(edge);
         }
@@ -353,10 +385,11 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         return true;
     }
 
-    bool fvca5_read(const std::string& filename)
+    bool
+    fvca5_read(const std::string& filename)
     {
-        std::ifstream   ifs(filename);
-        std::string     keyword;
+        std::ifstream ifs(filename);
+        std::string   keyword;
 
         if (!ifs.is_open())
         {
@@ -365,7 +398,7 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         }
 
         ifs >> keyword;
-        if ( keyword != "vertices" )
+        if (keyword != "vertices")
         {
             std::cout << "Expected keyword \"vertices\"" << std::endl;
             return false;
@@ -374,45 +407,45 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         fvca5_read_points(ifs);
 
         ifs >> keyword;
-        if ( keyword == "triangles" )
+        if (trim_copy(keyword) == "triangles")
         {
             fvca5_read_polygons(ifs, 3);
             ifs >> keyword;
         }
 
-        if ( keyword == "quadrangles" )
+        if (trim_copy(keyword) == "quadrangles")
         {
             fvca5_read_polygons(ifs, 4);
             ifs >> keyword;
         }
 
-        if ( keyword == "pentagons" )
+        if (trim_copy(keyword) == "pentagons")
         {
             fvca5_read_polygons(ifs, 5);
             ifs >> keyword;
         }
 
-        if ( keyword == "hexagons" )
+        if (trim_copy(keyword) == "hexagons")
         {
             fvca5_read_polygons(ifs, 6);
             ifs >> keyword;
         }
 
-        if ( keyword == "ennagons" )
+        if (trim_copy(keyword) == "ennagons")
         {
             fvca5_read_polygons(ifs, 7);
             ifs >> keyword;
         }
 
-        if ( keyword == "ettagons" )
+        if (trim_copy(keyword) == "ettagons")
         {
             fvca5_read_polygons(ifs, 8);
             ifs >> keyword;
         }
 
-        if ( keyword == "edges" )
+        if (trim_copy(keyword) == "edges")
         {
-            std::getline(ifs, keyword); //drop the rest of the line
+            std::getline(ifs, keyword); // drop the rest of the line
             m_boundary_edges.clear();
             fvca5_read_boundary_edges(ifs);
             ifs >> keyword;
@@ -423,9 +456,9 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
             return false;
         }
 
-        if ( keyword == "all" )
+        if (trim_copy(keyword) == "all")
         {
-            std::getline(ifs, keyword); //drop the rest of the line
+            std::getline(ifs, keyword); // drop the rest of the line
             m_edges.clear();
             fvca5_read_edges(ifs);
         }
@@ -439,20 +472,21 @@ class fvca5_mesh_loader<T,2> : public mesh_loader<generic_mesh<T, 2>>
         return true;
     }
 
-public:
-  static const char constexpr* expected_extension = "typ1";
+  public:
+    static const char constexpr* expected_extension = "typ1";
 
-  fvca5_mesh_loader() = default;
+    fvca5_mesh_loader() = default;
 
-  bool
-  read_mesh(const std::string& filename)
-  {
-      if (this->verbose())
-          std::cout << " *** READING FVCA5 MESH ***" << std::endl;
-      return fvca5_read(filename);
+    bool
+    read_mesh(const std::string& filename)
+    {
+        if (this->verbose())
+            std::cout << " *** READING FVCA5 MESH ***" << std::endl;
+        return fvca5_read(filename);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         if (this->verbose())
             std::cout << " *** POPULATING FVCA5 MESH ***" << std::endl;
@@ -460,7 +494,7 @@ public:
 
         /* Points */
         size_t nodes_size = m_points.size();
-        storage->points = std::move(m_points);
+        storage->points   = std::move(m_points);
 
         /* Nodes */
         std::vector<node_type> nodes(nodes_size);
@@ -482,7 +516,7 @@ public:
             auto e = edge_type(node1, node2);
 
             /* Next line not necessary anymore, see generic_element<DIM, DIM-1> */
-            //e.set_point_ids(m_edges[i].begin(), m_edges[i].begin()+2); /* XXX: crap */
+            // e.set_point_ids(m_edges[i].begin(), m_edges[i].begin()+2); /* XXX: crap */
             edges.push_back(e);
         }
         /* Sort them */
@@ -502,8 +536,7 @@ public:
 
             if (position.first == false)
             {
-                std::cout << "Bad bug at " << __FILE__ << "("
-                          << __LINE__ << ")" << std::endl;
+                std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
                 return false;
             }
 
@@ -515,8 +548,8 @@ public:
 
         /* Surfaces */
         using sd_pair = std::pair<surface_type, size_t>;
-        std::vector< sd_pair > surfaces;
-        surfaces.reserve( m_polys.size() );
+        std::vector<sd_pair> surfaces;
+        surfaces.reserve(m_polys.size());
 
         for (auto& p : m_polys)
         {
@@ -528,12 +561,10 @@ public:
                 auto n2 = typename node_type::id_type(e[1]);
 
                 edge_type edge(n1, n2);
-                auto edge_id = find_element_id(storage->edges.begin(),
-                                               storage->edges.end(), edge);
+                auto      edge_id = find_element_id(storage->edges.begin(), storage->edges.end(), edge);
                 if (!edge_id.first)
                 {
-                    std::cout << "Bad bug at " << __FILE__ << "("
-                              << __LINE__ << ")" << std::endl;
+                    std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
                     return false;
                 }
 
@@ -541,25 +572,22 @@ public:
             }
             auto surface = surface_type(surface_edges);
             surface.set_point_ids(p.nodes.begin(), p.nodes.end()); /* XXX: crap */
-            surfaces.push_back( std::make_pair(surface, p.domain_id) );
-            //storage->subdomain_info.push_back( subdomain_descriptor(p.domain_id) );
+            surfaces.push_back(std::make_pair(surface, p.domain_id));
+            // storage->subdomain_info.push_back( subdomain_descriptor(p.domain_id) );
         }
 
-        auto comp = [](const sd_pair& a, const sd_pair& b) -> bool {
-            return a.first < b.first;
-        };
+        auto comp = [](const sd_pair& a, const sd_pair& b) -> bool { return a.first < b.first; };
 
         std::sort(surfaces.begin(), surfaces.end(), comp);
 
         auto get_surf = [](const sd_pair& sdp) -> auto { return sdp.first; };
-        storage->surfaces.resize( surfaces.size() );
+        storage->surfaces.resize(surfaces.size());
         std::transform(surfaces.begin(), surfaces.end(), storage->surfaces.begin(), get_surf);
 
         auto get_id = [](const sd_pair& sdp) -> auto { return subdomain_descriptor(sdp.second); };
-        storage->subdomain_info.resize( surfaces.size() );
+        storage->subdomain_info.resize(surfaces.size());
         std::transform(surfaces.begin(), surfaces.end(), storage->subdomain_info.begin(), get_id);
 
-        
         mark_internal_faces(msh);
 
         if (this->verbose())
@@ -575,13 +603,12 @@ public:
     }
 };
 
-
 bool
 expect(std::ifstream& ifs, const std::string& str)
 {
     std::string keyword;
     ifs >> keyword;
-    if ( keyword != str )
+    if (keyword != str)
     {
         std::cout << "Expected keyword \"" << str << "\"" << std::endl;
         std::cout << "Found \"" << keyword << "\"" << std::endl;
@@ -598,16 +625,15 @@ read_fvca6_line(std::ifstream& ifs)
 
     size_t num_entries;
     ifs >> num_entries;
-    for(size_t j = 0; j < num_entries; j++)
+    for (size_t j = 0; j < num_entries; j++)
     {
         size_t temp;
         ifs >> temp;
-        ret.push_back(temp-1); //convert indices to zero-based
+        ret.push_back(temp - 1); // convert indices to zero-based
     }
 
     return ret;
 }
-
 
 template<typename T, size_t N>
 class fvca6_mesh_loader
@@ -616,29 +642,30 @@ class fvca6_mesh_loader
 };
 
 template<typename T>
-class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
+class fvca6_mesh_loader<T, 3> : public mesh_loader<generic_mesh<T, 3>>
 {
-    typedef generic_mesh<T,3>                       mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
-    typedef typename mesh_type::volume_type         volume_type;
+    typedef generic_mesh<T, 3>               mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
+    typedef typename mesh_type::volume_type  volume_type;
 
-    std::vector<point_type>                         m_points;
-    std::vector<node_type>                          m_nodes;
-    std::vector<std::pair<size_t, edge_type>>       m_edges;
+    std::vector<point_type>                   m_points;
+    std::vector<node_type>                    m_nodes;
+    std::vector<std::pair<size_t, edge_type>> m_edges;
 
-    std::vector<std::pair<size_t, std::vector<size_t>>>     vol_to_faces;
-    std::vector<std::vector<size_t>>                        vol_to_vts;
-    std::vector<std::pair<size_t, std::vector<size_t>>>     faces_to_edges;
-    std::vector<std::vector<size_t>>                        faces_to_vts;
+    std::vector<std::pair<size_t, std::vector<size_t>>> vol_to_faces;
+    std::vector<std::vector<size_t>>                    vol_to_vts;
+    std::vector<std::pair<size_t, std::vector<size_t>>> faces_to_edges;
+    std::vector<std::vector<size_t>>                    faces_to_vts;
 
-    bool fvca6_read(const std::string& filename)
+    bool
+    fvca6_read(const std::string& filename)
     {
-        std::ifstream   ifs(filename);
-        std::string     keyword;
-        size_t          lines_to_read;
+        std::ifstream ifs(filename);
+        std::string   keyword;
+        size_t        lines_to_read;
 
         if (!ifs.is_open())
         {
@@ -652,7 +679,7 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < 16; i++)
             std::getline(ifs, keyword);
 
-        if ( !expect(ifs, "Vertices") )
+        if (!expect(ifs, "Vertices"))
             return false;
 
         ifs >> lines_to_read;
@@ -666,12 +693,12 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         {
             T x, y, z;
             ifs >> x >> y >> z;
-            m_points.push_back( point_type({x, y, z}) );
-            m_nodes.push_back( node_type( disk::point_identifier<3>(i) ) );
+            m_points.push_back(point_type({x, y, z}));
+            m_nodes.push_back(node_type(disk::point_identifier<3>(i)));
         }
 
         /* Volume to face data */
-        if ( !expect(ifs, "Volumes->faces") )
+        if (!expect(ifs, "Volumes->faces"))
             return false;
 
         ifs >> lines_to_read;
@@ -682,11 +709,11 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < lines_to_read; i++)
         {
             auto vol_faces = read_fvca6_line(ifs);
-            vol_to_faces.push_back( std::make_pair(i, std::move(vol_faces)) );
+            vol_to_faces.push_back(std::make_pair(i, std::move(vol_faces)));
         }
 
         /* Volume to vertices data */
-        if ( !expect(ifs, "Volumes->Verticess") )
+        if (!expect(ifs, "Volumes->Verticess"))
             return false;
 
         ifs >> lines_to_read;
@@ -697,11 +724,11 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < lines_to_read; i++)
         {
             auto vol_vts = read_fvca6_line(ifs);
-            vol_to_vts.push_back( std::move(vol_vts) );
+            vol_to_vts.push_back(std::move(vol_vts));
         }
 
         /* Faces to edges data */
-        if ( !expect(ifs, "Faces->Edgess") )
+        if (!expect(ifs, "Faces->Edgess"))
             return false;
 
         ifs >> lines_to_read;
@@ -712,11 +739,11 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < lines_to_read; i++)
         {
             auto faces_edges = read_fvca6_line(ifs);
-            faces_to_edges.push_back( std::make_pair(i, std::move(faces_edges)) );
+            faces_to_edges.push_back(std::make_pair(i, std::move(faces_edges)));
         }
 
         /* Faces to vertices data */
-        if ( !expect(ifs, "Faces->Vertices") )
+        if (!expect(ifs, "Faces->Vertices"))
             return false;
 
         ifs >> lines_to_read;
@@ -727,14 +754,14 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < lines_to_read; i++)
         {
             auto faces_vts = read_fvca6_line(ifs);
-            faces_to_vts.push_back( std::move(faces_vts) );
+            faces_to_vts.push_back(std::move(faces_vts));
         }
 
         /* Faces to cv data */
-        if ( !expect(ifs, "Faces->Control") )
+        if (!expect(ifs, "Faces->Control"))
             return false;
 
-        if ( !expect(ifs, "volumes") )
+        if (!expect(ifs, "volumes"))
             return false;
 
         ifs >> lines_to_read;
@@ -745,12 +772,12 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
         for (size_t i = 0; i < lines_to_read; i++)
         {
             size_t v1;
-            int  v2;
+            int    v2;
             ifs >> v1 >> v2;
         }
 
         /* Edges data */
-        if ( !expect(ifs, "Edges") )
+        if (!expect(ifs, "Edges"))
             return false;
 
         ifs >> lines_to_read;
@@ -766,46 +793,45 @@ class fvca6_mesh_loader<T,3> : public mesh_loader<generic_mesh<T, 3>>
             if (v1 > v2)
                 std::swap(v1, v2);
 
-            auto e = edge_type({typename node_type::id_type(v1),
-                                typename node_type::id_type(v2)});
+            auto e = edge_type({typename node_type::id_type(v1), typename node_type::id_type(v2)});
 
-            m_edges.push_back( std::make_pair(i, e) );
+            m_edges.push_back(std::make_pair(i, e));
         }
 
         return true;
     }
 
-public:
-    static const char constexpr *expected_extension = "msh";
+  public:
+    static const char constexpr* expected_extension = "msh";
 
     fvca6_mesh_loader() = default;
 
-    bool read_mesh(const std::string& s)
+    bool
+    read_mesh(const std::string& s)
     {
         if (this->verbose())
             std::cout << " *** READING FVCA6 3D MESH ***" << std::endl;
         return fvca6_read(s);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         auto storage = msh.backend_storage();
 
         std::vector<size_t> conv_table;
         /* Sort the edges in lexicographical order, remember their original
          * position to convert the pointers in the faces */
-        auto comp_edges = [](const std::pair<size_t, edge_type>& e1,
-                             const std::pair<size_t, edge_type>& e2) {
-            return e1.second < e2.second;
-        };
+        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2)
+        { return e1.second < e2.second; };
         std::sort(m_edges.begin(), m_edges.end(), comp_edges);
 
         std::vector<edge_type> edges;
-        edges.reserve( m_edges.size() );
-        conv_table.resize( m_edges.size() );
+        edges.reserve(m_edges.size());
+        conv_table.resize(m_edges.size());
         for (size_t i = 0; i < m_edges.size(); i++)
         {
-            conv_table[m_edges[i].first] = i;   /* Make ptr conversion table */
+            conv_table[m_edges[i].first] = i; /* Make ptr conversion table */
             edges.push_back(m_edges[i].second);
         }
 
@@ -818,54 +844,52 @@ public:
 
         /* Sort in lexicographical order and remember original position */
         auto comp_vecs = [](const std::pair<size_t, std::vector<size_t>>& e1,
-                            const std::pair<size_t, std::vector<size_t>>& e2) {
-            return e1.second < e2.second;
-        };
+                            const std::pair<size_t, std::vector<size_t>>& e2) { return e1.second < e2.second; };
         std::sort(faces_to_edges.begin(), faces_to_edges.end(), comp_vecs);
 
         std::vector<surface_type> faces;
-        faces.reserve( faces_to_edges.size() );
-        conv_table.resize( faces_to_edges.size() );
+        faces.reserve(faces_to_edges.size());
+        conv_table.resize(faces_to_edges.size());
 
         for (size_t i = 0; i < faces_to_edges.size(); i++)
         {
-            auto fe = faces_to_edges[i];
-            surface_type s( convert_to<typename edge_type::id_type>(fe.second) );
-            s.set_point_ids( convert_to<disk::point_identifier<3>>(faces_to_vts.at(fe.first)) );
+            auto         fe = faces_to_edges[i];
+            surface_type s(convert_to<typename edge_type::id_type>(fe.second));
+            s.set_point_ids(convert_to<disk::point_identifier<3>>(faces_to_vts.at(fe.first)));
             faces.push_back(s);
             conv_table[fe.first] = i;
         }
         /* Now the faces are in their place and have correct ptrs */
 
         /* Convert the face pointers in the volume data */
-        for (auto& vf : vol_to_faces )
+        for (auto& vf : vol_to_faces)
         {
             for (auto& ptr : vf.second)
                 ptr = conv_table[ptr];
         }
 
-        //for (auto& f : faces)
-        //    std::cout << f << std::endl;
+        // for (auto& f : faces)
+        //     std::cout << f << std::endl;
 
         /* Sort volume data */
         std::sort(vol_to_faces.begin(), vol_to_faces.end(), comp_vecs);
 
         std::vector<volume_type> volumes;
-        volumes.reserve( vol_to_faces.size() );
+        volumes.reserve(vol_to_faces.size());
 
         for (size_t i = 0; i < vol_to_faces.size(); i++)
         {
-            auto vf = vol_to_faces[i];
-            volume_type v( convert_to<typename surface_type::id_type>(vf.second) );
-            v.set_point_ids( convert_to<disk::point_identifier<3>>(vol_to_vts.at(vf.first)) );
+            auto        vf = vol_to_faces[i];
+            volume_type v(convert_to<typename surface_type::id_type>(vf.second));
+            v.set_point_ids(convert_to<disk::point_identifier<3>>(vol_to_vts.at(vf.first)));
             volumes.push_back(v);
         }
 
-        storage->points     = std::move(m_points);
-        storage->nodes      = std::move(m_nodes);
-        storage->edges      = std::move(edges);
-        storage->surfaces   = std::move(faces);
-        storage->volumes    = std::move(volumes);
+        storage->points   = std::move(m_points);
+        storage->nodes    = std::move(m_nodes);
+        storage->edges    = std::move(edges);
+        storage->surfaces = std::move(faces);
+        storage->volumes  = std::move(volumes);
 
         std::vector<size_t> bf(storage->surfaces.size());
         for (auto& vol : storage->volumes)
@@ -884,38 +908,30 @@ public:
     }
 };
 
-
-
-
-
-
-
-
-
-
 template<typename T, size_t N>
 class netgen_mesh_loader
 {
     static_assert(N == 2 || N == 3, "Netgen supports only 2D or 3D");
 };
 
-namespace priv {
+namespace priv
+{
 
 template<typename T>
-point<T,2>
-read_2d_point_line(const char *str, char **endptr, T scalefactor)
+point<T, 2>
+read_2d_point_line(const char* str, char** endptr, T scalefactor)
 {
     T t1, t2;
 
     t1 = strtot<T>(str, endptr);
     t2 = strtot<T>(*endptr, endptr);
 
-    return point<T,2>{t1*scalefactor, t2*scalefactor};
+    return point<T, 2>{t1 * scalefactor, t2 * scalefactor};
 }
 
 template<typename T>
-point<T,3>
-read_3d_point_line(const char *str, char **endptr, T scalefactor)
+point<T, 3>
+read_3d_point_line(const char* str, char** endptr, T scalefactor)
 {
     T t1, t2, t3;
 
@@ -923,12 +939,12 @@ read_3d_point_line(const char *str, char **endptr, T scalefactor)
     t2 = strtot<T>(*endptr, endptr);
     t3 = strtot<T>(*endptr, endptr);
 
-    return point<T,3>{t1*scalefactor, t2*scalefactor, t3*scalefactor};
+    return point<T, 3>{t1 * scalefactor, t2 * scalefactor, t3 * scalefactor};
 }
 
 template<typename T>
 std::tuple<T, T, T, T, T>
-read_tetrahedron_line(const char *str, char **endptr)
+read_tetrahedron_line(const char* str, char** endptr)
 {
     T t1, t2, t3, t4, t5;
 
@@ -938,12 +954,12 @@ read_tetrahedron_line(const char *str, char **endptr)
     t4 = strtot<T>(*endptr, endptr);
     t5 = strtot<T>(*endptr, endptr);
 
-    return std::make_tuple(t1, t2-1, t3-1, t4-1, t5-1);
+    return std::make_tuple(t1, t2 - 1, t3 - 1, t4 - 1, t5 - 1);
 }
 
 template<typename T>
 std::tuple<T, T, T, T>
-read_triangle_line(const char *str, char **endptr)
+read_triangle_line(const char* str, char** endptr)
 {
     T t1, t2, t3, t4;
 
@@ -952,12 +968,12 @@ read_triangle_line(const char *str, char **endptr)
     t3 = strtot<T>(*endptr, endptr);
     t4 = strtot<T>(*endptr, endptr);
 
-    return std::make_tuple(t1, t2-1, t3-1, t4-1);
+    return std::make_tuple(t1, t2 - 1, t3 - 1, t4 - 1);
 }
 
 template<typename T>
 std::tuple<T, T, T>
-read_edge_line(const char *str, char **endptr)
+read_edge_line(const char* str, char** endptr)
 {
     T t1, t2, t3;
 
@@ -965,27 +981,28 @@ read_edge_line(const char *str, char **endptr)
     t2 = strtot<T>(*endptr, endptr);
     t3 = strtot<T>(*endptr, endptr);
 
-    return std::make_tuple(t1, t2-1, t3-1);
+    return std::make_tuple(t1, t2 - 1, t3 - 1);
 }
 
-} //namespace priv
+} // namespace priv
 
 template<typename T>
-class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
+class netgen_mesh_loader<T, 2> : public mesh_loader<simplicial_mesh<T, 2>>
 {
-    typedef simplicial_mesh<T,2>                    mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
+    typedef simplicial_mesh<T, 2>            mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
 
-    std::vector<point_type>                         points;
-    std::vector<node_type>                          nodes;
-    std::vector<edge_type>                          edges;
-    std::vector<std::pair<edge_type, size_t>>       boundary_edges;
-    std::vector<surface_type>                       surfaces;
+    std::vector<point_type>                   points;
+    std::vector<node_type>                    nodes;
+    std::vector<edge_type>                    edges;
+    std::vector<std::pair<edge_type, size_t>> boundary_edges;
+    std::vector<surface_type>                 surfaces;
 
-    bool netgen_read(const std::string& filename)
+    bool
+    netgen_read(const std::string& filename)
     {
         /* Open file */
         if (filename.size() == 0)
@@ -998,14 +1015,14 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
         mapped_file mf(filename);
 
-        //std::cout << green << " * * * Reading NETGEN format mesh * * * ";
-        //std::cout << nocolor << std::endl;
+        // std::cout << green << " * * * Reading NETGEN format mesh * * * ";
+        // std::cout << nocolor << std::endl;
 
         /************************ Read points ************************/
         linecount = 0;
 
-        const char *data = mf.mem();
-        char *endptr;
+        const char* data = mf.mem();
+        char*       endptr;
 
         lines = strtot<size_t>(data, &endptr);
 
@@ -1014,7 +1031,7 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading points: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1023,10 +1040,10 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
             auto point = priv::read_2d_point_line<T>(endptr, &endptr, 1.0);
 
-            points.push_back( point );
+            points.push_back(point);
 
-            auto point_id = disk::point_identifier<2>( linecount );
-            auto node = node_type( { point_id } );
+            auto point_id = disk::point_identifier<2>(linecount);
+            auto node     = node_type({point_id});
 
             nodes.push_back(node);
 
@@ -1044,12 +1061,12 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
         lines = strtot<size_t>(endptr, &endptr);
 
-        edges.reserve(lines*3);
+        edges.reserve(lines * 3);
         surfaces.reserve(lines);
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading triangles: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1058,16 +1075,16 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
             auto t = priv::read_triangle_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<2>     p0(std::get<1>(t));
-            disk::point_identifier<2>     p1(std::get<2>(t));
-            disk::point_identifier<2>     p2(std::get<3>(t));
-            //domain_id_type      d(std::get<0>(t));
+            disk::point_identifier<2> p0(std::get<1>(t));
+            disk::point_identifier<2> p1(std::get<2>(t));
+            disk::point_identifier<2> p2(std::get<3>(t));
+            // domain_id_type      d(std::get<0>(t));
 
-            edges.push_back( edge_type( { p0, p1 } ) );
-            edges.push_back( edge_type( { p1, p2 } ) );
-            edges.push_back( edge_type( { p0, p2 } ) );
+            edges.push_back(edge_type({p0, p1}));
+            edges.push_back(edge_type({p1, p2}));
+            edges.push_back(edge_type({p0, p2}));
 
-            surfaces.push_back( surface_type( { p0, p1, p2 } ) );
+            surfaces.push_back(surface_type({p0, p1, p2}));
 
             linecount++;
         }
@@ -1086,7 +1103,7 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%50000) == 0) )
+            if (this->verbose() && ((linecount % 50000) == 0))
             {
                 std::cout << "Reading edges: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1095,12 +1112,12 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
 
             auto t = priv::read_edge_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<2>     p0(std::get<1>(t));
-            disk::point_identifier<2>     p1(std::get<2>(t));
+            disk::point_identifier<2> p0(std::get<1>(t));
+            disk::point_identifier<2> p1(std::get<2>(t));
 
-            edge_type   edge( { p0, p1 } );
+            edge_type edge({p0, p1});
 
-            boundary_edges.push_back( std::make_pair(edge, std::get<0>(t)) );
+            boundary_edges.push_back(std::make_pair(edge, std::get<0>(t)));
 
             linecount++;
         }
@@ -1114,11 +1131,12 @@ class netgen_mesh_loader<T,2> : public mesh_loader<simplicial_mesh<T,2>>
         return true;
     }
 
-public:
-    static const char constexpr *expected_extension = "mesh2d";
-    netgen_mesh_loader() = default;
+  public:
+    static const char constexpr* expected_extension = "mesh2d";
+    netgen_mesh_loader()                            = default;
 
-    bool read_mesh(const std::string& s)
+    bool
+    read_mesh(const std::string& s)
     {
         if (this->verbose())
             std::cout << " *** READING NETGEN 2D MESH ***" << std::endl;
@@ -1126,7 +1144,8 @@ public:
         return netgen_read(s);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         auto storage = msh.backend_storage();
 
@@ -1137,19 +1156,13 @@ public:
         }
 
         storage->points = std::move(points);
-        storage->nodes = std::move(nodes);
+        storage->nodes  = std::move(nodes);
 
         /* sort edges, make unique and move them in geometry */
-        THREAD(edge_thread,
-            priv::sort_uniq(edges);
-            storage->edges = std::move(edges);
-        );
+        THREAD(edge_thread, priv::sort_uniq(edges); storage->edges = std::move(edges););
 
         /* sort triangles, make unique and move them in geometry */
-        THREAD(tri_thread,
-            priv::sort_uniq(surfaces);
-            storage->surfaces = std::move(surfaces);
-        );
+        THREAD(tri_thread, priv::sort_uniq(surfaces); storage->surfaces = std::move(surfaces););
 
         /* wait for the threads */
         WAIT_THREAD(edge_thread);
@@ -1158,12 +1171,10 @@ public:
         storage->boundary_info.resize(storage->edges.size());
         for (auto& be : boundary_edges)
         {
-            auto position = find_element_id(storage->edges.begin(),
-                                            storage->edges.end(), be.first);
+            auto position = find_element_id(storage->edges.begin(), storage->edges.end(), be.first);
             if (position.first == false)
             {
-                std::cout << "Bad bug at " << __FILE__ << "("
-                          << __LINE__ << ")" << std::endl;
+                std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
                 return false;
             }
             boundary_descriptor bi(be.second, true);
@@ -1186,24 +1197,24 @@ public:
 };
 
 template<typename T>
-class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
+class netgen_mesh_loader<T, 3> : public mesh_loader<simplicial_mesh<T, 3>>
 {
-    typedef simplicial_mesh<T,3>                    mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
-    typedef typename mesh_type::volume_type         volume_type;
+    typedef simplicial_mesh<T, 3>            mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
+    typedef typename mesh_type::volume_type  volume_type;
 
-    std::vector<point_type>                                     points;
-    std::vector<node_type>                                      nodes;
-    std::vector<edge_type>                                      edges;
-    std::vector<surface_type>                                   surfaces;
-    std::vector<boundary_descriptor>                            boundary_info;
-    std::vector<std::pair<volume_type, subdomain_descriptor>>   tmp_volumes;
+    std::vector<point_type>                                   points;
+    std::vector<node_type>                                    nodes;
+    std::vector<edge_type>                                    edges;
+    std::vector<surface_type>                                 surfaces;
+    std::vector<boundary_descriptor>                          boundary_info;
+    std::vector<std::pair<volume_type, subdomain_descriptor>> tmp_volumes;
 
-
-    bool netgen_read(const std::string& filename)
+    bool
+    netgen_read(const std::string& filename)
     {
         /* Open file */
         if (filename.size() == 0)
@@ -1219,8 +1230,8 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
         /************************ Read points ************************/
         linecount = 0;
 
-        const char *data = mf.mem();
-        char *endptr;
+        const char* data = mf.mem();
+        char*       endptr;
 
         lines = strtot<size_t>(data, &endptr);
 
@@ -1229,7 +1240,7 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading points: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1238,10 +1249,10 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
 
             auto point = priv::read_3d_point_line<T>(endptr, &endptr, 1.0);
 
-            points.push_back( point );
+            points.push_back(point);
 
-            auto point_id = disk::point_identifier<3>( linecount );
-            auto node = node_type( { point_id } );
+            auto point_id = disk::point_identifier<3>(linecount);
+            auto node     = node_type({point_id});
 
             nodes.push_back(node);
             /* Do something with that point */
@@ -1260,13 +1271,13 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
 
         lines = strtot<size_t>(endptr, &endptr);
 
-        edges.reserve(lines*6);
-        surfaces.reserve(lines*4);
+        edges.reserve(lines * 6);
+        surfaces.reserve(lines * 4);
         tmp_volumes.reserve(lines);
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading tetrahedra: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1275,27 +1286,27 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
 
             auto t = priv::read_tetrahedron_line<size_t>(endptr, &endptr);
 
-            auto subdomain_num = std::get<0>(t);
-            disk::point_identifier<3>     p0(std::get<1>(t));
-            disk::point_identifier<3>     p1(std::get<2>(t));
-            disk::point_identifier<3>     p2(std::get<3>(t));
-            disk::point_identifier<3>     p3(std::get<4>(t));
+            auto                      subdomain_num = std::get<0>(t);
+            disk::point_identifier<3> p0(std::get<1>(t));
+            disk::point_identifier<3> p1(std::get<2>(t));
+            disk::point_identifier<3> p2(std::get<3>(t));
+            disk::point_identifier<3> p3(std::get<4>(t));
 
-            edges.push_back( edge_type( { p0, p1 } ) );
-            edges.push_back( edge_type( { p0, p2 } ) );
-            edges.push_back( edge_type( { p0, p3 } ) );
-            edges.push_back( edge_type( { p1, p2 } ) );
-            edges.push_back( edge_type( { p1, p3 } ) );
-            edges.push_back( edge_type( { p2, p3 } ) );
+            edges.push_back(edge_type({p0, p1}));
+            edges.push_back(edge_type({p0, p2}));
+            edges.push_back(edge_type({p0, p3}));
+            edges.push_back(edge_type({p1, p2}));
+            edges.push_back(edge_type({p1, p3}));
+            edges.push_back(edge_type({p2, p3}));
 
-            surfaces.push_back( surface_type( { p0, p1, p2 } ) );
-            surfaces.push_back( surface_type( { p0, p1, p3 } ) );
-            surfaces.push_back( surface_type( { p0, p2, p3 } ) );
-            surfaces.push_back( surface_type( { p1, p2, p3 } ) );
+            surfaces.push_back(surface_type({p0, p1, p2}));
+            surfaces.push_back(surface_type({p0, p1, p3}));
+            surfaces.push_back(surface_type({p0, p2, p3}));
+            surfaces.push_back(surface_type({p1, p2, p3}));
 
             subdomain_descriptor si(subdomain_num);
-            auto vs = std::make_pair(volume_type( {p0, p1, p2, p3} ), si);
-            tmp_volumes.push_back( vs );
+            auto                 vs = std::make_pair(volume_type({p0, p1, p2, p3}), si);
+            tmp_volumes.push_back(vs);
 
             linecount++;
         }
@@ -1310,10 +1321,8 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
         priv::sort_uniq(surfaces);
         boundary_info.resize(surfaces.size());
 
-        using pvs = std::pair<volume_type, subdomain_descriptor>;
-        auto tmpvol_comp = [](const pvs& a, const pvs& b) {
-            return a.first < b.first;
-        };
+        using pvs        = std::pair<volume_type, subdomain_descriptor>;
+        auto tmpvol_comp = [](const pvs& a, const pvs& b) { return a.first < b.first; };
 
         std::sort(tmp_volumes.begin(), tmp_volumes.end(), tmpvol_comp);
 
@@ -1323,7 +1332,7 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
         lines = strtot<size_t>(endptr, &endptr);
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%50000) == 0) )
+            if (this->verbose() && ((linecount % 50000) == 0))
             {
                 std::cout << "Reading triangle: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1332,19 +1341,19 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
 
             auto t = priv::read_triangle_line<size_t>(endptr, &endptr);
 
-            auto bnd_id = std::get<0>(t);
-            disk::point_identifier<3>     p0(std::get<1>(t));
-            disk::point_identifier<3>     p1(std::get<2>(t));
-            disk::point_identifier<3>     p2(std::get<3>(t));
+            auto                      bnd_id = std::get<0>(t);
+            disk::point_identifier<3> p0(std::get<1>(t));
+            disk::point_identifier<3> p1(std::get<2>(t));
+            disk::point_identifier<3> p2(std::get<3>(t));
 
             boundary_descriptor bi(bnd_id, true);
-            surface_type surf( { p0, p1, p2 } );
+            surface_type        surf({p0, p1, p2});
 
             auto itor = std::lower_bound(surfaces.begin(), surfaces.end(), surf);
-            if ( (itor == surfaces.end()) or not (*itor == surf) )
+            if ((itor == surfaces.end()) or not(*itor == surf))
                 throw std::logic_error("Face not found");
 
-            auto ofs = std::distance(surfaces.begin(), itor);
+            auto ofs              = std::distance(surfaces.begin(), itor);
             boundary_info.at(ofs) = bi;
 
             linecount++;
@@ -1359,18 +1368,20 @@ class netgen_mesh_loader<T,3> : public mesh_loader<simplicial_mesh<T,3>>
         return true;
     }
 
-public:
-    static const char constexpr *expected_extension = "mesh";
-    netgen_mesh_loader() = default;
+  public:
+    static const char constexpr* expected_extension = "mesh";
+    netgen_mesh_loader()                            = default;
 
-    bool read_mesh(const std::string& s)
+    bool
+    read_mesh(const std::string& s)
     {
         if (this->verbose())
             std::cout << " *** READING NETGEN 3D MESH ***" << std::endl;
         return netgen_read(s);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         auto storage = msh.backend_storage();
 
@@ -1380,17 +1391,17 @@ public:
             std::cout.flush();
         }
 
-        storage->points = std::move(points);
-        storage->nodes = std::move(nodes);
-        storage->edges = std::move(edges);
-        storage->surfaces = std::move(surfaces);
+        storage->points        = std::move(points);
+        storage->nodes         = std::move(nodes);
+        storage->edges         = std::move(edges);
+        storage->surfaces      = std::move(surfaces);
         storage->boundary_info = std::move(boundary_info);
 
         std::vector<volume_type> vols;
-        vols.reserve( tmp_volumes.size() );
+        vols.reserve(tmp_volumes.size());
 
         std::vector<subdomain_descriptor> subdoms;
-        subdoms.reserve( tmp_volumes.size() );
+        subdoms.reserve(tmp_volumes.size());
 
         for (auto& [vol, sd] : tmp_volumes)
         {
@@ -1400,7 +1411,7 @@ public:
 
         tmp_volumes.clear();
 
-        storage->volumes = std::move(vols);
+        storage->volumes        = std::move(vols);
         storage->subdomain_info = std::move(subdoms);
 
         mark_internal_faces(msh);
@@ -1417,15 +1428,14 @@ public:
 
         return true;
     }
-
 };
 
-
-namespace priv {
+namespace priv
+{
 
 template<typename T>
 std::tuple<T, T, T, T, T, T, T, T>
-read_hexahedron_line(const char *str, char **endptr)
+read_hexahedron_line(const char* str, char** endptr)
 {
     T t1, t2, t3, t4, t5, t6, t7, t8;
 
@@ -1443,7 +1453,7 @@ read_hexahedron_line(const char *str, char **endptr)
 
 template<typename T>
 std::tuple<T, T, T, T>
-read_hex_face_line(const char *str, char **endptr)
+read_hex_face_line(const char* str, char** endptr)
 {
     T t1, t2, t3, t4;
 
@@ -1457,7 +1467,7 @@ read_hex_face_line(const char *str, char **endptr)
 
 template<typename T>
 std::tuple<T, T, T, T>
-read_quad_line(const char *str, char **endptr)
+read_quad_line(const char* str, char** endptr)
 {
     T t1, t2, t3, t4;
 
@@ -1471,7 +1481,7 @@ read_quad_line(const char *str, char **endptr)
 
 template<typename T>
 std::tuple<T, T>
-read_quad_face_line(const char *str, char **endptr)
+read_quad_face_line(const char* str, char** endptr)
 {
     T t1, t2;
 
@@ -1483,28 +1493,27 @@ read_quad_face_line(const char *str, char **endptr)
 
 } // namespace priv
 
-
 template<typename T, size_t DIM>
 class cartesian_mesh_loader;
 
 template<typename T>
-class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
+class cartesian_mesh_loader<T, 3> : public mesh_loader<cartesian_mesh<T, 3>>
 {
-    typedef cartesian_mesh<T,3>                     mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
-    typedef typename mesh_type::volume_type         volume_type;
+    typedef cartesian_mesh<T, 3>             mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
+    typedef typename mesh_type::volume_type  volume_type;
 
-    std::vector<point_type>                         points;
-    std::vector<node_type>                          nodes;
-    std::vector<edge_type>                          edges;
-    std::vector<surface_type>                       surfaces, boundary_surfaces;
-    std::vector<volume_type>                        volumes;
+    std::vector<point_type>   points;
+    std::vector<node_type>    nodes;
+    std::vector<edge_type>    edges;
+    std::vector<surface_type> surfaces, boundary_surfaces;
+    std::vector<volume_type>  volumes;
 
-
-    bool hex_read(const std::string& filename)
+    bool
+    hex_read(const std::string& filename)
     {
         /* Open file */
         if (filename.size() == 0)
@@ -1517,14 +1526,14 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
         mapped_file mf(filename);
 
-        //std::cout << green << " * * * Reading NETGEN format mesh * * * ";
-        //std::cout << nocolor << std::endl;
+        // std::cout << green << " * * * Reading NETGEN format mesh * * * ";
+        // std::cout << nocolor << std::endl;
 
         /************************ Read points ************************/
         linecount = 0;
 
-        const char *data = mf.mem();
-        char *endptr;
+        const char* data = mf.mem();
+        char*       endptr;
 
         lines = strtot<size_t>(data, &endptr);
 
@@ -1533,7 +1542,7 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading points: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1542,10 +1551,10 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
             auto point = priv::read_3d_point_line<T>(endptr, &endptr, 1.0);
 
-            points.push_back( point );
+            points.push_back(point);
 
-            auto point_id = disk::point_identifier<3>( linecount );
-            auto node = node_type( { point_id } );
+            auto point_id = disk::point_identifier<3>(linecount);
+            auto node     = node_type({point_id});
 
             nodes.push_back(node);
             /* Do something with that point */
@@ -1564,13 +1573,13 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
         lines = strtot<size_t>(endptr, &endptr);
 
-        edges.reserve(lines*12);
-        surfaces.reserve(lines*6);
+        edges.reserve(lines * 12);
+        surfaces.reserve(lines * 6);
         volumes.reserve(lines);
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%100000) == 0) )
+            if (this->verbose() && ((linecount % 100000) == 0))
             {
                 std::cout << "Reading hexahedra: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1579,36 +1588,36 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
             auto t = priv::read_hexahedron_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<3>     p0(std::get<0>(t));
-            disk::point_identifier<3>     p1(std::get<1>(t));
-            disk::point_identifier<3>     p2(std::get<2>(t));
-            disk::point_identifier<3>     p3(std::get<3>(t));
-            disk::point_identifier<3>     p4(std::get<4>(t));
-            disk::point_identifier<3>     p5(std::get<5>(t));
-            disk::point_identifier<3>     p6(std::get<6>(t));
-            disk::point_identifier<3>     p7(std::get<7>(t));
+            disk::point_identifier<3> p0(std::get<0>(t));
+            disk::point_identifier<3> p1(std::get<1>(t));
+            disk::point_identifier<3> p2(std::get<2>(t));
+            disk::point_identifier<3> p3(std::get<3>(t));
+            disk::point_identifier<3> p4(std::get<4>(t));
+            disk::point_identifier<3> p5(std::get<5>(t));
+            disk::point_identifier<3> p6(std::get<6>(t));
+            disk::point_identifier<3> p7(std::get<7>(t));
 
-            edges.push_back( edge_type( { p0, p1 } ) );
-            edges.push_back( edge_type( { p0, p2 } ) );
-            edges.push_back( edge_type( { p0, p4 } ) );
-            edges.push_back( edge_type( { p1, p3 } ) );
-            edges.push_back( edge_type( { p1, p5 } ) );
-            edges.push_back( edge_type( { p2, p3 } ) );
-            edges.push_back( edge_type( { p2, p6 } ) );
-            edges.push_back( edge_type( { p3, p7 } ) );
-            edges.push_back( edge_type( { p4, p5 } ) );
-            edges.push_back( edge_type( { p4, p6 } ) );
-            edges.push_back( edge_type( { p5, p7 } ) );
-            edges.push_back( edge_type( { p6, p7 } ) );
+            edges.push_back(edge_type({p0, p1}));
+            edges.push_back(edge_type({p0, p2}));
+            edges.push_back(edge_type({p0, p4}));
+            edges.push_back(edge_type({p1, p3}));
+            edges.push_back(edge_type({p1, p5}));
+            edges.push_back(edge_type({p2, p3}));
+            edges.push_back(edge_type({p2, p6}));
+            edges.push_back(edge_type({p3, p7}));
+            edges.push_back(edge_type({p4, p5}));
+            edges.push_back(edge_type({p4, p6}));
+            edges.push_back(edge_type({p5, p7}));
+            edges.push_back(edge_type({p6, p7}));
 
-            surfaces.push_back( surface_type( { p0, p2, p6, p4 } ) );
-            surfaces.push_back( surface_type( { p1, p3, p7, p5 } ) );
-            surfaces.push_back( surface_type( { p0, p1, p3, p2 } ) );
-            surfaces.push_back( surface_type( { p4, p5, p7, p6 } ) );
-            surfaces.push_back( surface_type( { p0, p4, p5, p1 } ) );
-            surfaces.push_back( surface_type( { p2, p6, p7, p3 } ) );
+            surfaces.push_back(surface_type({p0, p2, p6, p4}));
+            surfaces.push_back(surface_type({p1, p3, p7, p5}));
+            surfaces.push_back(surface_type({p0, p1, p3, p2}));
+            surfaces.push_back(surface_type({p4, p5, p7, p6}));
+            surfaces.push_back(surface_type({p0, p4, p5, p1}));
+            surfaces.push_back(surface_type({p2, p6, p7, p3}));
 
-            volumes.push_back( volume_type( { p0, p1, p2, p3, p4, p5, p6, p7 } ) );
+            volumes.push_back(volume_type({p0, p1, p2, p3, p4, p5, p6, p7}));
 
             linecount++;
         }
@@ -1628,7 +1637,7 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
         while (linecount < lines)
         {
-            if ( this->verbose() && ((linecount%50000) == 0) )
+            if (this->verbose() && ((linecount % 50000) == 0))
             {
                 std::cout << "Reading hex face: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1637,14 +1646,14 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
 
             auto t = priv::read_hex_face_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<3>     p0(std::get<0>(t));
-            disk::point_identifier<3>     p1(std::get<1>(t));
-            disk::point_identifier<3>     p2(std::get<2>(t));
-            disk::point_identifier<3>     p3(std::get<3>(t));
+            disk::point_identifier<3> p0(std::get<0>(t));
+            disk::point_identifier<3> p1(std::get<1>(t));
+            disk::point_identifier<3> p2(std::get<2>(t));
+            disk::point_identifier<3> p3(std::get<3>(t));
 
-            surface_type   quad( { p0, p1, p2, p3 } );
+            surface_type quad({p0, p1, p2, p3});
 
-            boundary_surfaces.push_back( quad );
+            boundary_surfaces.push_back(quad);
 
             linecount++;
         }
@@ -1658,11 +1667,12 @@ class cartesian_mesh_loader<T,3> : public mesh_loader<cartesian_mesh<T,3>>
         return true;
     }
 
-public:
-    static const char constexpr *expected_extension = "hex";
-    cartesian_mesh_loader() = default;
+  public:
+    static const char constexpr* expected_extension = "hex";
+    cartesian_mesh_loader()                         = default;
 
-    bool read_mesh(const std::string& s)
+    bool
+    read_mesh(const std::string& s)
     {
         if (this->verbose())
             std::cout << " *** READING CARTESIAN 3D MESH ***" << std::endl;
@@ -1670,7 +1680,8 @@ public:
         return hex_read(s);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         auto storage = msh.backend_storage();
 
@@ -1681,25 +1692,16 @@ public:
         }
 
         storage->points = std::move(points);
-        storage->nodes = std::move(nodes);
+        storage->nodes  = std::move(nodes);
 
         /* sort edges, make unique and move them in geometry */
-        THREAD(edge_thread,
-            priv::sort_uniq(edges);
-            storage->edges = std::move(edges);
-        );
+        THREAD(edge_thread, priv::sort_uniq(edges); storage->edges = std::move(edges););
 
         /* sort triangles, make unique and move them in geometry */
-        THREAD(quad_thread,
-            priv::sort_uniq(surfaces);
-            storage->surfaces = std::move(surfaces);
-        );
+        THREAD(quad_thread, priv::sort_uniq(surfaces); storage->surfaces = std::move(surfaces););
 
         /* sort tetrahedra, make unique and move them in geometry */
-        THREAD(hex_thread,
-            std::sort(volumes.begin(), volumes.end());
-            storage->volumes = std::move(volumes);
-        );
+        THREAD(hex_thread, std::sort(volumes.begin(), volumes.end()); storage->volumes = std::move(volumes););
 
         /* wait for the threads */
         WAIT_THREAD(edge_thread);
@@ -1709,12 +1711,10 @@ public:
         storage->boundary_info.resize(storage->surfaces.size());
         for (auto& bs : boundary_surfaces)
         {
-            auto position = find_element_id(storage->surfaces.begin(),
-                                            storage->surfaces.end(), bs);
+            auto position = find_element_id(storage->surfaces.begin(), storage->surfaces.end(), bs);
             if (position.first == false)
             {
-                std::cout << "Bad bug at " << __FILE__ << "("
-                          << __LINE__ << ")" << std::endl;
+                std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
                 return false;
             }
 
@@ -1736,25 +1736,24 @@ public:
 
         return true;
     }
-
 };
 
 template<typename T>
-class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
+class cartesian_mesh_loader<T, 2> : public mesh_loader<cartesian_mesh<T, 2>>
 {
-    typedef cartesian_mesh<T,2>                     mesh_type;
-    typedef typename mesh_type::point_type          point_type;
-    typedef typename mesh_type::node_type           node_type;
-    typedef typename mesh_type::edge_type           edge_type;
-    typedef typename mesh_type::surface_type        surface_type;
+    typedef cartesian_mesh<T, 2>             mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
 
-    std::vector<point_type>                         points;
-    std::vector<node_type>                          nodes;
-    std::vector<edge_type>                          edges, boundary_edges;
-    std::vector<surface_type>                       surfaces;
+    std::vector<point_type>   points;
+    std::vector<node_type>    nodes;
+    std::vector<edge_type>    edges, boundary_edges;
+    std::vector<surface_type> surfaces;
 
-
-    bool quad_read(const std::string& filename)
+    bool
+    quad_read(const std::string& filename)
     {
         /* Open file */
         if (filename.size() == 0)
@@ -1772,8 +1771,8 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
         /************************ Read points ************************/
         linecount = 0;
 
-        const char *data = mf.mem();
-        char *endptr;
+        const char* data = mf.mem();
+        char*       endptr;
 
         lines = strtot<size_t>(data, &endptr);
 
@@ -1782,7 +1781,7 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
         while (linecount < lines)
         {
-            if (  this->verbose() && (linecount%100000) == 0 )
+            if (this->verbose() && (linecount % 100000) == 0)
             {
                 std::cout << "Reading points: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1791,10 +1790,10 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
             auto point = priv::read_2d_point_line<T>(endptr, &endptr, 1.0);
 
-            points.push_back( point );
+            points.push_back(point);
 
-            auto point_id = disk::point_identifier<2>( linecount );
-            auto node = node_type( { point_id } );
+            auto point_id = disk::point_identifier<2>(linecount);
+            auto node     = node_type({point_id});
 
             nodes.push_back(node);
             /* Do something with that point */
@@ -1813,12 +1812,12 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
         lines = strtot<size_t>(endptr, &endptr);
 
-        edges.reserve(lines*4);
+        edges.reserve(lines * 4);
         surfaces.reserve(lines);
 
         while (linecount < lines)
         {
-            if (  this->verbose() && (linecount%100000) == 0 )
+            if (this->verbose() && (linecount % 100000) == 0)
             {
                 std::cout << "Reading quads: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1827,17 +1826,17 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
             auto t = priv::read_quad_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<2>     p0(std::get<0>(t));
-            disk::point_identifier<2>     p1(std::get<1>(t));
-            disk::point_identifier<2>     p2(std::get<2>(t));
-            disk::point_identifier<2>     p3(std::get<3>(t));
+            disk::point_identifier<2> p0(std::get<0>(t));
+            disk::point_identifier<2> p1(std::get<1>(t));
+            disk::point_identifier<2> p2(std::get<2>(t));
+            disk::point_identifier<2> p3(std::get<3>(t));
 
-            edges.push_back( edge_type( { p0, p1 } ) );
-            edges.push_back( edge_type( { p0, p2 } ) );
-            edges.push_back( edge_type( { p1, p3 } ) );
-            edges.push_back( edge_type( { p2, p3 } ) );
+            edges.push_back(edge_type({p0, p1}));
+            edges.push_back(edge_type({p0, p2}));
+            edges.push_back(edge_type({p1, p3}));
+            edges.push_back(edge_type({p2, p3}));
 
-            surfaces.push_back( surface_type( { p0, p1, p2, p3 } ) );
+            surfaces.push_back(surface_type({p0, p1, p2, p3}));
 
             linecount++;
         }
@@ -1857,7 +1856,7 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
         while (linecount < lines)
         {
-            if (  this->verbose() && (linecount%50000) == 0 )
+            if (this->verbose() && (linecount % 50000) == 0)
             {
                 std::cout << "Reading faces: " << linecount;
                 std::cout << "/" << lines << "\r";
@@ -1866,12 +1865,12 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
 
             auto t = priv::read_quad_face_line<size_t>(endptr, &endptr);
 
-            disk::point_identifier<2>     p0(std::get<0>(t));
-            disk::point_identifier<2>     p1(std::get<1>(t));
+            disk::point_identifier<2> p0(std::get<0>(t));
+            disk::point_identifier<2> p1(std::get<1>(t));
 
-            edge_type   bnd( { p0, p1 } );
+            edge_type bnd({p0, p1});
 
-            boundary_edges.push_back( bnd );
+            boundary_edges.push_back(bnd);
 
             linecount++;
         }
@@ -1885,43 +1884,39 @@ class cartesian_mesh_loader<T,2> : public mesh_loader<cartesian_mesh<T,2>>
         return true;
     }
 
-public:
-    static const char constexpr *expected_extension = "quad";
+  public:
+    static const char constexpr* expected_extension = "quad";
 
     cartesian_mesh_loader() = default;
 
-    bool read_mesh(const std::string& s)
+    bool
+    read_mesh(const std::string& s)
     {
-       if (this->verbose())
-         std::cout << " *** READING CARTESIAN 2D MESH ***" << std::endl;
+        if (this->verbose())
+            std::cout << " *** READING CARTESIAN 2D MESH ***" << std::endl;
 
         return quad_read(s);
     }
 
-    bool populate_mesh(mesh_type& msh)
+    bool
+    populate_mesh(mesh_type& msh)
     {
         auto storage = msh.backend_storage();
 
         if (this->verbose())
         {
-           std::cout << "Sorting data...";
-           std::cout.flush();
+            std::cout << "Sorting data...";
+            std::cout.flush();
         }
 
         storage->points = std::move(points);
-        storage->nodes = std::move(nodes);
+        storage->nodes  = std::move(nodes);
 
         /* sort edges, make unique and move them in geometry */
-        THREAD(edge_thread,
-            priv::sort_uniq(edges);
-            storage->edges = std::move(edges);
-        );
+        THREAD(edge_thread, priv::sort_uniq(edges); storage->edges = std::move(edges););
 
         /* sort triangles, make unique and move them in geometry */
-        THREAD(quad_thread,
-            priv::sort_uniq(surfaces);
-            storage->surfaces = std::move(surfaces);
-        );
+        THREAD(quad_thread, priv::sort_uniq(surfaces); storage->surfaces = std::move(surfaces););
 
         /* wait for the threads */
         WAIT_THREAD(edge_thread);
@@ -1930,12 +1925,10 @@ public:
         storage->boundary_info.resize(storage->edges.size());
         for (auto& bs : boundary_edges)
         {
-            auto position = find_element_id(storage->edges.begin(),
-                                            storage->edges.end(), bs);
+            auto position = find_element_id(storage->edges.begin(), storage->edges.end(), bs);
             if (position.first == false)
             {
-                std::cout << "Bad bug at " << __FILE__ << "("
-                          << __LINE__ << ")" << std::endl;
+                std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
                 return false;
             }
 
@@ -1945,622 +1938,691 @@ public:
 
         if (this->verbose())
         {
-        std::cout << "done." << std::endl;
+            std::cout << "done." << std::endl;
 
-        std::cout << "Nodes: " << storage->nodes.size() << std::endl;
-        std::cout << "Edges: " << storage->edges.size() << std::endl;
-        std::cout << "Faces: " << storage->surfaces.size() << std::endl;
+            std::cout << "Nodes: " << storage->nodes.size() << std::endl;
+            std::cout << "Edges: " << storage->edges.size() << std::endl;
+            std::cout << "Faces: " << storage->surfaces.size() << std::endl;
         }
 
         boundary_edges.clear();
 
         return true;
     }
-
 };
 
 template<typename T, size_t N>
 class medit_mesh_loader
 {
-   static_assert(N == 2 || N == 3, "Medit supports only 2D and 3D for the moment");
+    static_assert(N == 2 || N == 3, "Medit supports only 2D and 3D for the moment");
 };
 
 template<typename T>
 class medit_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
 {
-   typedef generic_mesh<T, 2>               mesh_type;
-   typedef typename mesh_type::point_type   point_type;
-   typedef typename mesh_type::node_type    node_type;
-   typedef typename mesh_type::edge_type    edge_type;
-   typedef typename mesh_type::surface_type surface_type;
+    typedef generic_mesh<T, 2>               mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
 
-   struct medit2d_poly
-   {
-      std::vector<size_t>             nodes;
-      size_t                          id;
-      std::set<std::array<size_t, 2>> attached_edges;
+    struct medit2d_poly
+    {
+        std::vector<size_t>             nodes;
+        size_t                          id;
+        std::set<std::array<size_t, 2>> attached_edges;
 
-      bool
-      operator<(const medit2d_poly& other)
-      {
-         return nodes < other.nodes;
-      }
-   };
+        bool
+        operator<(const medit2d_poly& other)
+        {
+            return nodes < other.nodes;
+        }
+    };
 
-   std::vector<point_type>                                     m_points;
-   std::vector<node_type>                                      m_nodes;
-   std::vector<std::array<ident_raw_t, 2>>                    m_edges;
-   std::vector<medit2d_poly>                                   m_polys;
-   std::vector<std::pair<std::array<ident_raw_t, 2>, size_t>> m_boundary_edges;
+    std::vector<point_type>                                    m_points;
+    std::vector<node_type>                                     m_nodes;
+    std::vector<std::array<ident_raw_t, 2>>                    m_edges;
+    std::vector<medit2d_poly>                                  m_polys;
+    std::vector<std::pair<std::array<ident_raw_t, 2>, size_t>> m_boundary_edges;
 
-   bool
-   medit_read_vertices(std::ifstream& ifs)
-   {
-      size_t elements_to_read;
-      T      x, y, z;
-      T      id;
+    bool
+    medit_read_vertices(std::ifstream& ifs)
+    {
+        size_t elements_to_read;
+        T      x, y, z;
+        T      id;
 
-      ifs >> elements_to_read;
+        ifs >> elements_to_read;
 
-      if (this->verbose())
-         std::cout << "Attempting to read " << elements_to_read << " points" << std::endl;
+        if (this->verbose())
+            std::cout << "Attempting to read " << elements_to_read << " points" << std::endl;
 
-      m_points.reserve(elements_to_read);
-      m_nodes.reserve(elements_to_read);
+        m_points.reserve(elements_to_read);
+        m_nodes.reserve(elements_to_read);
 
-      for (size_t i = 0; i < elements_to_read; i++) {
-         ifs >> x >> y >> z >> id;
-         m_points.push_back(point_type{x, y});
-         m_nodes.push_back(node_type(disk::point_identifier<2>(i)));
-      }
+        for (size_t i = 0; i < elements_to_read; i++)
+        {
+            ifs >> x >> y >> z >> id;
+            m_points.push_back(point_type{x, y});
+            m_nodes.push_back(node_type(disk::point_identifier<2>(i)));
+        }
 
-      return true;
-   }
+        return true;
+    }
 
-   bool
-   medit_read_polygons(std::ifstream& ifs, size_t polynum)
-   {
-      size_t elements_to_read;
+    bool
+    medit_read_polygons(std::ifstream& ifs, size_t polynum)
+    {
+        size_t elements_to_read;
 
-      ifs >> elements_to_read;
-      if (this->verbose())
-         std::cout << "Reading " << elements_to_read << " " << polynum << "-angles" << std::endl;
+        ifs >> elements_to_read;
+        if (this->verbose())
+            std::cout << "Reading " << elements_to_read << " " << polynum << "-angles" << std::endl;
 
-      for (size_t i = 0; i < elements_to_read; i++) {
-         medit2d_poly              p;
-         std::vector<ident_raw_t> nodes(polynum + 1, 0);
+        for (size_t i = 0; i < elements_to_read; i++)
+        {
+            medit2d_poly             p;
+            std::vector<ident_raw_t> nodes(polynum + 1, 0);
 
-         for (size_t j = 0; j < polynum; j++) {
-            ident_raw_t val;
-            ifs >> val;
-            p.nodes.push_back(val - 1);
-            nodes[j] = val - 1;
-         }
-         nodes[polynum] = nodes[0];
-
-         ifs >> p.id;
-
-         m_polys.push_back(p);
-
-         size_t p_id = m_polys.size();
-
-         // We have too create edges
-         for (size_t j = 0; j < polynum; j++) {
-            std::array<ident_raw_t, 2> b_edge = {nodes[j], nodes[j + 1]};
-            assert(b_edge[0] != b_edge[1]);
-            if (b_edge[0] > b_edge[1]) std::swap(b_edge[0], b_edge[1]);
-
-            m_edges.push_back(b_edge);
-            m_polys.at(p_id - 1).attached_edges.insert({b_edge[0], b_edge[1]});
-         }
-      }
-
-      return true;
-   }
-
-   bool
-   medit_read_boundary_edges(std::ifstream& ifs)
-   {
-      size_t elements_to_read;
-
-      ifs >> elements_to_read;
-      if (this->verbose())
-         std::cout << "Reading " << elements_to_read << " boundary edges" << std::endl;
-
-      m_boundary_edges.reserve(elements_to_read);
-
-      for (size_t i = 0; i < elements_to_read; i++) {
-         std::array<ident_raw_t, 2> b_edge;
-         ifs >> b_edge[0];
-         b_edge[0] -= 1;
-         ifs >> b_edge[1];
-         b_edge[1] -= 1;
-
-         assert(b_edge[0] != b_edge[1]);
-
-         if (b_edge[0] > b_edge[1]) std::swap(b_edge[0], b_edge[1]);
-
-         std::array<ident_raw_t, 2> bnd = {b_edge[0], b_edge[1]};
-
-         size_t b_id;
-         ifs >> b_id;
-
-         m_boundary_edges.push_back(std::make_pair(bnd, b_id));
-      }
-
-      return true;
-   }
-
-   bool
-   face_unique(const std::array<ident_raw_t, 2>& f1, const std::array<ident_raw_t, 2>& f2)
-   {
-      if (f1[0] == f2[0]) {
-         if (f1[1] == f2[1]) {
-            return false;
-         } else
-            return true;
-      } else
-         return true;
-   }
-
-   bool
-   medit_read(const std::string& filename)
-   {
-      std::ifstream ifs(filename);
-      std::string   keyword;
-
-      if (!ifs.is_open()) {
-         std::cout << "Error opening " << filename << std::endl;
-         return false;
-      }
-
-      ifs >> keyword;
-      if (keyword != "MeshVersionFormatted") {
-         std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
-         return false;
-      }
-
-      size_t format;
-      ifs >> format;
-
-      if (format != 2) {
-         std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
-         return false;
-      }
-
-      ifs >> keyword;
-      if (keyword != "Dimension") {
-         std::cout << "Expected keyword \"Dimension\"" << std::endl;
-         return false;
-      }
-
-      size_t dim;
-      ifs >> dim;
-
-      if (dim != 3) {
-         std::cout << "Expected dimension >=2 (here: " << dim << ")" << std::endl;
-         return false;
-      }
-
-      ifs >> keyword;
-      while (keyword != "End") {
-         if (keyword == "Vertices") {
-            medit_read_vertices(ifs);
-         } else if (keyword == "Triangles") {
-            medit_read_polygons(ifs, 3);
-         } else if (keyword == "Quadrilaterals") {
-            medit_read_polygons(ifs, 4);
-         } else if (keyword == "Pentagons") {
-            medit_read_polygons(ifs, 5);
-         } else if (keyword == "Hexagons") {
-            medit_read_polygons(ifs, 6);
-         } else if (keyword == "Edges") {
-            m_boundary_edges.clear();
-            medit_read_boundary_edges(ifs);
-         } else {
-            std::cout << "Error parsing Medit file" << std::endl;
-            return false;
-         }
-
-         ifs >> keyword;
-      }
-
-      ifs.close();
-      return true;
-   }
-
- public:
-   medit_mesh_loader() = default;
-
-   bool
-   read_mesh(const std::string& s)
-   {
-      if (this->verbose()) std::cout << " *** READING MEDIT 2D MESH ***" << std::endl;
-
-      return medit_read(s);
-   }
-
-   bool
-   populate_mesh(mesh_type& msh)
-   {
-      if (this->verbose()) std::cout << " *** POPULATING MEDIT MESH ***" << std::endl;
-      auto storage = msh.backend_storage();
-
-      /* Points */
-      storage->points = std::move(m_points);
-      storage->nodes  = std::move(m_nodes);
-
-      /* Edges */
-      /* Make the vector containing the edges */
-      std::vector<edge_type> edges;
-      edges.reserve(m_edges.size());
-      size_t nb_edge(0);
-      for (size_t i = 0; i < m_edges.size(); i++) {
-         bool unique = true;
-         for (size_t j = 0; j < i; j++) {
-            if (!face_unique(m_edges[i], m_edges[j])) {
-               unique = false;
-               break;
+            for (size_t j = 0; j < polynum; j++)
+            {
+                ident_raw_t val;
+                ifs >> val;
+                p.nodes.push_back(val - 1);
+                nodes[j] = val - 1;
             }
-         }
+            nodes[polynum] = nodes[0];
 
-         if (unique) {
-            assert(m_edges[i][0] < m_edges[i][1]);
-            auto node1 = typename node_type::id_type(m_edges[i][0]);
-            auto node2 = typename node_type::id_type(m_edges[i][1]);
+            ifs >> p.id;
+
+            m_polys.push_back(p);
+
+            size_t p_id = m_polys.size();
+
+            // We have too create edges
+            for (size_t j = 0; j < polynum; j++)
+            {
+                std::array<ident_raw_t, 2> b_edge = {nodes[j], nodes[j + 1]};
+                assert(b_edge[0] != b_edge[1]);
+                if (b_edge[0] > b_edge[1])
+                    std::swap(b_edge[0], b_edge[1]);
+
+                m_edges.push_back(b_edge);
+                m_polys.at(p_id - 1).attached_edges.insert({b_edge[0], b_edge[1]});
+            }
+        }
+
+        return true;
+    }
+
+    bool
+    medit_read_boundary_edges(std::ifstream& ifs)
+    {
+        size_t elements_to_read;
+
+        ifs >> elements_to_read;
+        if (this->verbose())
+            std::cout << "Reading " << elements_to_read << " boundary edges" << std::endl;
+
+        m_boundary_edges.reserve(elements_to_read);
+
+        for (size_t i = 0; i < elements_to_read; i++)
+        {
+            std::array<ident_raw_t, 2> b_edge;
+            ifs >> b_edge[0];
+            b_edge[0] -= 1;
+            ifs >> b_edge[1];
+            b_edge[1] -= 1;
+
+            assert(b_edge[0] != b_edge[1]);
+
+            if (b_edge[0] > b_edge[1])
+                std::swap(b_edge[0], b_edge[1]);
+
+            std::array<ident_raw_t, 2> bnd = {b_edge[0], b_edge[1]};
+
+            size_t b_id;
+            ifs >> b_id;
+
+            m_boundary_edges.push_back(std::make_pair(bnd, b_id));
+        }
+
+        return true;
+    }
+
+    bool
+    face_unique(const std::array<ident_raw_t, 2>& f1, const std::array<ident_raw_t, 2>& f2)
+    {
+        if (f1[0] == f2[0])
+        {
+            if (f1[1] == f2[1])
+            {
+                return false;
+            }
+            else
+                return true;
+        }
+        else
+            return true;
+    }
+
+    bool
+    medit_read(const std::string& filename)
+    {
+        std::ifstream ifs(filename);
+        std::string   keyword;
+
+        if (!ifs.is_open())
+        {
+            std::cout << "Error opening " << filename << std::endl;
+            return false;
+        }
+
+        ifs >> keyword;
+        if (keyword != "MeshVersionFormatted")
+        {
+            std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
+            return false;
+        }
+
+        size_t format;
+        ifs >> format;
+
+        if (format != 2)
+        {
+            std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
+            return false;
+        }
+
+        ifs >> keyword;
+        if (keyword != "Dimension")
+        {
+            std::cout << "Expected keyword \"Dimension\"" << std::endl;
+            return false;
+        }
+
+        size_t dim;
+        ifs >> dim;
+
+        if (dim != 3)
+        {
+            std::cout << "Expected dimension >=2 (here: " << dim << ")" << std::endl;
+            return false;
+        }
+
+        ifs >> keyword;
+        while (keyword != "End")
+        {
+            if (keyword == "Vertices")
+            {
+                medit_read_vertices(ifs);
+            }
+            else if (keyword == "Triangles")
+            {
+                medit_read_polygons(ifs, 3);
+            }
+            else if (keyword == "Quadrilaterals")
+            {
+                medit_read_polygons(ifs, 4);
+            }
+            else if (keyword == "Pentagons")
+            {
+                medit_read_polygons(ifs, 5);
+            }
+            else if (keyword == "Hexagons")
+            {
+                medit_read_polygons(ifs, 6);
+            }
+            else if (keyword == "Edges")
+            {
+                m_boundary_edges.clear();
+                medit_read_boundary_edges(ifs);
+            }
+            else
+            {
+                std::cout << "Error parsing Medit file" << std::endl;
+                return false;
+            }
+
+            ifs >> keyword;
+        }
+
+        ifs.close();
+        return true;
+    }
+
+  public:
+    medit_mesh_loader() = default;
+
+    bool
+    read_mesh(const std::string& s)
+    {
+        if (this->verbose())
+            std::cout << " *** READING MEDIT 2D MESH ***" << std::endl;
+
+        return medit_read(s);
+    }
+
+    bool
+    populate_mesh(mesh_type& msh)
+    {
+        if (this->verbose())
+            std::cout << " *** POPULATING MEDIT MESH ***" << std::endl;
+        auto storage = msh.backend_storage();
+
+        /* Points */
+        storage->points = std::move(m_points);
+        storage->nodes  = std::move(m_nodes);
+
+        /* Edges */
+        /* Make the vector containing the edges */
+        std::vector<edge_type> edges;
+        edges.reserve(m_edges.size());
+        size_t nb_edge(0);
+        for (size_t i = 0; i < m_edges.size(); i++)
+        {
+            bool unique = true;
+            for (size_t j = 0; j < i; j++)
+            {
+                if (!face_unique(m_edges[i], m_edges[j]))
+                {
+                    unique = false;
+                    break;
+                }
+            }
+
+            if (unique)
+            {
+                assert(m_edges[i][0] < m_edges[i][1]);
+                auto node1 = typename node_type::id_type(m_edges[i][0]);
+                auto node2 = typename node_type::id_type(m_edges[i][1]);
+
+                auto e = edge_type(node1, node2);
+
+                /* Next line not necessary anymore, see generic_element<DIM, DIM-1> */
+                // e.set_point_ids(m_edges[i].begin(), m_edges[i].begin() + 2); /* XXX: crap */
+                edges.push_back(e);
+                nb_edge++;
+            }
+        }
+        /* Sort them */
+        edges.resize(nb_edge);
+        std::sort(edges.begin(), edges.end());
+
+        /* Detect which ones are boundary edges */
+        storage->boundary_info.resize(edges.size());
+        for (size_t i = 0; i < m_boundary_edges.size(); i++)
+        {
+            assert(m_boundary_edges[i].first[0] < m_boundary_edges[i].first[1]);
+            auto node1 = typename node_type::id_type(m_boundary_edges[i].first[0]);
+            auto node2 = typename node_type::id_type(m_boundary_edges[i].first[1]);
 
             auto e = edge_type(node1, node2);
 
-            /* Next line not necessary anymore, see generic_element<DIM, DIM-1> */
-            //e.set_point_ids(m_edges[i].begin(), m_edges[i].begin() + 2); /* XXX: crap */
-            edges.push_back(e);
-            nb_edge++;
-         }
-      }
-      /* Sort them */
-      edges.resize(nb_edge);
-      std::sort(edges.begin(), edges.end());
+            auto position = find_element_id(edges.begin(), edges.end(), e);
 
-      /* Detect which ones are boundary edges */
-      storage->boundary_info.resize(edges.size());
-      for (size_t i = 0; i < m_boundary_edges.size(); i++) {
-         assert(m_boundary_edges[i].first[0] < m_boundary_edges[i].first[1]);
-         auto node1 = typename node_type::id_type(m_boundary_edges[i].first[0]);
-         auto node2 = typename node_type::id_type(m_boundary_edges[i].first[1]);
-
-         auto e = edge_type(node1, node2);
-
-         auto position = find_element_id(edges.begin(), edges.end(), e);
-
-         if (position.first == false) {
-            std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
-            return false;
-         } else {
-            boundary_descriptor bi(m_boundary_edges[i].second, true);
-            storage->boundary_info.at(position.second) = bi;
-         }
-      }
-
-      storage->edges = std::move(edges);
-
-      /* Surfaces */
-      std::vector<surface_type> surfaces;
-      surfaces.reserve(m_polys.size());
-
-      for (auto& p : m_polys) {
-         std::vector<typename edge_type::id_type> surface_edges;
-         for (auto& e : p.attached_edges) {
-            assert(e[0] < e[1]);
-            auto n1 = typename node_type::id_type(e[0]);
-            auto n2 = typename node_type::id_type(e[1]);
-
-            edge_type edge(n1, n2);
-            auto      edge_id = find_element_id(storage->edges.begin(), storage->edges.end(), edge);
-            if (!edge_id.first) {
-               std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
-               return false;
+            if (position.first == false)
+            {
+                std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
+                return false;
             }
+            else
+            {
+                boundary_descriptor bi(m_boundary_edges[i].second, true);
+                storage->boundary_info.at(position.second) = bi;
+            }
+        }
 
-            surface_edges.push_back(edge_id.second);
-         }
-         auto surface = surface_type(surface_edges);
-         surface.set_point_ids(p.nodes.begin(), p.nodes.end()); /* XXX: crap */
-         surfaces.push_back(surface);
-      }
+        storage->edges = std::move(edges);
 
-      std::sort(surfaces.begin(), surfaces.end());
-      storage->surfaces = std::move(surfaces);
+        /* Surfaces */
+        std::vector<surface_type> surfaces;
+        surfaces.reserve(m_polys.size());
 
-      return true;
-   }
+        for (auto& p : m_polys)
+        {
+            std::vector<typename edge_type::id_type> surface_edges;
+            for (auto& e : p.attached_edges)
+            {
+                assert(e[0] < e[1]);
+                auto n1 = typename node_type::id_type(e[0]);
+                auto n2 = typename node_type::id_type(e[1]);
+
+                edge_type edge(n1, n2);
+                auto      edge_id = find_element_id(storage->edges.begin(), storage->edges.end(), edge);
+                if (!edge_id.first)
+                {
+                    std::cout << "Bad bug at " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
+                    return false;
+                }
+
+                surface_edges.push_back(edge_id.second);
+            }
+            auto surface = surface_type(surface_edges);
+            surface.set_point_ids(p.nodes.begin(), p.nodes.end()); /* XXX: crap */
+            surfaces.push_back(surface);
+        }
+
+        std::sort(surfaces.begin(), surfaces.end());
+        storage->surfaces = std::move(surfaces);
+
+        return true;
+    }
 };
 
 template<typename T>
 class medit_mesh_loader<T, 3> : public mesh_loader<generic_mesh<T, 3>>
 {
-   typedef generic_mesh<T, 3>               mesh_type;
-   typedef typename mesh_type::point_type   point_type;
-   typedef typename mesh_type::node_type    node_type;
-   typedef typename mesh_type::edge_type    edge_type;
-   typedef typename mesh_type::surface_type surface_type;
-   typedef typename mesh_type::volume_type  volume_type;
-
-   std::vector<point_type>                   m_points;
-   std::vector<node_type>                    m_nodes;
-   std::vector<std::pair<size_t, edge_type>> m_edges;
-   std::vector<std::array<size_t, 2>>        m_boundary_edges;
-
-   std::vector<std::pair<size_t, std::vector<size_t>>> vol_to_faces;
-   std::vector<std::vector<size_t>>                    vol_to_vts;
-   std::vector<std::pair<size_t, std::vector<size_t>>> faces_to_edges;
-   std::vector<std::vector<size_t>>                    faces_to_vts;
-
-   bool
-   expect(std::ifstream& ifs, const std::string& str)
-   {
-      std::string keyword;
-      ifs >> keyword;
-      if (keyword != str) {
-         std::cout << "Expected keyword \"" << str << "\"" << std::endl;
-         std::cout << "Found \"" << keyword << "\"" << std::endl;
-         return false;
-      }
-
-      return true;
-   }
-
-   std::vector<size_t>
-   read_medit3d_line(std::ifstream& ifs)
-   {
-      std::vector<size_t> ret;
-
-      size_t num_entries;
-      ifs >> num_entries;
-      for (size_t j = 0; j < num_entries; j++) {
-         size_t temp;
-         ifs >> temp;
-         ret.push_back(temp);
-      }
-
-      return ret;
-   }
-
-   bool
-   medit3d_read(const std::string& filename)
-   {
-      std::ifstream ifs(filename);
-      std::string   keyword;
-      size_t        lines_to_read;
-
-      if (!ifs.is_open()) {
-         std::cout << "Error opening " << filename << std::endl;
-         return false;
-      }
-
-      ifs >> keyword;
-      if (keyword != "MeshVersionFormatted") {
-         std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
-         return false;
-      }
-
-      size_t format;
-      ifs >> format;
-
-      if (format != 2) {
-         std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
-         return false;
-      }
-
-      ifs >> keyword;
-      if (keyword != "Dimension") {
-         std::cout << "Expected keyword \"Dimension\"" << std::endl;
-         return false;
-      }
-
-      size_t dim;
-      ifs >> dim;
-
-      if (dim != 3) {
-         std::cout << "Expected dimension == 3 (here: " << dim << ")" << std::endl;
-         return false;
-      }
+    typedef generic_mesh<T, 3>               mesh_type;
+    typedef typename mesh_type::point_type   point_type;
+    typedef typename mesh_type::node_type    node_type;
+    typedef typename mesh_type::edge_type    edge_type;
+    typedef typename mesh_type::surface_type surface_type;
+    typedef typename mesh_type::volume_type  volume_type;
+
+    std::vector<point_type>                   m_points;
+    std::vector<node_type>                    m_nodes;
+    std::vector<std::pair<size_t, edge_type>> m_edges;
+    std::vector<std::array<size_t, 2>>        m_boundary_edges;
+
+    std::vector<std::pair<size_t, std::vector<size_t>>> vol_to_faces;
+    std::vector<std::vector<size_t>>                    vol_to_vts;
+    std::vector<std::pair<size_t, std::vector<size_t>>> faces_to_edges;
+    std::vector<std::vector<size_t>>                    faces_to_vts;
+
+    bool
+    expect(std::ifstream& ifs, const std::string& str)
+    {
+        std::string keyword;
+        ifs >> keyword;
+        if (keyword != str)
+        {
+            std::cout << "Expected keyword \"" << str << "\"" << std::endl;
+            std::cout << "Found \"" << keyword << "\"" << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    std::vector<size_t>
+    read_medit3d_line(std::ifstream& ifs)
+    {
+        std::vector<size_t> ret;
+
+        size_t num_entries;
+        ifs >> num_entries;
+        for (size_t j = 0; j < num_entries; j++)
+        {
+            size_t temp;
+            ifs >> temp;
+            ret.push_back(temp);
+        }
+
+        return ret;
+    }
+
+    bool
+    medit3d_read(const std::string& filename)
+    {
+        std::ifstream ifs(filename);
+        std::string   keyword;
+        size_t        lines_to_read;
+
+        if (!ifs.is_open())
+        {
+            std::cout << "Error opening " << filename << std::endl;
+            return false;
+        }
+
+        ifs >> keyword;
+        if (keyword != "MeshVersionFormatted")
+        {
+            std::cout << "Expected keyword \"MeshVersionFormatted\"" << std::endl;
+            return false;
+        }
+
+        size_t format;
+        ifs >> format;
+
+        if (format != 2)
+        {
+            std::cout << "Expected format 2 (here: " << format << ")" << std::endl;
+            return false;
+        }
+
+        ifs >> keyword;
+        if (keyword != "Dimension")
+        {
+            std::cout << "Expected keyword \"Dimension\"" << std::endl;
+            return false;
+        }
+
+        size_t dim;
+        ifs >> dim;
+
+        if (dim != 3)
+        {
+            std::cout << "Expected dimension == 3 (here: " << dim << ")" << std::endl;
+            return false;
+        }
+
+        if (!expect(ifs, "Vertices"))
+            return false;
+
+        ifs >> lines_to_read;
+
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " points" << std::endl;
 
-      if (!expect(ifs, "Vertices")) return false;
+        m_points.reserve(lines_to_read);
+        m_nodes.reserve(lines_to_read);
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            T x, y, z;
+            ifs >> x >> y >> z;
+            m_points.push_back(point_type({x, y, z}));
+            m_nodes.push_back(node_type(disk::point_identifier<3>(i)));
+        }
 
-      ifs >> lines_to_read;
+        /* Volume to face data */
+        if (!expect(ifs, "Volumes->Faces"))
+            return false;
 
-      if (this->verbose()) std::cout << "About to read " << lines_to_read << " points" << std::endl;
+        ifs >> lines_to_read;
 
-      m_points.reserve(lines_to_read);
-      m_nodes.reserve(lines_to_read);
-      for (size_t i = 0; i < lines_to_read; i++) {
-         T x, y, z;
-         ifs >> x >> y >> z;
-         m_points.push_back(point_type({x, y, z}));
-         m_nodes.push_back(node_type(disk::point_identifier<3>(i)));
-      }
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
 
-      /* Volume to face data */
-      if (!expect(ifs, "Volumes->Faces")) return false;
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            auto vol_faces = read_medit3d_line(ifs);
+            vol_to_faces.push_back(std::make_pair(i, std::move(vol_faces)));
+        }
 
-      ifs >> lines_to_read;
+        /* Volume to vertices data */
+        if (!expect(ifs, "Volumes->Vertices"))
+            return false;
 
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
+        ifs >> lines_to_read;
 
-      for (size_t i = 0; i < lines_to_read; i++) {
-         auto vol_faces = read_medit3d_line(ifs);
-         vol_to_faces.push_back(std::make_pair(i, std::move(vol_faces)));
-      }
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
 
-      /* Volume to vertices data */
-      if (!expect(ifs, "Volumes->Vertices")) return false;
-
-      ifs >> lines_to_read;
-
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
-
-      for (size_t i = 0; i < lines_to_read; i++) {
-         auto vol_vts = read_medit3d_line(ifs);
-         vol_to_vts.push_back(std::move(vol_vts));
-      }
-
-      /* Faces to edges data */
-      if (!expect(ifs, "Faces->Edges")) return false;
-
-      ifs >> lines_to_read;
-
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
-
-      for (size_t i = 0; i < lines_to_read; i++) {
-         auto faces_edges = read_medit3d_line(ifs);
-         faces_to_edges.push_back(std::make_pair(i, std::move(faces_edges)));
-      }
-
-      /* Faces to vertices data */
-      if (!expect(ifs, "Faces->Vertices")) return false;
-
-      ifs >> lines_to_read;
-
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
-
-      for (size_t i = 0; i < lines_to_read; i++) {
-         auto faces_vts = read_medit3d_line(ifs);
-         faces_to_vts.push_back(std::move(faces_vts));
-      }
-
-      /* Faces to cv data */
-      if (!expect(ifs, "Faces->Control")) return false;
-
-      if (!expect(ifs, "volumes")) return false;
-
-      ifs >> lines_to_read;
-
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
-
-      for (size_t i = 0; i < lines_to_read; i++) {
-         size_t num, id;
-         ifs >> num >> id;
-         m_boundary_edges.push_back({num, id});
-      }
-
-      /* Edges data */
-      if (!expect(ifs, "Edges")) return false;
-
-      ifs >> lines_to_read;
-
-      if (this->verbose())
-         std::cout << "About to read " << lines_to_read << " entries" << std::endl;
-
-      for (size_t i = 0; i < lines_to_read; i++) {
-         size_t v1, v2;
-         ifs >> v1 >> v2;
-
-         if (v1 > v2) std::swap(v1, v2);
-
-         auto e = edge_type({typename node_type::id_type(v1), typename node_type::id_type(v2)});
-
-         m_edges.push_back(std::make_pair(i, e));
-      }
-
-      return true;
-   }
-
- public:
-   medit_mesh_loader() = default;
-
-   bool
-   read_mesh(const std::string& s)
-   {
-      if (this->verbose()) std::cout << " *** READING MEDIT 3D MESH ***" << std::endl;
-      return medit3d_read(s);
-   }
-
-   bool
-   populate_mesh(mesh_type& msh)
-   {
-      auto storage = msh.backend_storage();
-
-      std::vector<size_t> conv_table;
-      /* Sort the edges in lexicographical order, remember their original
-       * position to convert the pointers in the faces */
-      auto comp_edges = [](const std::pair<size_t, edge_type>& e1,
-                           const std::pair<size_t, edge_type>& e2) {
-         return e1.second < e2.second;
-      };
-      std::sort(m_edges.begin(), m_edges.end(), comp_edges);
-
-      std::vector<edge_type> edges;
-      edges.reserve(m_edges.size());
-      conv_table.resize(m_edges.size());
-      for (size_t i = 0; i < m_edges.size(); i++) {
-         conv_table[m_edges[i].first] = i; /* Make ptr conversion table */
-         edges.push_back(m_edges[i].second);
-      }
-
-      /* Convert the edge pointers in the face data */
-      for (auto& fe : faces_to_edges) {
-         for (auto& ptr : fe.second)
-            ptr = conv_table[ptr];
-      }
-
-      /* Sort in lexicographical order and remember original position */
-      auto comp_vecs = [](const std::pair<size_t, std::vector<size_t>>& e1,
-                          const std::pair<size_t, std::vector<size_t>>& e2) {
-         return e1.second < e2.second;
-      };
-      std::sort(faces_to_edges.begin(), faces_to_edges.end(), comp_vecs);
-
-      std::vector<surface_type> faces;
-      faces.reserve(faces_to_edges.size());
-      conv_table.resize(faces_to_edges.size());
-
-      for (size_t i = 0; i < faces_to_edges.size(); i++) {
-         auto         fe = faces_to_edges[i];
-         surface_type s(convert_to<typename edge_type::id_type>(fe.second));
-         s.set_point_ids(convert_to<disk::point_identifier<3>>(faces_to_vts.at(fe.first)));
-         faces.push_back(s);
-         conv_table[fe.first] = i;
-      }
-      /* Now the faces are in their place and have correct ptrs */
-
-      /* Convert the face pointers in the volume data */
-      for (auto& vf : vol_to_faces) {
-         for (auto& ptr : vf.second)
-            ptr = conv_table[ptr];
-      }
-
-      /* Sort volume data */
-      std::sort(vol_to_faces.begin(), vol_to_faces.end(), comp_vecs);
-
-      std::vector<volume_type> volumes;
-      volumes.reserve(vol_to_faces.size());
-
-      for (size_t i = 0; i < vol_to_faces.size(); i++) {
-         auto        vf = vol_to_faces[i];
-         volume_type v(convert_to<typename surface_type::id_type>(vf.second));
-         v.set_point_ids(convert_to<disk::point_identifier<3>>(vol_to_vts.at(vf.first)));
-         volumes.push_back(v);
-      }
-
-      storage->points   = std::move(m_points);
-      storage->nodes    = std::move(m_nodes);
-      storage->edges    = std::move(edges);
-      storage->surfaces = std::move(faces);
-      storage->volumes  = std::move(volumes);
-
-      storage->boundary_info.resize(storage->surfaces.size());
-      for (size_t i = 0; i < m_boundary_edges.size(); i++) {
-         boundary_descriptor bi(m_boundary_edges[i][1], true);
-         storage->boundary_info[conv_table[m_boundary_edges[i][0]]] = bi;
-      }
-
-      return false;
-   }
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            auto vol_vts = read_medit3d_line(ifs);
+            vol_to_vts.push_back(std::move(vol_vts));
+        }
+
+        /* Faces to edges data */
+        if (!expect(ifs, "Faces->Edges"))
+            return false;
+
+        ifs >> lines_to_read;
+
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
+
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            auto faces_edges = read_medit3d_line(ifs);
+            faces_to_edges.push_back(std::make_pair(i, std::move(faces_edges)));
+        }
+
+        /* Faces to vertices data */
+        if (!expect(ifs, "Faces->Vertices"))
+            return false;
+
+        ifs >> lines_to_read;
+
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
+
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            auto faces_vts = read_medit3d_line(ifs);
+            faces_to_vts.push_back(std::move(faces_vts));
+        }
+
+        /* Faces to cv data */
+        if (!expect(ifs, "Faces->Control"))
+            return false;
+
+        if (!expect(ifs, "volumes"))
+            return false;
+
+        ifs >> lines_to_read;
+
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
+
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            size_t num, id;
+            ifs >> num >> id;
+            m_boundary_edges.push_back({num, id});
+        }
+
+        /* Edges data */
+        if (!expect(ifs, "Edges"))
+            return false;
+
+        ifs >> lines_to_read;
+
+        if (this->verbose())
+            std::cout << "About to read " << lines_to_read << " entries" << std::endl;
+
+        for (size_t i = 0; i < lines_to_read; i++)
+        {
+            size_t v1, v2;
+            ifs >> v1 >> v2;
+
+            if (v1 > v2)
+                std::swap(v1, v2);
+
+            auto e = edge_type({typename node_type::id_type(v1), typename node_type::id_type(v2)});
+
+            m_edges.push_back(std::make_pair(i, e));
+        }
+
+        return true;
+    }
+
+  public:
+    medit_mesh_loader() = default;
+
+    bool
+    read_mesh(const std::string& s)
+    {
+        if (this->verbose())
+            std::cout << " *** READING MEDIT 3D MESH ***" << std::endl;
+        return medit3d_read(s);
+    }
+
+    bool
+    populate_mesh(mesh_type& msh)
+    {
+        auto storage = msh.backend_storage();
+
+        std::vector<size_t> conv_table;
+        /* Sort the edges in lexicographical order, remember their original
+         * position to convert the pointers in the faces */
+        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2)
+        { return e1.second < e2.second; };
+        std::sort(m_edges.begin(), m_edges.end(), comp_edges);
+
+        std::vector<edge_type> edges;
+        edges.reserve(m_edges.size());
+        conv_table.resize(m_edges.size());
+        for (size_t i = 0; i < m_edges.size(); i++)
+        {
+            conv_table[m_edges[i].first] = i; /* Make ptr conversion table */
+            edges.push_back(m_edges[i].second);
+        }
+
+        /* Convert the edge pointers in the face data */
+        for (auto& fe : faces_to_edges)
+        {
+            for (auto& ptr : fe.second)
+                ptr = conv_table[ptr];
+        }
+
+        /* Sort in lexicographical order and remember original position */
+        auto comp_vecs = [](const std::pair<size_t, std::vector<size_t>>& e1,
+                            const std::pair<size_t, std::vector<size_t>>& e2) { return e1.second < e2.second; };
+        std::sort(faces_to_edges.begin(), faces_to_edges.end(), comp_vecs);
+
+        std::vector<surface_type> faces;
+        faces.reserve(faces_to_edges.size());
+        conv_table.resize(faces_to_edges.size());
+
+        for (size_t i = 0; i < faces_to_edges.size(); i++)
+        {
+            auto         fe = faces_to_edges[i];
+            surface_type s(convert_to<typename edge_type::id_type>(fe.second));
+            s.set_point_ids(convert_to<disk::point_identifier<3>>(faces_to_vts.at(fe.first)));
+            faces.push_back(s);
+            conv_table[fe.first] = i;
+        }
+        /* Now the faces are in their place and have correct ptrs */
+
+        /* Convert the face pointers in the volume data */
+        for (auto& vf : vol_to_faces)
+        {
+            for (auto& ptr : vf.second)
+                ptr = conv_table[ptr];
+        }
+
+        /* Sort volume data */
+        std::sort(vol_to_faces.begin(), vol_to_faces.end(), comp_vecs);
+
+        std::vector<volume_type> volumes;
+        volumes.reserve(vol_to_faces.size());
+
+        for (size_t i = 0; i < vol_to_faces.size(); i++)
+        {
+            auto        vf = vol_to_faces[i];
+            volume_type v(convert_to<typename surface_type::id_type>(vf.second));
+            v.set_point_ids(convert_to<disk::point_identifier<3>>(vol_to_vts.at(vf.first)));
+            volumes.push_back(v);
+        }
+
+        storage->points   = std::move(m_points);
+        storage->nodes    = std::move(m_nodes);
+        storage->edges    = std::move(edges);
+        storage->surfaces = std::move(faces);
+        storage->volumes  = std::move(volumes);
+
+        storage->boundary_info.resize(storage->surfaces.size());
+        for (size_t i = 0; i < m_boundary_edges.size(); i++)
+        {
+            boundary_descriptor bi(m_boundary_edges[i][1], true);
+            storage->boundary_info[conv_table[m_boundary_edges[i][0]]] = bi;
+        }
+
+        return false;
+    }
 };
 
 template<typename T, size_t N>
@@ -2569,8 +2631,8 @@ class poly_mesh_loader
     static_assert(N == 2 || N == 3, "Medit supports only 2D and 3D for the moment");
 };
 
-namespace poly{
-
+namespace poly
+{
 
 std::pair<size_t, std::vector<size_t>>
 read_cell_line(std::ifstream& ifs)
@@ -2611,7 +2673,7 @@ read_nodes_block(std::ifstream& ifs, const size_t nb_nodes, std::vector<std::pai
     nodes.clear();
     nodes.reserve(nb_nodes);
 
-    size_t node_id;
+    size_t           node_id;
     std::array<T, 3> coor;
 
     for (size_t i = 0; i < nb_nodes; i++)
@@ -2675,7 +2737,7 @@ class poly_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
     std::vector<node_type>                    m_nodes;
     std::vector<std::pair<size_t, edge_type>> m_edges;
 
-    std::vector<std::pair<size_t, std::array<T, 3>>> vts;
+    std::vector<std::pair<size_t, std::array<T, 3>>>    vts;
     std::vector<std::pair<size_t, std::vector<size_t>>> vts_to_grp;
     std::vector<std::pair<size_t, std::vector<size_t>>> edges_to_vts;
     std::vector<std::pair<size_t, std::vector<size_t>>> edges_to_grp;
@@ -2689,7 +2751,6 @@ class poly_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
         std::ifstream ifs(filename);
         std::string   keyword;
         size_t        dim, version, nb_elems;
-
 
         if (!ifs.is_open())
         {
@@ -2796,7 +2857,7 @@ class poly_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
 
   public:
     static const char constexpr* expected_extension = "poly2d";
-    poly_mesh_loader() = default;
+    poly_mesh_loader()                              = default;
 
     bool
     read_mesh(const std::string& s)
@@ -2840,9 +2901,8 @@ class poly_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
         std::vector<size_t> conv_table;
         /* Sort the edges in lexicographical order, remember their original
          * position to convert the pointers in the faces */
-        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2) {
-            return e1.second < e2.second;
-        };
+        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2)
+        { return e1.second < e2.second; };
         std::sort(m_edges.begin(), m_edges.end(), comp_edges);
 
         std::vector<edge_type> edges;
@@ -2891,12 +2951,10 @@ class poly_mesh_loader<T, 2> : public mesh_loader<generic_mesh<T, 2>>
         }
         /* Now the faces are in their place and have correct ptrs */
 
-
         storage->points   = std::move(m_points);
         storage->nodes    = std::move(m_nodes);
         storage->edges    = std::move(edges);
         storage->surfaces = std::move(faces);
-
 
         return true;
     }
@@ -3116,9 +3174,8 @@ class poly_mesh_loader<T, 3> : public mesh_loader<generic_mesh<T, 3>>
         std::vector<size_t> conv_table;
         /* Sort the edges in lexicographical order, remember their original
          * position to convert the pointers in the faces */
-        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2) {
-            return e1.second < e2.second;
-        };
+        auto comp_edges = [](const std::pair<size_t, edge_type>& e1, const std::pair<size_t, edge_type>& e2)
+        { return e1.second < e2.second; };
         std::sort(m_edges.begin(), m_edges.end(), comp_edges);
 
         std::vector<edge_type> edges;
@@ -3200,13 +3257,12 @@ class poly_mesh_loader<T, 3> : public mesh_loader<generic_mesh<T, 3>>
 
 /* Helper to load uniform 1D meshes. */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::generic_mesh<T,1>
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::generic_mesh<T, 1>
 load_uniform_1d_mesh(T min, T max, size_t cells)
 {
-    typedef disk::generic_mesh<T, 1>  mesh_type;
+    typedef disk::generic_mesh<T, 1> mesh_type;
 
-    mesh_type msh;
+    mesh_type                       msh;
     disk::uniform_mesh_loader<T, 1> loader(min, max, cells);
     loader.populate_mesh(msh);
 
@@ -3215,13 +3271,12 @@ load_uniform_1d_mesh(T min, T max, size_t cells)
 
 /* Helper to load 2D meshes in FVCA5 format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::generic_mesh<T,2>
-load_fvca5_2d_mesh(const char *filename, bool verbose = false)
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::generic_mesh<T, 2>
+load_fvca5_2d_mesh(const char* filename, bool verbose = false)
 {
-    typedef disk::generic_mesh<T, 2>  mesh_type;
+    typedef disk::generic_mesh<T, 2> mesh_type;
 
-    mesh_type msh;
+    mesh_type                     msh;
     disk::fvca5_mesh_loader<T, 2> loader;
     loader.verbose(verbose);
     loader.read_mesh(filename);
@@ -3232,8 +3287,7 @@ load_fvca5_2d_mesh(const char *filename, bool verbose = false)
 
 /* Helper to load 3D meshes in FVCA6 format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::generic_mesh<T, 3>
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::generic_mesh<T, 3>
 load_fvca6_3d_mesh(const char* filename)
 {
     typedef disk::generic_mesh<T, 3> mesh_type;
@@ -3248,13 +3302,12 @@ load_fvca6_3d_mesh(const char* filename)
 
 /* Helper to load 2D meshes in Netgen format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::simplicial_mesh<T, 2>
-load_netgen_2d_mesh(const char *filename)
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::simplicial_mesh<T, 2>
+load_netgen_2d_mesh(const char* filename)
 {
-    typedef disk::simplicial_mesh<T, 2>  mesh_type;
+    typedef disk::simplicial_mesh<T, 2> mesh_type;
 
-    mesh_type msh;
+    mesh_type                      msh;
     disk::netgen_mesh_loader<T, 2> loader;
     loader.read_mesh(filename);
     loader.populate_mesh(msh);
@@ -3264,13 +3317,12 @@ load_netgen_2d_mesh(const char *filename)
 
 /* Helper to load 2D meshes in DiSk++ format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::cartesian_mesh<T, 2>
-load_cartesian_2d_mesh(const char *filename)
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::cartesian_mesh<T, 2>
+load_cartesian_2d_mesh(const char* filename)
 {
-    typedef disk::cartesian_mesh<T, 2>  mesh_type;
+    typedef disk::cartesian_mesh<T, 2> mesh_type;
 
-    mesh_type msh;
+    mesh_type                         msh;
     disk::cartesian_mesh_loader<T, 2> loader;
     loader.read_mesh(filename);
     loader.populate_mesh(msh);
@@ -3280,13 +3332,12 @@ load_cartesian_2d_mesh(const char *filename)
 
 /* Helper to load 3D meshes in Netgen format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::simplicial_mesh<T, 3>
-load_netgen_3d_mesh(const char *filename)
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::simplicial_mesh<T, 3>
+load_netgen_3d_mesh(const char* filename)
 {
-    typedef disk::simplicial_mesh<T, 3>  mesh_type;
+    typedef disk::simplicial_mesh<T, 3> mesh_type;
 
-    mesh_type msh;
+    mesh_type                      msh;
     disk::netgen_mesh_loader<T, 3> loader;
     loader.read_mesh(filename);
     loader.populate_mesh(msh);
@@ -3296,13 +3347,12 @@ load_netgen_3d_mesh(const char *filename)
 
 /* Helper to load 3D meshes in DiSk++ format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::cartesian_mesh<T, 3>
-load_cartesian_3d_mesh(const char *filename)
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::cartesian_mesh<T, 3>
+load_cartesian_3d_mesh(const char* filename)
 {
-    typedef disk::cartesian_mesh<T, 3>  mesh_type;
+    typedef disk::cartesian_mesh<T, 3> mesh_type;
 
-    mesh_type msh;
+    mesh_type                         msh;
     disk::cartesian_mesh_loader<T, 3> loader;
     loader.read_mesh(filename);
     loader.populate_mesh(msh);
@@ -3312,42 +3362,41 @@ load_cartesian_3d_mesh(const char *filename)
 
 /* Helper to load 2D meshes in Medit format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::generic_mesh<T, 2>
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::generic_mesh<T, 2>
 load_medit_2d_mesh(const char* filename)
 {
-   typedef disk::generic_mesh<T, 2> mesh_type;
+    typedef disk::generic_mesh<T, 2> mesh_type;
 
-   mesh_type                     msh;
-   disk::medit_mesh_loader<T, 2> loader;
-   loader.read_mesh(filename);
-   loader.populate_mesh(msh);
+    mesh_type                     msh;
+    disk::medit_mesh_loader<T, 2> loader;
+    loader.read_mesh(filename);
+    loader.populate_mesh(msh);
 
-   return msh;
+    return msh;
 }
 
 /* Helper to load 3D meshes in Medit format */
 template<typename T>
-[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]]
-disk::generic_mesh<T, 3>
+[[deprecated("DiSk++ deprecation: The load_mesh_*() functions should be preferred")]] disk::generic_mesh<T, 3>
 load_medit_3d_mesh(const char* filename)
 {
-   typedef disk::generic_mesh<T, 3> mesh_type;
+    typedef disk::generic_mesh<T, 3> mesh_type;
 
-   mesh_type                     msh;
-   disk::medit_mesh_loader<T, 3> loader;
-   loader.read_mesh(filename);
-   loader.populate_mesh(msh);
+    mesh_type                     msh;
+    disk::medit_mesh_loader<T, 3> loader;
+    loader.read_mesh(filename);
+    loader.populate_mesh(msh);
 
-   return msh;
+    return msh;
 }
 
 /**************************************************************************/
 // New mesh loader helpers
-namespace priv {
+namespace priv
+{
 
 bool
-check_filename_extension(const char *filename, const char *extension)
+check_filename_extension(const char* filename, const char* extension)
 {
     std::stringstream ss;
     ss << ".*\\." << extension << "$";
@@ -3357,9 +3406,9 @@ check_filename_extension(const char *filename, const char *extension)
 
 template<typename LT, typename MT>
 bool
-load_mesh(const char *filename, LT& loader, MT& msh)
+load_mesh(const char* filename, LT& loader, MT& msh)
 {
-    if ( !check_filename_extension(filename, LT::expected_extension) )
+    if (!check_filename_extension(filename, LT::expected_extension))
     {
         std::cout << "Warning: unexpected filename extension for ";
         std::cout << "the required mesh type" << std::endl;
@@ -3373,11 +3422,11 @@ load_mesh(const char *filename, LT& loader, MT& msh)
     return true;
 }
 
-} //namespace priv
+} // namespace priv
 
 template<typename T>
 bool
-load_mesh_netgen(const char *filename, disk::simplicial_mesh<T, 2>& msh)
+load_mesh_netgen(const char* filename, disk::simplicial_mesh<T, 2>& msh)
 {
     disk::netgen_mesh_loader<T, 2> loader;
     return priv::load_mesh(filename, loader, msh);
@@ -3385,7 +3434,7 @@ load_mesh_netgen(const char *filename, disk::simplicial_mesh<T, 2>& msh)
 
 template<typename T>
 bool
-load_mesh_netgen(const char *filename, disk::simplicial_mesh<T, 3>& msh)
+load_mesh_netgen(const char* filename, disk::simplicial_mesh<T, 3>& msh)
 {
     disk::netgen_mesh_loader<T, 3> loader;
     return priv::load_mesh(filename, loader, msh);
@@ -3393,7 +3442,7 @@ load_mesh_netgen(const char *filename, disk::simplicial_mesh<T, 3>& msh)
 
 template<typename T>
 bool
-load_mesh_diskpp_cartesian(const char *filename, disk::cartesian_mesh<T, 2>& msh)
+load_mesh_diskpp_cartesian(const char* filename, disk::cartesian_mesh<T, 2>& msh)
 {
     disk::cartesian_mesh_loader<T, 2> loader;
     return priv::load_mesh(filename, loader, msh);
@@ -3401,7 +3450,7 @@ load_mesh_diskpp_cartesian(const char *filename, disk::cartesian_mesh<T, 2>& msh
 
 template<typename T>
 bool
-load_mesh_diskpp_cartesian(const char *filename, disk::cartesian_mesh<T, 3>& msh)
+load_mesh_diskpp_cartesian(const char* filename, disk::cartesian_mesh<T, 3>& msh)
 {
     disk::cartesian_mesh_loader<T, 3> loader;
     return priv::load_mesh(filename, loader, msh);
@@ -3417,7 +3466,7 @@ load_mesh_fvca5_2d(const char* filename, disk::generic_mesh<T, 2>& msh)
 
 template<typename T>
 bool
-load_mesh_fvca6_3d(const char *filename, disk::generic_mesh<T, 3>& msh)
+load_mesh_fvca6_3d(const char* filename, disk::generic_mesh<T, 3>& msh)
 {
     disk::fvca6_mesh_loader<T, 3> loader;
     return priv::load_mesh(filename, loader, msh);
@@ -3442,7 +3491,6 @@ load_mesh_poly3d(const char* filename, disk::generic_mesh<T, 3>& msh, bool verbo
 }
 
 } // namespace disk
-
 
 #ifdef HAVE_GMSH
 #include "gmsh_loader.hpp"
