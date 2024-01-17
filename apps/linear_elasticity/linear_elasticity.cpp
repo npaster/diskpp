@@ -54,14 +54,15 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>& msh,
                              const run_params&          rp,
                              const ElasticityParameters material_data)
 {
-    typedef Mesh<T, 2, Storage>                            mesh_type;
-    typedef disk::static_vector<T, 2>                      result_type;
-    typedef disk::vector_boundary_conditions<mesh_type>    Bnd_type;
+    typedef Mesh<T, 2, Storage>                         mesh_type;
+    typedef disk::static_vector<T, 2>                   result_type;
+    typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto load = [material_data](const disk::point<T, 2>& p) -> result_type
+    {
         const T lambda = material_data.lambda;
         const T mu     = material_data.mu;
 
@@ -81,7 +82,8 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>& msh,
         return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy};
     };
 
-    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type
+    {
         T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
                1.0 / (1 + material_data.lambda) * sin(M_PI * p.x()) * sin(M_PI * p.y());
         T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
@@ -132,14 +134,15 @@ template<template<typename, size_t, typename> class Mesh, typename T, typename S
 void
 run_linear_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, ElasticityParameters material_data)
 {
-    typedef Mesh<T, 3, Storage>                            mesh_type;
-    typedef disk::static_vector<T, 3>                      result_type;
-    typedef disk::vector_boundary_conditions<mesh_type>    Bnd_type;
+    typedef Mesh<T, 3, Storage>                         mesh_type;
+    typedef disk::static_vector<T, 3>                   result_type;
+    typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto load = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
         const T lambda = material_data.lambda;
         const T mu     = material_data.mu;
 
@@ -159,7 +162,8 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>& msh, run_params& rp, Ela
         return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy, 0};
     };
 
-    auto solution = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto solution = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
         T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
                1.0 / (1 + material_data.lambda) * sin(M_PI * p.x()) * sin(M_PI * p.y());
         T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
@@ -267,64 +271,67 @@ main(int argc, char** argv)
     if (std::regex_match(mesh_filename, std::regex(".*\\.typ1$")))
     {
         std::cout << "Guessed mesh format: FVCA5 2D" << std::endl;
-        auto msh = disk::load_fvca5_2d_mesh<RealType>(mesh_filename);
+        disk::generic_mesh<RealType, 2> msh;
+        disk::load_mesh_fvca5_2d(mesh_filename, msh);
         run_linear_elasticity_solver(msh, rp, material_data);
         return 0;
     }
 
-    /* Medit 2d*/
-    if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$")))
-    {
-        std::cout << "Guessed mesh format: Medit format" << std::endl;
-        auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
-        run_linear_elasticity_solver(msh, rp, material_data);
-        return 0;
-    }
+    // /* Medit 2d*/
+    // if (std::regex_match(mesh_filename, std::regex(".*\\.medit2d$")))
+    // {
+    //     std::cout << "Guessed mesh format: Medit format" << std::endl;
+    //     auto msh = disk::load_medit_2d_mesh<RealType>(mesh_filename);
+    //     run_linear_elasticity_solver(msh, rp, material_data);
+    //     return 0;
+    // }
 
-    /* Netgen 2D */
-    if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$")))
-    {
-        std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
-        auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
-        run_linear_elasticity_solver(msh, rp, material_data);
-        return 0;
-    }
+    // /* Netgen 2D */
+    // if (std::regex_match(mesh_filename, std::regex(".*\\.mesh2d$")))
+    // {
+    //     std::cout << "Guessed mesh format: Netgen 2D" << std::endl;
+    //     auto msh = disk::load_netgen_2d_mesh<RealType>(mesh_filename);
+    //     run_linear_elasticity_solver(msh, rp, material_data);
+    //     return 0;
+    // }
 
     /* DiSk++ cartesian 2D */
     if (std::regex_match(mesh_filename, std::regex(".*\\.quad$")))
     {
         std::cout << "Guessed mesh format: DiSk++ Cartesian 2D" << std::endl;
-        auto msh = disk::load_cartesian_2d_mesh<RealType>(mesh_filename);
+        disk::cartesian_mesh<RealType, 2> msh;
+        disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
         run_linear_elasticity_solver(msh, rp, material_data);
         return 0;
     }
 
-    /* Netgen 3D */
-    if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$")))
-    {
-        std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
-        auto msh = disk::load_netgen_3d_mesh<RealType>(mesh_filename);
-        run_linear_elasticity_solver(msh, rp, material_data);
-        return 0;
-    }
+    // /* Netgen 3D */
+    // if (std::regex_match(mesh_filename, std::regex(".*\\.mesh$")))
+    // {
+    //     std::cout << "Guessed mesh format: Netgen 3D" << std::endl;
+    //     auto msh = disk::load_netgen_3d_mesh<RealType>(mesh_filename);
+    //     run_linear_elasticity_solver(msh, rp, material_data);
+    //     return 0;
+    // }
 
-    /* FVCA5 2D */
-    if (std::regex_match(mesh_filename, std::regex(".*\\.msh$")))
-    {
-        std::cout << "Guessed mesh format: FVCA6 3D" << std::endl;
-        auto msh = disk::load_fvca6_3d_mesh<RealType>(mesh_filename);
-        run_linear_elasticity_solver(msh, rp, material_data);
-        return 0;
-    }
+    // /* FVCA5 3D */
+    // if (std::regex_match(mesh_filename, std::regex(".*\\.msh$")))
+    // {
+    //     std::cout << "Guessed mesh format: FVCA6 3D" << std::endl;
+    //     auto msh = disk::load_fvca6_3d_mesh<RealType>(mesh_filename);
+    //     run_linear_elasticity_solver(msh, rp, material_data);
+    //     return 0;
+    // }
 
-    /* DiSk++ cartesian 3D */
-    if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
-    {
-        std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
-        auto msh = disk::load_cartesian_3d_mesh<RealType>(mesh_filename);
-        run_linear_elasticity_solver(msh, rp, material_data);
-        return 0;
-    }
+    // /* DiSk++ cartesian 3D */
+    // if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
+    // {
+    //     std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
+    //     disk::cartesian_mesh<RealType, 3> msh;
+    // disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
+    //     run_linear_elasticity_solver(msh, rp, material_data);
+    //     return 0;
+    // }
 
     std::cout << "Unkwnon mesh format" << std::endl;
     return 0;

@@ -556,6 +556,38 @@ compute_grad_matrix(const Mesh&                                           msh,
 
     return compute_grad_matrix(msh, cl, cell_infos, grad_vector);
 }
+
+template<typename Mesh>
+dynamic_matrix<typename Mesh::coordinate_type>
+compute_symmetric_laplacian_matrix(const Mesh& msh, const typename Mesh::cell_type& cl, const size_t rec_degree)
+{
+    using T = typename Mesh::coordinate_type;
+    typedef Matrix<T, Dynamic, Dynamic> matrix_type;
+
+    const size_t N = Mesh::dimension;
+
+    const auto rb = make_vector_monomial_basis(msh, cl, rec_degree);
+    const auto rbs = disk::vector_basis_size(rec_degree, N, N);
+
+    matrix_type er_lhs = matrix_type::Zero(rbs, rbs);
+
+    // this is very costly to build it
+    const auto qps = integrate(msh, cl, 2 * (rec_degree - 1));
+    for (auto& qp : qps)
+    {
+        auto dphi    = rb.eval_gradients(qp.point());
+        decltype(dphi) dphi_s;
+        dphi_s.reserve(dphi.size());
+        for(auto& dphi_i : dphi){
+            dphi_s.push_back(0.5 * (dphi_i + dphi_i.transpose()));
+        }
+
+        const auto qp_dphi_s = disk::priv::inner_product(qp.weight(), dphi_s);
+        er_lhs += disk::priv::outer_product(qp_dphi_s, dphi_s);
+    }
+
+    return er_lhs.block(N, N, rbs - N, rbs-N);
+}
 } // end priv
 
 } // end diskpp

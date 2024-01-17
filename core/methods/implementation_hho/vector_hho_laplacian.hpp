@@ -168,6 +168,20 @@ make_vector_hho_symmetric_laplacian(const Mesh&                     msh,
 
 template<typename Mesh>
 std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
+make_vector_hho_symmetric_laplacian(const Mesh&                                    msh,
+                                    const typename Mesh::cell_type&                cl,
+                                    const hho_degree_info&                         hdi,
+                                    dynamic_matrix<typename Mesh::coordinate_type> hho_vector_laplacian)
+{
+    // const auto oper = priv::compute_grad_vector(msh, cl, hdi, hho_scalar_laplacian);
+    const auto Ke = priv::compute_symmetric_laplacian_matrix(msh, cl, hdi.reconstruction_degree());
+    auto       data = hho_vector_laplacian.transpose() * Ke * hho_vector_laplacian;
+
+    return std::make_pair(hho_vector_laplacian, data);
+}
+
+template<typename Mesh>
+std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
 make_vector_hho_laplacian(const Mesh& msh, const typename Mesh::cell_type& cl, const hho_degree_info& hdi)
 {
     const auto hho_scalar_laplacian = make_scalar_hho_laplacian(msh, cl, hdi);
