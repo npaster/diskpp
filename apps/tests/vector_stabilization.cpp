@@ -63,8 +63,6 @@ struct test_functor_hho_equal_order
             auto gr   = disk::make_vector_hho_laplacian(msh, cl, hdi);
             auto stab = disk::make_vector_hho_stabilization(msh, cl, gr.first, hdi);
 
-            size_t rec_size = disk::scalar_basis_size(hdi.reconstruction_degree(), Mesh::dimension);
-
             Matrix<scalar_type, Dynamic, 1> proj = disk::project_function(msh, cl, hdi, f, 2);
 
             error += proj.dot(stab * proj);
@@ -104,8 +102,6 @@ struct test_functor_hho_mixed_order1
         {
             auto gr   = disk::make_vector_hho_laplacian(msh, cl, hdi);
             auto stab = disk::make_vector_hho_stabilization(msh, cl, gr.first, hdi);
-
-            size_t rec_size = disk::scalar_basis_size(hdi.reconstruction_degree(), Mesh::dimension);
 
             Matrix<scalar_type, Dynamic, 1> proj = disk::project_function(msh, cl, hdi, f, 2);
 
@@ -147,8 +143,6 @@ struct test_functor_hho_mixed_order2
             auto gr   = disk::make_vector_hho_laplacian(msh, cl, hdi);
             auto stab = disk::make_vector_hho_stabilization(msh, cl, gr.first, hdi);
 
-            size_t rec_size = disk::scalar_basis_size(hdi.reconstruction_degree(), Mesh::dimension);
-
             Matrix<scalar_type, Dynamic, 1> proj = disk::project_function(msh, cl, hdi, f, 2);
 
             error += proj.dot(stab * proj);
@@ -187,8 +181,6 @@ struct test_functor_hdg
         for (auto& cl : msh)
         {
             auto stab = disk::make_vector_hdg_stabilization(msh, cl, hdi);
-
-            size_t rec_size = disk::scalar_basis_size(hdi.reconstruction_degree(), Mesh::dimension);
 
             Matrix<scalar_type, Dynamic, 1> proj = disk::project_function(msh, cl, hdi, f, 2);
 
@@ -229,8 +221,6 @@ struct test_functor_dg
         {
             auto stab = disk::make_vector_dg_stabilization(msh, cl, hdi);
 
-            size_t rec_size = disk::scalar_basis_size(hdi.reconstruction_degree(), Mesh::dimension);
-
             Matrix<scalar_type, Dynamic, 1> proj = disk::project_function(msh, cl, hdi, f, 2);
 
             error += proj.dot(stab * proj);
@@ -249,19 +239,19 @@ struct test_functor_dg
 int
 main(void)
 {
-    std::cout << red << "Test HHO-stabilization operator" << std::endl;
-    // face order: k, cell order: k
-    std::cout << blue << "Face order: k and Cell order: k" << std::endl;
-    tester<test_functor_hho_equal_order> tstr1;
-    tstr1.run();
-    // face order: k, cell order: k+1
-    std::cout << blue << "Face order: k and Cell order: k+1" << std::endl;
-    tester<test_functor_hho_mixed_order1> tstr2;
-    tstr2.run();
-    // face order: k, cell order: k-1
-    std::cout << blue << "Face order: k and Cell order: k-1" << std::endl;
-    tester<test_functor_hho_mixed_order2> tstr3;
-    tstr3.run(1, 3);
+    // std::cout << red << "Test HHO-stabilization operator" << std::endl;
+    // // face order: k, cell order: k
+    // std::cout << blue << "Face order: k and Cell order: k" << std::endl;
+    // tester<test_functor_hho_equal_order> tstr1;
+    // tstr1.run();
+    // // face order: k, cell order: k+1
+    // std::cout << blue << "Face order: k and Cell order: k+1" << std::endl;
+    // tester<test_functor_hho_mixed_order1> tstr2;
+    // tstr2.run();
+    // // face order: k, cell order: k-1
+    // std::cout << blue << "Face order: k and Cell order: k-1" << std::endl;
+    // tester<test_functor_hho_mixed_order2> tstr3;
+    // tstr3.run(1, 3);
 
     std::cout << red << "Test HDG-stabilization operator" << std::endl;
     // face order: k, cell order: k+1

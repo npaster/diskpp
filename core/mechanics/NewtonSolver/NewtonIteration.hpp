@@ -186,7 +186,7 @@ class NewtonIteration
                 }
                 else
                 {
-                    const auto gradrec_full = make_marix_hho_gradrec(msh, cl, degree_infos);
+                    const auto gradrec_full = make_matrix_hho_gradrec(msh, cl, degree_infos);
                     GT                      = gradrec_full.first;
                 }
             }

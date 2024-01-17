@@ -159,7 +159,7 @@ run_hho_diffusion_solver(const Mesh& msh, const size_t degree)
     for (auto& cl : msh)
     {
         auto cb     = make_vector_monomial_basis(msh, cl, hdi.cell_degree());
-        auto G      = make_marix_hho_gradrec(msh, cl, hdi);
+        auto G      = make_matrix_hho_gradrec(msh, cl, hdi);
         auto gr     = make_vector_hho_laplacian(msh, cl, hdi);
         auto stab   = make_vector_hho_stabilization(msh, cl, gr.first, hdi);
         auto rhs    = make_rhs(msh, cl, cb, rhs_fun);
@@ -193,7 +193,7 @@ run_hho_diffusion_solver(const Mesh& msh, const size_t degree)
     for (auto& cl : msh)
     {
         auto cb     = make_vector_monomial_basis(msh, cl, hdi.cell_degree());
-        auto G      = make_marix_hho_gradrec(msh, cl, hdi);
+        auto G      = make_matrix_hho_gradrec(msh, cl, hdi);
         auto gr     = make_vector_hho_laplacian(msh, cl, hdi);
         auto stab   = make_vector_hho_stabilization(msh, cl, gr.first, hdi);
         auto rhs    = make_rhs(msh, cl, cb, rhs_fun);

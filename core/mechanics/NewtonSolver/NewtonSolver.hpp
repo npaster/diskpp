@@ -243,7 +243,7 @@ class NewtonSolver
             }
             else
             {
-                const auto gr = make_marix_hho_gradrec(m_msh, cl, m_degree_infos);
+                const auto gr = make_matrix_hho_gradrec(m_msh, cl, m_degree_infos);
                 m_gradient_precomputed.push_back(gr.first);
             }
 
@@ -719,7 +719,7 @@ class NewtonSolver
             }
             else
             {
-                grad = make_marix_hho_gradrec(m_msh, cl, m_degree_infos).second;
+                grad = make_matrix_hho_gradrec(m_msh, cl, m_degree_infos).second;
             }
 
             if (m_rp.m_stab)
@@ -908,7 +908,7 @@ class NewtonSolver
                 }
                 else
                 {
-                    gr = make_marix_hho_gradrec(m_msh, cl, m_degree_infos).first;
+                    gr = make_matrix_hho_gradrec(m_msh, cl, m_degree_infos).first;
                 }
             }
 

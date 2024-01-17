@@ -151,7 +151,7 @@ class finite_strains_solver
         for (auto& cl : m_msh)
         {
             /////// Gradient Reconstruction /////////
-            const auto gr = make_marix_hho_gradrec(m_msh, cl, m_hdi);
+            const auto gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi);
             m_gradient_precomputed.push_back(gr.first);
 
             if (m_rp.m_stab)
@@ -603,7 +603,7 @@ class finite_strains_solver
             }
             else
             {
-                gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
+                gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi).first;
             }
             const vector_type GTuTF = gr * uTF;
             auto                 gb    = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
@@ -660,7 +660,7 @@ class finite_strains_solver
             }
             else
             {
-                gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
+                gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi).first;
             }
             const vector_type    GTuTF        = gr * uTF;
             auto                    gb           = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
@@ -737,7 +737,7 @@ class finite_strains_solver
             }
             else
             {
-                gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
+                gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi).first;
             }
             const vector_type GTuTF        = gr * uTF;
             auto                 gb           = disk::make_matrix_monomial_basis(m_msh, cl, grad_degree);
@@ -1210,7 +1210,7 @@ class finite_strains_solver
             }
             else
             {
-                gr = make_marix_hho_gradrec(m_msh, cl, m_hdi).first;
+                gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi).first;
             }
             const vector_type GTuTF = gr * uTF;
 

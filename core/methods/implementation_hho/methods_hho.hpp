@@ -403,7 +403,7 @@ make_hlow_stokes(const Mesh&                     msh,
     if (use_sym_grad)
         return make_matrix_symmetric_gradrec(msh, cl, hdi);
     else
-        return make_marix_hho_gradrec(msh, cl, hdi);
+        return make_matrix_hho_gradrec(msh, cl, hdi);
 }
 
 
