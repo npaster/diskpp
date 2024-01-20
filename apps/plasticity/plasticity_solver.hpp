@@ -147,7 +147,7 @@ class plasticity_solver
         for (auto& cl : m_msh)
         {
             /////// Gradient Reconstruction /////////
-            const auto sgr = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
+            const auto sgr = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_hdi);
             m_gradient_precomputed.push_back(sgr.first);
 
             if (m_rp.m_stab)

@@ -181,7 +181,7 @@ class NewtonIteration
             {
                 if (small_def)
                 {
-                    const auto gradrec_sym_full = make_matrix_symmetric_gradrec(msh, cl, degree_infos);
+                    const auto gradrec_sym_full = make_matrix_hho_symmetric_gradrec(msh, cl, degree_infos);
                     GT                          = gradrec_sym_full.first;
                 }
                 else

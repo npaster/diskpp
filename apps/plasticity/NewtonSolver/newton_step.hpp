@@ -166,7 +166,7 @@ class NewtonRaphson_step_plasticity
             }
             else
             {
-                const auto gradrec_full = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
+                const auto gradrec_full = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_hdi);
                 GT                      = gradrec_full.first;
             }
             tc.toc();

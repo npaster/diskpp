@@ -41,7 +41,7 @@ namespace MK
 template<typename Mesh>
 std::pair<Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>,
           Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>>
-make_matrix_symmetric_gradrec(const Mesh&                                   msh,
+make_matrix_hho_symmetric_gradrec(const Mesh&                                   msh,
                               const typename Mesh::cell_type&               cl,
                               const disk::hho_degree_info&                  di,
                               const disk::vector_boundary_conditions<Mesh>& bnd)

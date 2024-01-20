@@ -187,7 +187,7 @@ class linear_elasticity_solver
 
             // version complete
             // const auto sgr = make_vector_hho_symmetric_laplacian(m_msh, cl, m_hdi);
-            // const auto sg  = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi);
+            // const auto sg  = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_hdi);
 
             // new
             // const auto sgr = make_vector_hho_laplacian(m_msh, cl, m_hdi);
@@ -196,7 +196,7 @@ class linear_elasticity_solver
             // new2
             const auto sgr = make_vector_hho_laplacian(m_msh, cl, m_hdi);
             const auto gr = make_matrix_hho_gradrec(m_msh, cl, m_hdi);
-            const auto sg  = make_matrix_symmetric_gradrec(m_msh, cl, m_hdi, gr.first);
+            const auto sg  = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_hdi, gr.first);
 
             tc.toc();
             ai.time_gradrec += tc.to_double();

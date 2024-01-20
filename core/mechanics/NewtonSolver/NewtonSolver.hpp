@@ -238,7 +238,7 @@ class NewtonSolver
             /////// Gradient Reconstruction /////////
             if (m_behavior.getDeformation() == SMALL_DEF)
             {
-                const auto sgr = make_matrix_symmetric_gradrec(m_msh, cl, m_degree_infos);
+                const auto sgr = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_degree_infos);
                 m_gradient_precomputed.push_back(sgr.first);
             }
             else
@@ -715,7 +715,7 @@ class NewtonSolver
             /////// Gradient Reconstruction /////////
             if (m_behavior.getDeformation() == SMALL_DEF)
             {
-                grad = make_matrix_symmetric_gradrec(m_msh, cl, m_degree_infos).second;
+                grad = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_degree_infos).second;
             }
             else
             {
@@ -904,7 +904,7 @@ class NewtonSolver
             {
                 if (m_behavior.getDeformation() == SMALL_DEF)
                 {
-                    gr = make_matrix_symmetric_gradrec(m_msh, cl, m_degree_infos).first;
+                    gr = make_matrix_hho_symmetric_gradrec(m_msh, cl, m_degree_infos).first;
                 }
                 else
                 {
