@@ -163,6 +163,19 @@ make_matrix_symmetric_gradrec(const Mesh&                     msh,
 
 template<typename Mesh>
 std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
+make_matrix_symmetric_gradrec(const Mesh&                     msh,
+                              const typename Mesh::cell_type& cl,
+                              const hho_degree_info&          di,
+                              const dynamic_matrix<typename Mesh::coordinate_type>& hho_matrix_gradrec)
+{
+    const auto Ke   = priv::compute_symmetric_gradrec_matrix(msh, cl, di.grad_degree());
+    auto       data = hho_matrix_gradrec.transpose() * Ke * hho_matrix_gradrec;
+
+    return std::make_pair(hho_matrix_gradrec, data);
+};
+
+template<typename Mesh>
+std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
 make_matrix_symmetric_gradrec_RT(const Mesh& msh, const typename Mesh::cell_type& cl, const hho_degree_info& di)
 {
     using T = typename Mesh::coordinate_type;
@@ -227,30 +240,30 @@ make_matrix_symmetric_gradrec_RT(const Mesh& msh, const typename Mesh::cell_type
     return std::make_pair(oper, data);
 }
 
-template<typename Mesh>
-std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
-make_matrix_hho_gradrec(const Mesh& msh, const typename Mesh::cell_type& cl, const hho_degree_info& hdi)
+    template<typename Mesh>
+    std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
+    make_matrix_hho_gradrec(const Mesh& msh, const typename Mesh::cell_type& cl, const hho_degree_info& hdi)
 
-{
-    const auto hho_gradrec_vector = make_vector_hho_gradrec(msh, cl, hdi);
-    const auto lhs                = priv::compute_lhs_vector(msh, cl, hdi, hho_gradrec_vector.second);
-    const auto oper               = priv::compute_grad_matrix(msh, cl, hdi, hho_gradrec_vector.first);
+    {
+        const auto hho_gradrec_vector = make_vector_hho_gradrec(msh, cl, hdi);
+        const auto lhs                = priv::compute_lhs_vector(msh, cl, hdi, hho_gradrec_vector.second);
+        const auto oper               = priv::compute_grad_matrix(msh, cl, hdi, hho_gradrec_vector.first);
 
-    return std::make_pair(oper, lhs);
-}
+        return std::make_pair(oper, lhs);
+    }
 
-template<typename Mesh>
-std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
-make_matrix_hho_gradrec(const Mesh& msh, const typename Mesh::cell_type& cl, const MeshDegreeInfo<Mesh>& msh_infos)
+    template<typename Mesh>
+    std::pair<dynamic_matrix<typename Mesh::coordinate_type>, dynamic_matrix<typename Mesh::coordinate_type>>
+    make_matrix_hho_gradrec(const Mesh& msh, const typename Mesh::cell_type& cl, const MeshDegreeInfo<Mesh>& msh_infos)
 
-{
-    const auto cell_infos = msh_infos.cellDegreeInfo(msh, cl);
+    {
+        const auto cell_infos = msh_infos.cellDegreeInfo(msh, cl);
 
-    const auto hho_gradrec_vector = make_vector_hho_gradrec(msh, cl, cell_infos);
-    const auto lhs                = priv::compute_lhs_vector(msh, cl, cell_infos, hho_gradrec_vector.second);
-    const auto oper               = priv::compute_grad_matrix(msh, cl, cell_infos, hho_gradrec_vector.first);
+        const auto hho_gradrec_vector = make_vector_hho_gradrec(msh, cl, cell_infos);
+        const auto lhs                = priv::compute_lhs_vector(msh, cl, cell_infos, hho_gradrec_vector.second);
+        const auto oper               = priv::compute_grad_matrix(msh, cl, cell_infos, hho_gradrec_vector.first);
 
-    return std::make_pair(oper, lhs);
-}
+        return std::make_pair(oper, lhs);
+    }
 
 } // end diskpp

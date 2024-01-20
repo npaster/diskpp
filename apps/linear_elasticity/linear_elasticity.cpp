@@ -323,15 +323,15 @@ main(int argc, char** argv)
     //     return 0;
     // }
 
-    // /* DiSk++ cartesian 3D */
-    // if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
-    // {
-    //     std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
-    //     disk::cartesian_mesh<RealType, 3> msh;
-    // disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
-    //     run_linear_elasticity_solver(msh, rp, material_data);
-    //     return 0;
-    // }
+    /* DiSk++ cartesian 3D */
+    if (std::regex_match(mesh_filename, std::regex(".*\\.hex$")))
+    {
+        std::cout << "Guessed mesh format: DiSk++ Cartesian 3D" << std::endl;
+        disk::cartesian_mesh<RealType, 3> msh;
+        disk::load_mesh_diskpp_cartesian(mesh_filename, msh);
+        run_linear_elasticity_solver(msh, rp, material_data);
+        return 0;
+    }
 
     std::cout << "Unkwnon mesh format" << std::endl;
     return 0;
