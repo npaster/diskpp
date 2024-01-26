@@ -48,21 +48,24 @@ class NewtonSolverParameter
     int m_cell_degree; // cell_degree
     int m_grad_degree; // grad degree
 
-    std::vector<std::pair<T, int>> m_time_step; // number of time time_step
+    std::vector<std::pair<T, int>> m_time_step;         // number of time time_step
     bool                           m_has_user_end_time; // final time is given
-    T                              m_user_end_time; // final time of the simulation
-    int                            m_sublevel;  // number of sublevel if there are problems
-    int                            m_iter_max;  // maximun nexton iteration
-    T                              m_epsilon;   // stop criteria
+    T                              m_user_end_time;     // final time of the simulation
+    int                            m_sublevel;          // number of sublevel if there are problems
+    int                            m_iter_max;          // maximun nexton iteration
+    T                              m_epsilon;           // stop criteria
 
     bool m_verbose; // some printing
 
     bool m_precomputation; // to compute the gradient before (it's memory consuption)
 
-    int  m_stab_type; // type of stabilization
-    T    m_beta;      // stabilization parameter
-    bool m_stab;      // stabilization yes or no
+    int  m_stab_type;  // type of stabilization
+    T    m_beta;       // stabilization parameter
+    bool m_stab;       // stabilization yes or no
     bool m_adapt_stab; // adaptative stabilization
+
+    bool                     m_dynamic; // dynamic or static simulation
+    std::map<std::string, T> m_dyna_para;
 
     int          m_n_time_save; // number of saving
     std::list<T> m_time_save;   // list of time where we save result;
@@ -70,7 +73,7 @@ class NewtonSolverParameter
     NewtonSolverParameter() :
       m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_sublevel(5), m_iter_max(20), m_epsilon(T(1E-6)),
       m_verbose(false), m_precomputation(false), m_stab(true), m_beta(1), m_stab_type(HHO), m_n_time_save(0),
-      m_user_end_time(1.0), m_has_user_end_time(false), m_adapt_stab(false)
+      m_user_end_time(1.0), m_has_user_end_time(false), m_adapt_stab(false), m_dynamic(false)
     {
         m_time_step.push_back(std::make_pair(m_user_end_time, 1));
     }
@@ -91,6 +94,7 @@ class NewtonSolverParameter
         std::cout << " - IterMax: " << m_iter_max << std::endl;
         std::cout << " - Epsilon: " << m_epsilon << std::endl;
         std::cout << " - Precomputation: " << m_precomputation << std::endl;
+        std::cout << " - Dynamic: " << m_dynamic << std::endl;
     }
 
     bool
@@ -261,13 +265,14 @@ class NewtonSolverParameter
         return true;
     }
 
-    void setFaceDegree(const int face_degree)
+    void
+    setFaceDegree(const int face_degree)
     {
         m_face_degree = face_degree;
     }
 
     int
-    getFaceDegree( ) const
+    getFaceDegree() const
     {
         return m_face_degree;
     }
@@ -330,5 +335,29 @@ class NewtonSolverParameter
     getPrecomputation() const
     {
         return m_precomputation;
+    }
+
+    bool
+    isUnsteady() const
+    {
+        return m_dynamic;
+    }
+
+    void
+    isUnsteady(const bool dyna)
+    {
+        m_dynamic = dyna;
+    }
+
+    auto
+    getUnsteadyParameters() const
+    {
+        return m_dyna_para;
+    }
+
+    void
+    setUnsteadyParameters(const std::map<std::string, T> dyna_para)
+    {
+        m_dyna_para = dyna_para;
     }
 };

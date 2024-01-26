@@ -331,6 +331,8 @@ class mechanical_computation
             const Function&                  load,
             const matrix_type&               RkT,
             const vector_type&               uTF,
+            const vector_type&               aT_pred,
+            const scalar_type&               dt,
             behavior_type&                   behavior,
             StabCoeffManager<scalar_type>&   stab_manager,
             const bool                       small_def)
@@ -345,6 +347,7 @@ class mechanical_computation
         const auto cell_degree = cell_infos.cell_degree();
         const auto grad_degree = cell_infos.grad_degree();
 
+        const auto cb              = make_vector_monomial_basis(msh, cl, cell_degree);
         const auto cell_basis_size = vector_basis_size(cell_degree, dimension, dimension);
 
         size_t gb_size = 0;
@@ -436,7 +439,7 @@ class mechanical_computation
             tc.toc();
             time_contact += tc.to_double();
 
-            // compute new possible value for stabilization 
+            // compute new possible value for stabilization
             if (rp.m_adapt_stab)
             {
                 scalar_type sigma_dev_norm, eps_dev_norm;
@@ -457,7 +460,8 @@ class mechanical_computation
                     // const auto Cauchy = convertPK1toCauchy(stress, F);
                     // const auto eps    = convertGtoLinearizedStrain(RkT_iqn);
 
-                    // std::cout << sigma_dev_norm / eps_dev_norm << " vs " << deviator(Cauchy).norm() / deviator(eps).norm()
+                    // std::cout << sigma_dev_norm / eps_dev_norm << " vs " << deviator(Cauchy).norm() /
+                    // deviator(eps).norm()
                     //           << std::endl;
                 }
 
@@ -500,6 +504,24 @@ class mechanical_computation
         assert(K_int.rows() == num_total_dofs);
         assert(K_int.cols() == num_total_dofs);
         assert(RTF.rows() == num_total_dofs);
+
+        // Unsteady Computation
+
+        if (rp.isUnsteady())
+        {
+            auto dyna_rp = rp.getUnsteadyParameters();
+            auto beta    = dyna_rp["beta"];
+
+            const matrix_type mass_mat = make_mass_matrix(msh, cl, cb);
+
+            K_int.topLeftCorner(cell_basis_size, cell_basis_size) += mass_mat / (beta * dt * dt);
+
+            auto F_iner = (mass_mat / (beta * dt * dt)) * uTF.head(cell_basis_size);
+            F_int.head(cell_basis_size) += F_iner;
+            RTF.head(cell_basis_size) -= F_iner;
+
+            RTF.head(cell_basis_size) += mass_mat * aT_pred;
+        }
     }
 };
 }
