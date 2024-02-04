@@ -403,6 +403,30 @@ class NewtonSolver
     }
 
     /**
+     * @brief Initialize displacement and velocity with a given function
+     *
+     * @param func given function
+     */
+    void
+    initial_fields(const vector_rhs_function<mesh_type> depl,
+                   const vector_rhs_function<mesh_type> velo,
+                   const vector_rhs_function<mesh_type> acce)
+    {
+        if (m_rp.isUnsteady())
+        {
+            this->initial_guess(depl);
+            for (auto& cl : m_msh)
+            {
+                const auto cell_id     = m_msh.lookup(cl);
+                const auto di          = m_degree_infos.cellDegreeInfo(m_msh, cl);
+
+                m_velocity.at(cell_id) = project_function(m_msh, cl, di.cell_degree(), velo, 2);
+                m_acce.at(cell_id)     = project_function(m_msh, cl, di.cell_degree(), acce, 2);
+            }
+        }
+    }
+
+    /**
      * @brief Add a behavior for materials
      *
      * @param deformation Type of deformation

@@ -35,6 +35,8 @@
 #include "methods/hho"
 #include "quadratures/quadratures.hpp"
 
+#include "TimeManager.hpp"
+
 #include "mechanics/NewtonSolver/StabilizationManger.hpp"
 
 #include "timecounter.h"
@@ -311,6 +313,7 @@ class mechanical_computation
     vector_type F_int;
     double      time_law;
     double      time_contact;
+    double      time_dyna;
 
     mechanical_computation(void)
     {
@@ -332,13 +335,14 @@ class mechanical_computation
             const matrix_type&               RkT,
             const vector_type&               uTF,
             const vector_type&               aT_pred,
-            const scalar_type&               dt,
+            const TimeStep<scalar_type>&     time_step,
             behavior_type&                   behavior,
             StabCoeffManager<scalar_type>&   stab_manager,
             const bool                       small_def)
     {
         time_law     = 0.0;
         time_contact = 0.0;
+        time_dyna = 0.0;
         timecounter tc;
 
         const auto cell_infos  = degree_infos.cellDegreeInfo(msh, cl);
@@ -506,13 +510,15 @@ class mechanical_computation
         assert(RTF.rows() == num_total_dofs);
 
         // Unsteady Computation
-
+        tc.tic();
         if (rp.isUnsteady())
         {
+            auto dt      = time_step.increment_time();
             auto dyna_rp = rp.getUnsteadyParameters();
             auto beta    = dyna_rp["beta"];
+            auto rho     = dyna_rp["rho"];
 
-            const matrix_type mass_mat = make_mass_matrix(msh, cl, cb);
+            const matrix_type mass_mat = rho * make_mass_matrix(msh, cl, cb);
 
             K_int.topLeftCorner(cell_basis_size, cell_basis_size) += mass_mat / (beta * dt * dt);
 
@@ -520,8 +526,11 @@ class mechanical_computation
             F_int.head(cell_basis_size) += F_iner;
             RTF.head(cell_basis_size) -= F_iner;
 
+            // std::cout << mass_mat.cols() << ", " << aT_pred.rows() << std::endl;
             RTF.head(cell_basis_size) += mass_mat * aT_pred;
         }
+        tc.toc();
+        time_dyna += tc.to_double();
     }
 };
 }

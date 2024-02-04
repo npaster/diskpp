@@ -158,6 +158,9 @@ class NewtonIteration
         m_acce_p.clear();
         m_acce_p = initial_acce;
 
+        m_acce_pred.clear();
+        m_acce_pred.reserve(msh.cells_size());
+
         if (rp.isUnsteady())
         {
             auto        dyna_rp = rp.getUnsteadyParameters();
@@ -177,6 +180,11 @@ class NewtonIteration
                                  dt * dt / 2.0 * (1.0 - 2.0 * beta) * m_acce[cl_id];
 
                 m_acce_pred.push_back(acce_pred);
+            }
+        }else{
+            for (auto& cl : msh)
+            {
+                m_acce_pred.push_back(vector_type::Zero(1));
             }
         }
     }
@@ -206,11 +214,11 @@ class NewtonIteration
         timecounter tc, ttot;
 
         ttot.tic();
-        size_t cell_i = 0;
 
         for (auto& cl : msh)
         {
-            const auto di = degree_infos.cellDegreeInfo(msh, cl);
+            const auto cell_i = msh.lookup(cl);
+            const auto di     = degree_infos.cellDegreeInfo(msh, cl);
 
             // Gradient Reconstruction
             // std::cout << "Grad" << std::endl;
@@ -251,7 +259,7 @@ class NewtonIteration
                          GT,
                          m_displ.at(cell_i),
                          m_acce_pred.at(cell_i),
-                         m_time_step.increment_time(),
+                         m_time_step,
                          behavior,
                          stab_manager,
                          small_def);
@@ -268,7 +276,7 @@ class NewtonIteration
             // std::cout << "Stab" << std::endl;
             tc.tic();
 
-            const auto beta = stab_manager.getValue(msh, cl);
+            const auto beta_s = stab_manager.getValue(msh, cl);
             // std::cout << beta << std::endl;
 
             if (rp.m_stab)
@@ -281,8 +289,8 @@ class NewtonIteration
                     assert(elem.RTF.rows() == stab.rows());
                     assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
 
-                    lhs += beta * stab;
-                    rhs -= beta * stab * m_displ.at(cell_i);
+                    lhs += beta_s * stab;
+                    rhs -= beta_s * stab * m_displ.at(cell_i);
                 }
                 else
                 {
@@ -309,8 +317,8 @@ class NewtonIteration
                             assert(elem.RTF.rows() == stab_HHO.rows());
                             assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
 
-                            lhs += beta * stab_HHO;
-                            rhs -= beta * stab_HHO * m_displ.at(cell_i);
+                            lhs += beta_s * stab_HHO;
+                            rhs -= beta_s * stab_HHO * m_displ.at(cell_i);
                             break;
                         }
                         case HDG:
@@ -321,8 +329,8 @@ class NewtonIteration
                             assert(elem.RTF.rows() == stab_HDG.rows());
                             assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
 
-                            lhs += beta * stab_HDG;
-                            rhs -= beta * stab_HDG * m_displ.at(cell_i);
+                            lhs += beta_s * stab_HDG;
+                            rhs -= beta_s * stab_HDG * m_displ.at(cell_i);
                             break;
                         }
                         case DG:
@@ -333,8 +341,8 @@ class NewtonIteration
                             assert(elem.RTF.rows() == stab_DG.rows());
                             assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
 
-                            lhs += beta * stab_DG;
-                            rhs -= beta * stab_DG * m_displ.at(cell_i);
+                            lhs += beta_s * stab_DG;
+                            rhs -= beta_s * stab_DG * m_displ.at(cell_i);
                             break;
                         }
                         case NO:
@@ -348,74 +356,10 @@ class NewtonIteration
             tc.toc();
             ai.m_time_stab += tc.to_double();
 
-            bool check_size = true;
-
-            // // contact contribution
-            // // std::cout << "Cont" << std::endl;
-            // if (bnd.cell_has_contact_faces(cl))
-            // {
-            //     const auto cell_infos  = degree_infos.cellDegreeInfo(msh, cl);
-            //     const auto faces_infos = cell_infos.facesDegreeInfo();
-
-            //     const auto cell_degree = cell_infos.cell_degree();
-            //     const auto grad_degree = cell_infos.grad_degree();
-
-            //     const auto num_cell_dofs = vector_basis_size(cell_degree, mesh_type::dimension,
-            //     mesh_type::dimension);
-
-            //     const auto num_faces_dofs  = vector_faces_dofs(msh, faces_infos);
-            //     const auto num_primal_dofs = num_cell_dofs + num_faces_dofs;
-            //     const auto num_total_dofs  = num_primal_dofs;
-
-            //     vector_type solution           = vector_type::Zero(num_total_dofs);
-            //     solution.head(num_primal_dofs) = m_displ.at(cell_i);
-
-            //     const auto fcs_cont = bnd.faces_with_contact(cl);
-
-            //     size_t offset = num_primal_dofs;
-
-            //     matrix_type Acont = matrix_type::Zero(num_total_dofs, num_total_dofs);
-            //     vector_type rcont = vector_type::Zero(num_total_dofs);
-
-            //     for (auto fc_cont : fcs_cont)
-            //     {
-            //         const auto fc_id   = msh.lookup(fc_cont);
-            //         const auto mult_id = contact_manager.getMappingFaceToMult(fc_id);
-            //         const auto face_id = contact_manager.getMappingMultToFace(mult_id);
-
-            //         const auto num_mult_face = m_displ_mult.at(mult_id).size();
-
-            //         solution.segment(offset, num_mult_face) = m_displ_mult.at(mult_id);
-            //         rcont.segment(offset, num_mult_face)    = -m_displ_mult.at(mult_id);
-
-            //         offset += num_mult_face;
-
-            //         // std::cout << "id: " << fc_id << "->" << mult_id << "->" << face_id << std::endl;
-            //         // std::cout << "mult: " << m_displ_mult.at(mult_id).transpose() << std::endl;
-            //     }
-            //     assert(offset == num_total_dofs);
-
-            //     Acont.topLeftCorner(num_primal_dofs, num_primal_dofs) = lhs;
-            //     rcont.head(num_primal_dofs)                           = rhs;
-
-            //     Acont.bottomRightCorner(num_mult_dofs, num_mult_dofs) =
-            //       matrix_type::Identity(num_mult_dofs, num_mult_dofs);
-
-            //     // std::cout << "sol: " << solution.transpose() << std::endl;
-
-            //     lhs = Acont;
-            //     rhs = rcont;
-
-            //     check_size = false;
-
-            //     assert(lhs.rows() == num_total_dofs && lhs.cols() == num_total_dofs);
-            //     assert(rhs.rows() == num_total_dofs);
-            // }
-
             // Static Condensation
             // std::cout << "StatCond" << std::endl;
             tc.tic();
-            const auto scnp = make_vector_static_condensation_withMatrix(msh, cl, degree_infos, lhs, rhs, check_size);
+            const auto scnp = make_vector_static_condensation_withMatrix(msh, cl, degree_infos, lhs, rhs, true);
 
             m_AL[cell_i] = std::get<1>(scnp);
             m_bL[cell_i] = std::get<2>(scnp);
@@ -426,8 +370,6 @@ class NewtonIteration
             const auto& lc = std::get<0>(scnp);
             // std::cout << "Assemb" << std::endl;
             m_assembler.assemble_nonlinear(msh, cl, bnd, contact_manager, lc.first, lc.second, m_displ_faces);
-
-            cell_i++;
         }
 
         m_F_int = sqrt(m_F_int);
@@ -474,9 +416,10 @@ class NewtonIteration
         // std::cout << m_system_displ << std::endl;
 
         // Update cell
-        size_t cell_i = 0;
         for (auto& cl : msh)
         {
+            const auto cell_i = msh.lookup(cl);
+
             const vector_type xdT =
               m_assembler.take_local_solution_nonlinear(msh, cl, bnd, m_system_displ, m_displ_faces);
 
@@ -510,8 +453,6 @@ class NewtonIteration
             // std::cout << "sol_T" << std::endl;
             // std::cout << xT.transpose() << std::endl;
             // std::cout << (m_displ.at(cell_i)).segment(0, xT.size()).transpose() << std::endl;
-
-            cell_i++;
         }
 
         // Update  unknowns

@@ -360,4 +360,11 @@ class NewtonSolverParameter
     {
         m_dyna_para = dyna_para;
     }
+
+    void
+    setTimeStep(const T end_time, const int n_time_step)
+    {
+        m_time_step.clear();
+        m_time_step.push_back(std::make_pair(end_time, n_time_step));
+    }
 };
