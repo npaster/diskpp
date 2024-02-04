@@ -50,7 +50,7 @@ tangential_part(const static_vector<T, DIM>& vec, const static_vector<T, DIM>& n
 
 template<typename Basis, typename T, size_t DIM>
 dynamic_vector<T>
-normal_part(const Basis& basis, const static_vector<T, DIM>& n, const point<T,DIM>& pt)
+normal_part(const Basis& basis, const static_vector<T, DIM>& n, const point<T, DIM>& pt)
 {
     const auto basis_pt = basis.eval_functions(pt);
 
@@ -63,7 +63,7 @@ Eigen::Matrix<T, Eigen::Dynamic, DIM>
 tangential_part(const Basis& basis, const static_vector<T, DIM>& n, const point<T, DIM>& pt)
 {
     const auto basis_pt = basis.eval_functions(pt);
-    const auto u_n   = normal_part(basis, n, pt);
+    const auto u_n      = normal_part(basis, n, pt);
 
     // phi_T - (phi_T . n)n
     return basis_pt - priv::inner_product(u_n, n);
@@ -114,13 +114,12 @@ stress(const StressBasis& sb, const dynamic_matrix<T>& stress_coeff, const point
     return eval(stress_coeff, sphi);
 }
 
-
 template<typename StressBasis, typename T, size_t DIM>
 static_vector<T, DIM>
-stress_n(const StressBasis&             sb,
-           const dynamic_matrix<T>&     coeff_stress,
-           const static_vector<T, DIM>& n,
-           const point<T, DIM>&         pt
+stress_n(const StressBasis&           sb,
+         const dynamic_matrix<T>&     coeff_stress,
+         const static_vector<T, DIM>& n,
+         const point<T, DIM>&         pt)
 {
     const auto Stress = stress(sb, coeff_stress, pt);
 
@@ -130,10 +129,10 @@ stress_n(const StressBasis&             sb,
 
 template<typename StressBasis, typename T, size_t DIM>
 T
-stress_nn(const StressBasis&             sb,
-           const dynamic_matrix<T>&     coeff_stress,
-           const static_vector<T, DIM>& n,
-           const point<T, DIM>&         pt
+stress_nn(const StressBasis&           sb,
+          const dynamic_matrix<T>&     coeff_stress,
+          const static_vector<T, DIM>& n,
+          const point<T, DIM>&         pt)
 {
     const auto Stress = stress(sb, coeff_stress, pt);
 
@@ -157,7 +156,7 @@ u_t(const static_vector<T, DIM>& u, const static_vector<T, DIM>& n)
 
 template<typename Basis, typename T, size_t DIM>
 T
-u_n(const Basis& basis, const dynamic_vector<T>& coeff_u, const static_vector<T, DIM>& n, const point<T,DIM>& pt)
+u_n(const Basis& basis, const dynamic_vector<T>& coeff_u, const static_vector<T, DIM>& n, const point<T, DIM>& pt)
 {
     const auto basis_pt = basis.eval_function(pt);
     const auto u        = basis_pt.dot(coeff_u);
@@ -234,7 +233,7 @@ sigma_v_nt(const GradBasis&             gb,
            const point<T, DIM>&         pt,
            const Material&              material)
 {
-    const auto sigma_n = sigma_v_n(gb, ET, n, pt, material);
+    const auto sigma_n  = sigma_v_n(gb, ET, n, pt, material);
     const auto sigma_nn = sigma_v_nn(gb, ET, n, pt, material);
 
     // sigma_n - sigma_nn * n

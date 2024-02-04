@@ -41,9 +41,8 @@
 
 #include "adaptivity/adaptivity.hpp"
 #include "boundary_conditions/boundary_conditions.hpp"
-#include "mechanics/NewtonSolver/StabilizationManger.hpp"
+#include "mechanics/NewtonSolver/StabilizationManager.hpp"
 #include "mechanics/behaviors/laws/behaviorlaws.hpp"
-#include "mechanics/contact/ContactManager.hpp"
 
 #include "methods/hho"
 
@@ -106,7 +105,6 @@ class NewtonIteration
                     const bnd_type&                  bnd,
                     const param_type&                rp,
                     const MeshDegreeInfo<mesh_type>& degree_infos,
-                    const ContactManager<mesh_type>& contact_manager,
                     const TimeStep<scalar_type>&     current_step) :
       m_verbose(rp.m_verbose),
       m_time_step(current_step)
@@ -117,7 +115,7 @@ class NewtonIteration
         m_bL.clear();
         m_bL.resize(msh.cells_size());
 
-        m_assembler = assembler_type(msh, degree_infos, bnd, contact_manager);
+        m_assembler = assembler_type(msh, degree_infos, bnd);
     }
 
     bool
@@ -181,7 +179,9 @@ class NewtonIteration
 
                 m_acce_pred.push_back(acce_pred);
             }
-        }else{
+        }
+        else
+        {
             for (auto& cl : msh)
             {
                 m_acce_pred.push_back(vector_type::Zero(1));
@@ -199,7 +199,6 @@ class NewtonIteration
              const std::vector<matrix_type>&  gradient_precomputed,
              const std::vector<matrix_type>&  stab_precomputed,
              behavior_type&                   behavior,
-             ContactManager<mesh_type>&       contact_manager,
              StabCoeffManager<scalar_type>&   stab_manager)
     {
         elem_type    elem;
@@ -253,6 +252,7 @@ class NewtonIteration
             // std::cout << "Elem" << std::endl;
             elem.compute(msh,
                          cl,
+                         bnd,
                          rp,
                          degree_infos,
                          lf,
@@ -276,21 +276,12 @@ class NewtonIteration
             // std::cout << "Stab" << std::endl;
             tc.tic();
 
-            const auto beta_s = stab_manager.getValue(msh, cl);
-            // std::cout << beta << std::endl;
-
             if (rp.m_stab)
             {
+                matrix_type stab;
                 if (rp.m_precomputation)
                 {
-                    const matrix_type& stab = stab_precomputed.at(cell_i);
-                    assert(elem.K_int.rows() == stab.rows());
-                    assert(elem.K_int.cols() == stab.cols());
-                    assert(elem.RTF.rows() == stab.rows());
-                    assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
-
-                    lhs += beta_s * stab;
-                    rhs -= beta_s * stab * m_displ.at(cell_i);
+                    stab = stab_precomputed.at(cell_i);
                 }
                 else
                 {
@@ -298,7 +289,6 @@ class NewtonIteration
                     {
                         case HHO:
                         {
-                            matrix_type stab_HHO;
                             // we do not make any difference for the displacement reconstruction
                             // if (small_def)
                             // {
@@ -309,40 +299,19 @@ class NewtonIteration
                             // else
                             // {
                             const auto recons_scalar = make_scalar_hho_laplacian(msh, cl, degree_infos);
-                            stab_HHO = make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first, degree_infos);
+                            stab = make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first, degree_infos);
                             // }
 
-                            assert(elem.K_int.rows() == stab_HHO.rows());
-                            assert(elem.K_int.cols() == stab_HHO.cols());
-                            assert(elem.RTF.rows() == stab_HHO.rows());
-                            assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
-
-                            lhs += beta_s * stab_HHO;
-                            rhs -= beta_s * stab_HHO * m_displ.at(cell_i);
                             break;
                         }
                         case HDG:
                         {
-                            const auto stab_HDG = make_vector_hdg_stabilization(msh, cl, degree_infos);
-                            assert(elem.K_int.rows() == stab_HDG.rows());
-                            assert(elem.K_int.cols() == stab_HDG.cols());
-                            assert(elem.RTF.rows() == stab_HDG.rows());
-                            assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
-
-                            lhs += beta_s * stab_HDG;
-                            rhs -= beta_s * stab_HDG * m_displ.at(cell_i);
+                            stab = make_vector_hdg_stabilization(msh, cl, degree_infos);
                             break;
                         }
                         case DG:
                         {
-                            const auto stab_DG = make_vector_dg_stabilization(msh, cl, degree_infos);
-                            assert(elem.K_int.rows() == stab_DG.rows());
-                            assert(elem.K_int.cols() == stab_DG.cols());
-                            assert(elem.RTF.rows() == stab_DG.rows());
-                            assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
-
-                            lhs += beta_s * stab_DG;
-                            rhs -= beta_s * stab_DG * m_displ.at(cell_i);
+                            stab = make_vector_dg_stabilization(msh, cl, degree_infos);
                             break;
                         }
                         case NO:
@@ -352,9 +321,23 @@ class NewtonIteration
                         default: throw std::invalid_argument("Unknown stabilization");
                     }
                 }
+
+                assert(elem.K_int.rows() == stab.rows());
+                assert(elem.K_int.cols() == stab.cols());
+                assert(elem.RTF.rows() == stab.rows());
+                assert(elem.RTF.cols() == m_displ.at(cell_i).cols());
+
+                const auto beta_s = stab_manager.getValue(msh, cl);
+                // std::cout << beta_s << std::endl;
+
+                lhs += beta_s * stab;
+                rhs -= beta_s * stab * m_displ.at(cell_i);
             }
             tc.toc();
             ai.m_time_stab += tc.to_double();
+
+            // std::cout << "R: " << rhs.norm() << std::endl;
+            // std::cout << rhs.transpose() << std::endl;
 
             // Static Condensation
             // std::cout << "StatCond" << std::endl;
@@ -368,8 +351,13 @@ class NewtonIteration
             ai.m_time_statcond += tc.to_double();
 
             const auto& lc = std::get<0>(scnp);
+
+            // std::cout << "rhs: " << lc.second.norm() << std::endl;
+            // std::cout << lc.second.transpose() << std::endl;
+            // std::cout << "lhs: " << lc.first.norm() << std::endl;
+
             // std::cout << "Assemb" << std::endl;
-            m_assembler.assemble_nonlinear(msh, cl, bnd, contact_manager, lc.first, lc.second, m_displ_faces);
+            m_assembler.assemble_nonlinear(msh, cl, bnd, lc.first, lc.second, m_displ_faces);
         }
 
         m_F_int = sqrt(m_F_int);
@@ -397,6 +385,9 @@ class NewtonIteration
         mkl_pardiso(pparams, m_assembler.LHS, m_assembler.RHS, m_system_displ);
         tc.toc();
 
+        // std::cout << "LHS" << m_assembler.LHS << std::endl;
+        // std::cout << "RHS" << m_assembler.RHS << std::endl;
+
         // std::cout << "end solve" << std::endl;
 
         return SolveInfo(m_assembler.LHS.rows(), m_assembler.LHS.nonZeros(), tc.to_double());
@@ -406,8 +397,7 @@ class NewtonIteration
     postprocess(const mesh_type&                 msh,
                 const bnd_type&                  bnd,
                 const param_type&                rp,
-                const MeshDegreeInfo<mesh_type>& degree_infos,
-                const ContactManager<mesh_type>& contact_manager)
+                const MeshDegreeInfo<mesh_type>& degree_infos)
     {
         // std::cout << "begin post_process" << std::endl;
         timecounter tc;

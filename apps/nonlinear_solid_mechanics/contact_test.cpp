@@ -76,12 +76,13 @@ renumber_boundaries_2d(Mesh& msh)
     using T      = typename Mesh::coordinate_type;
     auto storage = msh.backend_storage();
 
-    auto is_close_to = [](const T val, const T ref) -> bool {
+    auto is_close_to = [](const T val, const T ref) -> bool
+    {
         T eps = 1E-7;
         return std::abs(ref - val) < eps;
     };
 
-    /*          -----------------
+    /*           -----------------
      *           !       3       !
      *           !               !
      *      4    !               ! 2
@@ -94,7 +95,7 @@ renumber_boundaries_2d(Mesh& msh)
     for (size_t face_i = 0; face_i < msh.faces_size(); face_i++)
     {
         auto fc = *std::next(msh.faces_begin(), face_i);
-        if ( storage->boundary_info.at(face_i).is_boundary() )
+        if (storage->boundary_info.at(face_i).is_boundary())
         {
             const auto bar = barycenter(msh, fc);
             if (is_close_to(bar.y(), T(0)))
@@ -128,7 +129,8 @@ renumber_boundaries_3d(Mesh& msh)
     using T      = typename Mesh::coordinate_type;
     auto storage = msh.backend_storage();
 
-    auto is_close_to = [](const T val, const T ref) -> bool {
+    auto is_close_to = [](const T val, const T ref) -> bool
+    {
         T eps = 1E-7;
         return std::abs(ref - val) < eps;
     };
@@ -172,13 +174,14 @@ renumber_boundaries_3d(Mesh& msh)
 }
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-error_type run_tresca_solver(Mesh<T, 2, Storage>&            msh,
-                             const NewtonSolverParameter<T>& rp,
-                             const disk::MaterialData<T>&    material_data)
+error_type
+run_tresca_solver(Mesh<T, 2, Storage>&            msh,
+                  const NewtonSolverParameter<T>& rp,
+                  const disk::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 2, Storage>                         mesh_type;
-    typedef disk::static_vector<T, 2>                         result_type;
-    typedef disk::static_matrix<T, 2, 2>                      grad_type;
+    typedef disk::static_vector<T, 2>                   result_type;
+    typedef disk::static_matrix<T, 2, 2>                grad_type;
     typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
     timecounter tc;
@@ -186,7 +189,8 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&            msh,
 
     renumber_boundaries_2d(msh);
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto load = [material_data](const disk::point<T, 2>& p) -> result_type
+    {
         T y      = p.y();
         T x      = p.x();
         T exy    = std::exp(x * y);
@@ -200,7 +204,8 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&            msh,
         return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
     };
 
-    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type
+    {
         T y     = p.y();
         T x     = p.x();
         T exy   = std::exp(x * y);
@@ -209,7 +214,8 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&            msh,
         return result_type{x * exy * (1.0 + coeff), y * exy * (-1.0 + coeff)} / 6.0;
     };
 
-    auto s = [rp, material_data](const disk::point<T, 2>& p) -> T {
+    auto s = [rp, material_data](const disk::point<T, 2>& p) -> T
+    {
         T y      = p.y();
         T x      = p.x();
         T mu     = material_data.getMu();
@@ -257,6 +263,83 @@ error_type run_tresca_solver(Mesh<T, 2, Storage>&            msh,
     return error;
 }
 
+template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type
+run_tresca_solver(const Mesh<T, 3, Storage>&      msh,
+                  const NewtonSolverParameter<T>& rp,
+                  const disk::MaterialData<T>&    material_data)
+{
+    typedef Mesh<T, 3, Storage>                         mesh_type;
+    typedef disk::static_vector<T, 3>                   result_type;
+    typedef disk::static_matrix<T, 3, 3>                grad_type;
+    typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
+
+    timecounter tc;
+    tc.tic();
+
+    renumber_boundaries_3d(msh);
+
+    auto load = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
+        T z      = p.z();
+        T x      = p.x();
+        T exz    = std::exp(x * z);
+        T mu     = material_data.getMu();
+        T lambda = material_data.getLambda();
+        T coeff  = 0.5 * lambda * z * z - x * x * (0.5 * lambda + 1);
+
+        T fx = -mu * (lambda * z + x * coeff) + z * (lambda + mu * (lambda + 2)) * (x * z + 2);
+        T fz = -lambda * x * (mu - 1) * (x * z + 2) + mu * (2 * x * (0.5 * lambda + 1) - z * coeff);
+
+        return -result_type{fx, 0.0, fz} * exz / (3.0 * (1.0 + material_data.getLambda()));
+    };
+
+    auto solution = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
+        T z     = p.z();
+        T x     = p.x();
+        T exz   = std::exp(x * z);
+        T coeff = 1.0 / (1.0 + material_data.getLambda());
+
+        return result_type{x * exz * (1.0 + coeff), 0.0, z * exz * (-1.0 + coeff)} / 6.0;
+    };
+
+    auto s = [rp, material_data](const disk::point<T, 3>& p) -> T
+    {
+        T x      = p.x();
+        T mu     = material_data.getMu();
+        T lambda = material_data.getLambda();
+
+        return mu * x * x * (0.5 * lambda + 1.0) / (3 * lambda + 3.0);
+    };
+
+    Bnd_type bnd(msh);
+    bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
+    bnd.addDirichletBC(disk::DIRICHLET, 2, solution);
+
+    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+
+    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::ELASTIC);
+    nl.addMaterialData(material_data);
+
+    nl.initial_guess(solution);
+
+    SolverInfo solve_info = nl.compute(load);
+
+    if (nl.verbose())
+    {
+        solve_info.printInfo();
+    }
+
+    error_type error;
+    error.h        = average_diameter(msh);
+    error.degree   = rp.m_face_degree;
+    error.nb_dof   = nl.numberOfDofs();
+    error.error_L2 = nl.compute_l2_displacement_error(solution);
+    error.error_H1 = nl.compute_H1_error(solution);
+
+    return error;
+}
 
 void
 printResults(const std::vector<error_type>& error)
@@ -314,8 +397,7 @@ printResults2(const std::vector<error_type>& error)
 
         std::cout << "Robustesse test for k = " << error[0].degree << std::endl;
         std::cout << "-----------------------------------------------------------------------------------" << std::endl;
-        std::cout << "| Lambda coef| Displacement | Difference  | Displacem  | Difference  |    Total   |"
-                  << std::endl;
+        std::cout << "| Lambda coef| Displacement | Difference  | Displacem  | Difference  |    Total   |" << std::endl;
         std::cout << "|    nu       |   L2 error   |             |  H1 error  |             | faces DOF  |"
                   << std::endl;
         std::cout << "-----------------------------------------------------------------------------------" << std::endl;
@@ -467,9 +549,11 @@ template<typename T>
 void
 test_quads_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
 {
-    int runs = 4;
+    int runs = 5;
 
     std::vector<std::string> paths;
+    // paths.push_back("../../../diskpp/meshes/2D_quads/diskpp/testmesh-1-1.quad");
+    paths.push_back("../../../diskpp/meshes/2D_quads/diskpp/testmesh-2-2.quad");
     paths.push_back("../../../diskpp/meshes/2D_quads/diskpp/testmesh-4-4.quad");
     paths.push_back("../../../diskpp/meshes/2D_quads/diskpp/testmesh-8-8.quad");
     paths.push_back("../../../diskpp/meshes/2D_quads/diskpp/testmesh-16-16.quad");
@@ -739,27 +823,31 @@ main(int argc, char** argv)
     // Solver parameters
     NewtonSolverParameter<RealType> rp;
     rp.m_precomputation    = true;
-    rp.m_stab_type         = HDG;
+    rp.m_stab_type         = HHO;
     rp.m_epsilon           = 2.0E-6;
     rp.m_time_step.front() = std::make_pair(1.0, 1);
     rp.m_sublevel          = 2;
     rp.m_beta              = 2 * material_data.getMu();
-    // rp.m_gamma_0           = 2 * material_data.getMu();
-    // rp.m_frot              = true;
-    // rp.m_threshold         = 0;
-    // rp.m_theta             = 0;
+    rp.m_gamma_0           = 2 * material_data.getMu();
+    rp.m_frot              = true;
+    rp.m_threshold         = 0;
+    rp.m_theta             = 0;
+    rp.m_iter_max          = 20;
+    rp.m_sublevel          = 0;
 
     int  ch;
-    bool robust     = false;
+    bool robust = false;
 
     while ((ch = getopt(argc, argv, "23g:k:t:vr")) != -1)
     {
         switch (ch)
         {
             case '2': dim = 2; break;
-            case '3': dim = 3; break;
+            case '3':
+                dim = 3;
+                break;
 
-            // case 'g': rp.m_gamma_0 = atof(optarg); break;
+                // case 'g': rp.m_gamma_0 = atof(optarg); break;
 
             case 'k':
                 degree = atoi(optarg);
@@ -769,11 +857,11 @@ main(int argc, char** argv)
                     degree = 1;
                 }
                 rp.m_face_degree = degree;
-                rp.m_cell_degree = degree+1;
+                rp.m_cell_degree = degree;
                 rp.m_grad_degree = degree;
                 break;
 
-            // case 't': rp.m_theta = atof(optarg); break;
+            case 't': rp.m_theta = atof(optarg); break;
 
             case 'v': rp.m_verbose = true; break;
 
@@ -792,12 +880,10 @@ main(int argc, char** argv)
 
     timecounter tc;
 
-    rp.m_stab_type = HHO;
-
-    // if (rp.m_theta != -1.0)
-    // {
-    //     rp.m_gamma_0 *= (rp.m_face_degree + 1.0) * (rp.m_face_degree + dim);
-    // }
+    if (rp.m_theta != -1.0)
+    {
+        rp.m_gamma_0 *= (rp.m_face_degree + 1.0) * (rp.m_face_degree + dim);
+    }
 
     std::cout << " Test convergence rates for: " << std::endl;
     std::cout << " ** Face_Degree = " << rp.m_face_degree << std::endl;
@@ -805,66 +891,66 @@ main(int argc, char** argv)
 
     if (dim == 3)
     {
-        // if (robust)
-        // {
-        //     tc.tic();
-        //     std::cout << "-Tetrahedras fvca6:" << std::endl;
-        //     test_tetrahedra_fvca6_robust<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+        if (robust)
+        {
+            tc.tic();
+            std::cout << "-Tetrahedras fvca6:" << std::endl;
+            test_tetrahedra_fvca6_robust<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Hexahedras fvca6:" << std::endl;
-        //     test_hexahedra_fvca6_robust<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+            tc.tic();
+            std::cout << "-Hexahedras fvca6:" << std::endl;
+            test_hexahedra_fvca6_robust<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Polyhedra:" << std::endl;
-        //     test_polyhedra_fvca6_robust<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
-        // }
-        // else
-        // {
-        //     tc.tic();
-        //     std::cout << "-Tetrahedras fvca6:" << std::endl;
-        //     test_tetrahedra_fvca6<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+            tc.tic();
+            std::cout << "-Polyhedra:" << std::endl;
+            test_polyhedra_fvca6_robust<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test robustess: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
+        }
+        else
+        {
+            tc.tic();
+            std::cout << "-Tetrahedras fvca6:" << std::endl;
+            test_tetrahedra_fvca6<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Tetrahedras netgen:" << std::endl;
-        //     test_tetrahedra_netgen<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+            tc.tic();
+            std::cout << "-Tetrahedras netgen:" << std::endl;
+            test_tetrahedra_netgen<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Hexahedras fvca6:" << std::endl;
-        //     test_hexahedra_fvca6<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+            tc.tic();
+            std::cout << "-Hexahedras fvca6:" << std::endl;
+            test_hexahedra_fvca6<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Hexahedras diskpp:" << std::endl;
-        //     test_hexahedra_diskpp<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
+            tc.tic();
+            std::cout << "-Hexahedras diskpp:" << std::endl;
+            test_hexahedra_diskpp<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
 
-        //     tc.tic();
-        //     std::cout << "-Polyhedra:" << std::endl;
-        //     test_polyhedra_fvca6<RealType>(rp, material_data);
-        //     tc.toc();
-        //     std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
-        //     std::cout << " " << std::endl;
-        // }
+            tc.tic();
+            std::cout << "-Polyhedra:" << std::endl;
+            test_polyhedra_fvca6<RealType>(rp, material_data);
+            tc.toc();
+            std::cout << "Time to test convergence rates: " << tc.to_double() << std::endl;
+            std::cout << " " << std::endl;
+        }
     }
     else if (dim == 2)
     {

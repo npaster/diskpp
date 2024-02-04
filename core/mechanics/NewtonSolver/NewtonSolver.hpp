@@ -36,10 +36,9 @@
 #include "NewtonSolverParameters.hpp"
 #include "NewtonStep.hpp"
 #include "TimeManager.hpp"
-#include "mechanics/NewtonSolver/StabilizationManger.hpp"
+#include "mechanics/NewtonSolver/StabilizationManager.hpp"
 #include "mechanics/behaviors/laws/behaviorlaws.hpp"
 #include "mechanics/behaviors/tensor_conversion.hpp"
-#include "mechanics/contact/ContactManager.hpp"
 #include "mechanics/stress_tensors.hpp"
 
 #include "adaptivity/adaptivity.hpp"
@@ -90,7 +89,6 @@ class NewtonSolver
     param_type                    m_rp;
     behavior_type                 m_behavior;
     MeshDegreeInfo<mesh_type>     m_degree_infos;
-    ContactManager<mesh_type>     m_contact_manager;
     StabCoeffManager<scalar_type> m_stab_manager;
 
     std::vector<vector_type> m_displ, m_displ_faces;
@@ -154,8 +152,6 @@ class NewtonSolver
             m_velocity.reserve(m_msh.cells_size());
             m_acce.reserve(m_msh.cells_size());
         }
-
-        m_contact_manager = ContactManager<mesh_type>(m_msh, m_bnd);
 
         for (auto& cl : m_msh)
         {
@@ -575,7 +571,6 @@ class NewtonSolver
                                                                m_gradient_precomputed,
                                                                m_stab_precomputed,
                                                                m_behavior,
-                                                               m_contact_manager,
                                                                m_stab_manager);
             si.updateInfo(newton_info);
 

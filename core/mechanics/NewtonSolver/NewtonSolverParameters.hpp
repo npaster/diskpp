@@ -65,15 +65,21 @@ class NewtonSolverParameter
     bool m_adapt_stab; // adaptative stabilization
 
     bool                     m_dynamic; // dynamic or static simulation
-    std::map<std::string, T> m_dyna_para;
+    std::map<std::string, T> m_dyna_para; // list of parameters
 
     int          m_n_time_save; // number of saving
     std::list<T> m_time_save;   // list of time where we save result;
 
+    T    m_theta;     // theta-parameter for contact
+    T    m_gamma_0;   // parameter for Nitsche
+    T    m_threshold; // threshol for Tesca friction
+    bool m_frot;      // Friction yes or no ?
+
     NewtonSolverParameter() :
       m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_sublevel(5), m_iter_max(20), m_epsilon(T(1E-6)),
       m_verbose(false), m_precomputation(false), m_stab(true), m_beta(1), m_stab_type(HHO), m_n_time_save(0),
-      m_user_end_time(1.0), m_has_user_end_time(false), m_adapt_stab(false), m_dynamic(false)
+      m_user_end_time(1.0), m_has_user_end_time(false), m_adapt_stab(false), m_dynamic(false), m_theta(1), m_gamma_0(1),
+      m_threshold(0), m_frot(false)
     {
         m_time_step.push_back(std::make_pair(m_user_end_time, 1));
     }
@@ -95,6 +101,10 @@ class NewtonSolverParameter
         std::cout << " - Epsilon: " << m_epsilon << std::endl;
         std::cout << " - Precomputation: " << m_precomputation << std::endl;
         std::cout << " - Dynamic: " << m_dynamic << std::endl;
+        std::cout << " - Friction ?: " << m_frot << std::endl;
+        std::cout << " - Threshold: " << m_threshold << std::endl;
+        std::cout << " - Gamma_0: " << m_gamma_0 << std::endl;
+        std::cout << " - Theta: " << m_theta << std::endl;
     }
 
     bool
@@ -250,6 +260,40 @@ class NewtonSolverParameter
                     m_precomputation = true;
                 else
                     m_precomputation = false;
+            }
+            else if (keyword == "Theta")
+            {
+                ifs >> m_theta;
+                line++;
+            }
+            else if (keyword == "Gamma0")
+            {
+                ifs >> m_gamma_0;
+                line++;
+            }
+            else if (keyword == "Friction")
+            {
+                std::string logical;
+                ifs >> logical;
+                line++;
+                if (logical == "true" || logical == "True")
+                    m_frot = true;
+                else
+                    m_frot = false;
+            }
+            else if (keyword == "Threshold")
+            {
+                ifs >> m_threshold;
+            }
+            else if (keyword == "Dynamic")
+            {
+                std::string logical;
+                ifs >> logical;
+                line++;
+                if (logical == "true" || logical == "True")
+                    m_dynamic = true;
+                else
+                    m_dynamic = false;
             }
             else
             {

@@ -37,7 +37,6 @@
 #include "NewtonSolverParameters.hpp"
 #include "TimeManager.hpp"
 #include "mechanics/behaviors/laws/behaviorlaws.hpp"
-#include "mechanics/contact/ContactManager.hpp"
 
 #include "adaptivity/adaptivity.hpp"
 #include "boundary_conditions/boundary_conditions.hpp"
@@ -156,7 +155,6 @@ class NewtonStep
             const std::vector<matrix_type>&  gradient_precomputed,
             const std::vector<matrix_type>&  stab_precomputed,
             behavior_type&                   behavior,
-            ContactManager<mesh_type>&       contact_manager,
             StabCoeffManager<scalar_type>&   stab_manager)
     {
         NewtonSolverInfo ni;
@@ -164,7 +162,7 @@ class NewtonStep
         tc.tic();
 
         // initialise the NewtonRaphson iteration
-        NewtonIteration<mesh_type> newton_iter(msh, bnd, rp, degree_infos, contact_manager, current_step);
+        NewtonIteration<mesh_type> newton_iter(msh, bnd, rp, degree_infos, current_step);
 
         newton_iter.initialize(msh, rp, m_displ, m_displ_faces, m_velocity, m_acce);
 
@@ -184,7 +182,6 @@ class NewtonStep
                                                      gradient_precomputed,
                                                      stab_precomputed,
                                                      behavior,
-                                                     contact_manager,
                                                      stab_manager);
             }
             catch (const std::invalid_argument& ia)
@@ -223,7 +220,7 @@ class NewtonStep
             SolveInfo solve_info = newton_iter.solve();
             ni.updateSolveInfo(solve_info);
             // update unknowns
-            ni.m_assembly_info.m_time_postpro += newton_iter.postprocess(msh, bnd, rp, degree_infos, contact_manager);
+            ni.m_assembly_info.m_time_postpro += newton_iter.postprocess(msh, bnd, rp, degree_infos);
 
             ni.m_iter++;
         }
