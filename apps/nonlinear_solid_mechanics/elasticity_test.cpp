@@ -71,7 +71,8 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto load = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 
@@ -91,7 +92,8 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
         return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy};
     };
 
-    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type {
+    auto solution = [material_data](const disk::point<T, 2>& p) -> result_type
+    {
         T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
                1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
         T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
@@ -100,7 +102,8 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
         return result_type{fx, fy};
     };
 
-    auto sigma = [material_data](const disk::point<T, 2>& p) -> grad_type {
+    auto sigma = [material_data](const disk::point<T, 2>& p) -> grad_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 
@@ -177,7 +180,8 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto load = [material_data](const disk::point<T, 3>& p, const T& time) -> result_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 
@@ -197,7 +201,8 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
         return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy, 0};
     };
 
-    auto solution = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto solution = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
         T fx = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
                1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
         T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
@@ -206,7 +211,8 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
         return result_type{fx, fy, 0};
     };
 
-    auto sigma = [material_data](const disk::point<T, 3>& p) -> grad_type {
+    auto sigma = [material_data](const disk::point<T, 3>& p) -> grad_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 

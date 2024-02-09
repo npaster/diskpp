@@ -72,7 +72,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>&      msh,
 
     const T alpha = 0.1;
 
-    auto load = [material_data, alpha](const disk::point<T, 2>& p) -> result_type {
+    auto load = [material_data, alpha](const disk::point<T, 2>& p, const T& time) -> result_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 
@@ -82,7 +83,8 @@ run_hyperelasticity_solver(const Mesh<T, 2, Storage>&      msh,
         return result_type{fx, fy};
     };
 
-    auto solution = [material_data, alpha](const disk::point<T, 2>& p) -> result_type {
+    auto solution = [material_data, alpha](const disk::point<T, 2>& p) -> result_type
+    {
         T ux = (1.0 / material_data.getLambda() + alpha) * p.x();
         T uy =
           (1.0 / material_data.getLambda() - alpha / (1.0 + alpha)) * p.y() + 2 * alpha * (cos(2 * M_PI * p.x()) - 1.0);
@@ -139,7 +141,8 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>&      msh,
     const T alpha = 0.1;
     const T gamma = 0.1;
 
-    auto load = [material_data, alpha, gamma](const disk::point<T, 3>& p) -> result_type {
+    auto load = [material_data, alpha, gamma](const disk::point<T, 3>& p, const T& time) -> result_type
+    {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
 
@@ -149,9 +152,12 @@ run_hyperelasticity_solver(const Mesh<T, 3, Storage>&      msh,
         return mu * M_PI * M_PI * result_type{fx, 0, fz};
     };
 
-    auto solution = [material_data, alpha, gamma](const disk::point<T, 3>& p) -> result_type {
+    auto solution = [material_data, alpha, gamma](const disk::point<T, 3>& p) -> result_type
+    {
         T ux = (1.0 / material_data.getLambda() + alpha) * p.x() + alpha * sin(M_PI * p.y());
-        T uy = -(1.0 / material_data.getLambda() + (alpha + gamma + alpha*gamma)/(1.0 + alpha + gamma + alpha*gamma)) * p.y();
+        T uy =
+          -(1.0 / material_data.getLambda() + (alpha + gamma + alpha * gamma) / (1.0 + alpha + gamma + alpha * gamma)) *
+          p.y();
         T uz = (1.0 / material_data.getLambda() + gamma) * p.z() + gamma * sin(M_PI * p.x());
 
         return result_type{ux, uy, uz};

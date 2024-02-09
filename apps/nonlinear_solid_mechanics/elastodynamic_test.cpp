@@ -70,7 +70,7 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type
+    auto load = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type
     {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
@@ -192,7 +192,7 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 3>& p) -> result_type
+    auto load = [material_data](const disk::point<T, 3>& p, const T& time) -> result_type
     {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();

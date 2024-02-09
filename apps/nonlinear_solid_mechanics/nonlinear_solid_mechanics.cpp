@@ -36,7 +36,6 @@
 #include "mechanics/NewtonSolver/NewtonSolver.hpp"
 #include "mechanics/behaviors/laws/behaviorlaws.hpp"
 
-
 #include "timecounter.h"
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
@@ -50,7 +49,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
     typedef disk::static_matrix<T, 2, 2>                result_grad_type;
     typedef disk::vector_boundary_conditions<mesh_type> Bnd_type;
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type { return result_type{0, 0}; };
+    auto load = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type { return result_type{0, 0}; };
 
     auto solution = [material_data](const disk::point<T, 2>& p) -> result_type { return result_type{0, 0}; };
 
@@ -68,7 +67,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
 
 #ifdef HAVE_MGIS
     // To use a law developped with Mfront
-    const auto hypo = mgis::behaviour::Hypothesis::PLANESTRAIN;
+    const auto        hypo     = mgis::behaviour::Hypothesis::PLANESTRAIN;
     const std::string filename = "src/libBehaviour.dylib";
     // nl.addBehavior(filename, "IsotropicLinearHardeningPlasticity", hypo);
     nl.addBehavior(filename, "LogarithmicStrainPlasticity", hypo);
@@ -112,13 +111,16 @@ run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
 
     Bnd_type bnd(msh);
 
-    auto load = [material_data](const disk::point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
+    auto load = [material_data](const disk::point<T, 3>& p, const T& time) -> result_type {
+        return result_type{0, 0, 0};
+    };
 
     auto solution = [material_data](const disk::point<T, 3>& p) -> result_type { return result_type{0, 0, 0}; };
 
     auto zero = [material_data](const disk::point<T, 3>& p) -> result_type { return result_type{0.0, 0.0, 0.0}; };
 
-    auto pres = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto pres = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
         result_type er = result_type::Zero();
 
         er(0) = p.x();
@@ -130,7 +132,8 @@ run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
         return 3 * er;
     };
 
-    auto deplr = [material_data](const disk::point<T, 3>& p) -> result_type {
+    auto deplr = [material_data](const disk::point<T, 3>& p) -> result_type
+    {
         result_type er = result_type::Zero();
 
         er(0) = p.x();

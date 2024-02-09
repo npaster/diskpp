@@ -413,8 +413,8 @@ class NewtonSolver
             this->initial_guess(depl);
             for (auto& cl : m_msh)
             {
-                const auto cell_id     = m_msh.lookup(cl);
-                const auto di          = m_degree_infos.cellDegreeInfo(m_msh, cl);
+                const auto cell_id = m_msh.lookup(cl);
+                const auto di      = m_degree_infos.cellDegreeInfo(m_msh, cl);
 
                 m_velocity.at(cell_id) = project_function(m_msh, cl, di.cell_degree(), velo, 2);
                 m_acce.at(cell_id)     = project_function(m_msh, cl, di.cell_degree(), acce, 2);
@@ -557,7 +557,7 @@ class NewtonSolver
             }
 
             auto rlf = [&lf, &current_time](const point<scalar_type, mesh_type::dimension>& p) -> auto
-            { return disk::priv::inner_product(current_time, lf(p)); };
+            { return lf(p, current_time); };
 
             m_bnd.multiplyAllFunctionsByAFactor(current_time);
 

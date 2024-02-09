@@ -189,7 +189,7 @@ run_tresca_solver(Mesh<T, 2, Storage>&            msh,
 
     renumber_boundaries_2d(msh);
 
-    auto load = [material_data](const disk::point<T, 2>& p) -> result_type
+    auto load = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type
     {
         T y      = p.y();
         T x      = p.x();
@@ -201,7 +201,7 @@ run_tresca_solver(Mesh<T, 2, Storage>&            msh,
         T fx = -mu * (lambda * y + x * coeff) + y * (lambda + mu * (lambda + 2)) * (x * y + 2);
         T fy = -lambda * x * (mu - 1) * (x * y + 2) + mu * (2 * x * (0.5 * lambda + 1) - y * coeff);
 
-        return -result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
+        return -time * result_type{fx, fy} * exy / (3.0 * (1.0 + material_data.getLambda()));
     };
 
     auto solution = [material_data](const disk::point<T, 2>& p) -> result_type
@@ -279,7 +279,7 @@ run_tresca_solver(const Mesh<T, 3, Storage>&      msh,
 
     renumber_boundaries_3d(msh);
 
-    auto load = [material_data](const disk::point<T, 3>& p) -> result_type
+    auto load = [material_data](const disk::point<T, 3>& p, const T& time) -> result_type
     {
         T z      = p.z();
         T x      = p.x();
@@ -291,7 +291,7 @@ run_tresca_solver(const Mesh<T, 3, Storage>&      msh,
         T fx = -mu * (lambda * z + x * coeff) + z * (lambda + mu * (lambda + 2)) * (x * z + 2);
         T fz = -lambda * x * (mu - 1) * (x * z + 2) + mu * (2 * x * (0.5 * lambda + 1) - z * coeff);
 
-        return -result_type{fx, 0.0, fz} * exz / (3.0 * (1.0 + material_data.getLambda()));
+        return -time * result_type{fx, 0.0, fz} * exz / (3.0 * (1.0 + material_data.getLambda()));
     };
 
     auto solution = [material_data](const disk::point<T, 3>& p) -> result_type
