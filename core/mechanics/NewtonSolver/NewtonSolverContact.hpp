@@ -429,7 +429,8 @@ class contact_contribution
         {
             const auto fdi     = fcs_di[face_i++];
             const auto facedeg = fdi.degree();
-            const auto fbs     = vector_basis_size(facedeg, dimension - 1, dimension);
+            const auto fb      = make_vector_monomial_basis(m_msh, fc, facedeg);
+            const auto fbs     = fb.size();
 
             if (m_bnd.is_contact_face(fc))
             {
@@ -439,8 +440,6 @@ class contact_contribution
                 const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 2);
                 const auto hF           = diameter(m_msh, fc);
                 const auto gamma_F      = m_rp.m_gamma_0 / hF;
-
-                const auto fb = make_vector_monomial_basis(m_msh, fc, facedeg);
 
                 for (auto& qp : qps)
                 {
@@ -513,7 +512,8 @@ class contact_contribution
         {
             const auto fdi     = fcs_di[face_i++];
             const auto facedeg = fdi.degree();
-            const auto fbs     = vector_basis_size(facedeg, dimension - 1, dimension);
+            const auto fb      = make_vector_monomial_basis(m_msh, fc, facedeg);
+            const auto fbs     = fb.size();
 
             if (m_bnd.is_contact_face(fc))
             {
@@ -523,8 +523,6 @@ class contact_contribution
                 const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 2);
                 const auto hF           = diameter(m_msh, fc);
                 const auto gamma_F      = m_rp.m_gamma_0 / hF;
-
-                const auto fb = make_vector_monomial_basis(m_msh, fc, facedeg);
 
                 for (auto& qp : qps)
                 {
@@ -638,8 +636,8 @@ class contact_contribution
                         //                         std::cout << "uF_t: " << uF_t.transpose() << std::endl;
                         //                         std::cout << "phi_t_theta: " << phi_t_theta.transpose() << std::endl;
 
-                        const vector_static phi_t_1_u_proj =
-                          eval_proj_phi_t_uF(ET_uTF, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
+                        const vector_static phi_t_1_u_proj = eval_proj_tresca_phi_t_uF(
+                          ET_uTF, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
 
                         const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
 
@@ -678,7 +676,8 @@ class contact_contribution
         {
             const auto fdi     = fcs_di[face_i++];
             const auto facedeg = fdi.degree();
-            const auto fbs     = vector_basis_size(facedeg, dimension - 1, dimension);
+            const auto fb      = make_vector_monomial_basis(m_msh, fc, facedeg);
+            const auto fbs     = fb.size();
 
             if (m_bnd.is_contact_face(fc))
             {
@@ -689,7 +688,6 @@ class contact_contribution
                 const auto hF           = diameter(m_msh, fc);
                 const auto gamma_F      = m_rp.m_gamma_0 / hF;
 
-                const auto fb     = make_vector_monomial_basis(m_msh, fc, facedeg);
                 const auto s_func = m_bnd.contact_boundary_func(fc);
 
                 for (auto& qp : qps)
@@ -721,6 +719,147 @@ class contact_contribution
 
                         const auto phi_t_1_u      = eval_phi_t_uF(ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point());
                         const auto d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, s_func(qp.point()));
+
+                        const auto d_proj_u_phi_t_1 = disk::priv::inner_product(d_proj_phi_t_u, phi_t_1);
+
+                        const auto qp_phi_t_theta = disk::priv::inner_product(qp.weight() / gamma_F, phi_t_theta);
+
+                        lhs += disk::priv::outer_product(qp_phi_t_theta, d_proj_u_phi_t_1);
+                    }
+                }
+            }
+            offset += fbs;
+        }
+
+        return lhs;
+    }
+
+    // compute (phi_t_theta, [phi_t_1(u)]_(s))_FC / gamma
+    vector_type
+    make_hho_threshold_coulomb(const cell_type&                cl,
+                               const matrix_type&              ET,
+                               const vector_type&              uTF,
+                               const CellDegreeInfo<MeshType>& cell_infos) const
+    {
+        const auto cb = make_vector_monomial_basis(m_msh, cl, cell_infos.cell_degree());
+        const auto gb = make_sym_matrix_monomial_basis(m_msh, cl, cell_infos.grad_degree());
+
+        vector_type rhs = vector_type::Zero(uTF.size());
+
+        const auto fcs    = faces(m_msh, cl);
+        size_t     offset = cb.size();
+
+        const auto fcs_di = cell_infos.facesDegreeInfo();
+        size_t     face_i = 0;
+
+        const vector_type ET_uTF = ET * uTF;
+
+        for (auto& fc : fcs)
+        {
+            const auto fdi     = fcs_di[face_i++];
+            const auto facedeg = fdi.degree();
+            const auto fb      = make_vector_monomial_basis(m_msh, fc, facedeg);
+            const auto fbs     = fb.size();
+
+            if (m_bnd.is_contact_face(fc))
+            {
+                const auto contact_type = m_bnd.contact_boundary_type(fc);
+                const auto n            = normal(m_msh, cl, fc);
+                const auto qp_deg       = std::max(cell_infos.cell_degree(), cell_infos.grad_degree());
+                const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 2);
+                const auto hF           = diameter(m_msh, fc);
+                const auto gamma_F      = m_rp.m_gamma_0 / hF;
+
+                const auto s_func = m_bnd.contact_boundary_func(fc);
+
+                for (auto& qp : qps)
+                {
+                    const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, qp.point());
+
+                    if (contact_type == disk::SIGNORINI_CELL)
+                    {
+                        throw std::runtime_error("Not implemented");
+                    }
+                    else
+                    {
+                        const auto uF_t = make_hho_u_t(n, fb, qp.point());
+
+                        const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset);
+
+                        const vector_static phi_t_1_u_proj = eval_proj_coulomb_phi_t_uF(
+                          fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, s_func(qp.point()), qp.point());
+
+                        const vector_static qp_phi_t_1_u_pro = qp.weight() * phi_t_1_u_proj / gamma_F;
+
+                        rhs += disk::priv::inner_product(phi_t_theta, qp_phi_t_1_u_pro);
+                    }
+                }
+            }
+            offset += fbs;
+        }
+        return rhs;
+    }
+
+    // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
+    matrix_type
+    make_hho_matrix_coulomb(const cell_type&                cl,
+                            const matrix_type&              ET,
+                            const vector_type&              uTF,
+                            const CellDegreeInfo<MeshType>& cell_infos) const
+    {
+        const auto cb = make_vector_monomial_basis(m_msh, cl, cell_infos.cell_degree());
+        const auto gb = make_sym_matrix_monomial_basis(m_msh, cl, cell_infos.grad_degree());
+
+        matrix_type lhs = matrix_type::Zero(uTF.size(), uTF.size());
+
+        const auto fcs    = faces(m_msh, cl);
+        size_t     offset = cb.size();
+
+        const auto fcs_di = cell_infos.facesDegreeInfo();
+        size_t     face_i = 0;
+
+        const vector_type ET_uTF = ET * uTF;
+
+        for (auto& fc : fcs)
+        {
+            const auto fdi     = fcs_di[face_i++];
+            const auto facedeg = fdi.degree();
+            const auto fb      = make_vector_monomial_basis(m_msh, fc, facedeg);
+            const auto fbs     = fb.size();
+
+            if (m_bnd.is_contact_face(fc))
+            {
+                const auto contact_type = m_bnd.contact_boundary_type(fc);
+                const auto n            = normal(m_msh, cl, fc);
+                const auto qp_deg       = std::max(cell_infos.cell_degree(), cell_infos.grad_degree());
+                const auto qps          = integrate(m_msh, fc, 2 * qp_deg + 2);
+                const auto hF           = diameter(m_msh, fc);
+                const auto gamma_F      = m_rp.m_gamma_0 / hF;
+
+                const auto s_func = m_bnd.contact_boundary_func(fc);
+
+                for (auto& qp : qps)
+                {
+                    const auto sigma_nt = make_hho_sigma_nt(ET, n, gb, qp.point());
+
+                    if (contact_type == disk::SIGNORINI_CELL)
+                    {
+                        assert(false);
+                    }
+                    else
+                    {
+                        const auto uF_t = make_hho_u_t(n, fb, qp.point());
+
+                        const auto phi_t_1     = make_hho_phi_t_uF(sigma_nt, uF_t, scalar_type(1), gamma_F, offset);
+                        const auto phi_t_theta = make_hho_phi_t_uF(sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset);
+
+                        const auto phi_t_1_u = eval_phi_t_uF(ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point());
+                        const scalar_type phi_n_1_u =
+                          eval_phi_n_uF(fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point());
+
+                        const scalar_type proj_phi_n_1_u = std::min(scalar_type(0), phi_n_1_u);
+                        const scalar_type fric_bound     = -s_func(qp.point()) * proj_phi_n_1_u;
+                        const auto        d_proj_phi_t_u = make_d_proj_alpha(phi_t_1_u, fric_bound);
 
                         const auto d_proj_u_phi_t_1 = disk::priv::inner_product(d_proj_phi_t_u, phi_t_1);
 
@@ -793,17 +932,32 @@ class contact_contribution
         // std::cout << Fc1.transpose() << std::endl;
 
         // friction contribution
-        if (m_rp.m_frot)
+        if (m_rp.m_frot_type != NO_FRICTION)
         {
-            // compute (phi_t_theta, [phi_t_1(u)]_s)_FC / gamma
-            F_cont += make_hho_threshold_tresca(cl, ET, uTF, cell_infos);
+            if (m_rp.m_frot_type == TRESCA)
+            {
+                // compute (phi_t_theta, [phi_t_1(u)]_s)_FC / gamma
+                F_cont += make_hho_threshold_tresca(cl, ET, uTF, cell_infos);
 
-            // auto Ff1 = make_hho_threshold_tresca(cl, ET, uTF, cell_infos);
-            // std::cout << "Threshold: " << Ff1.norm() << std::endl;
-            // std::cout << Ff1.transpose() << std::endl
+                // auto Ff1 = make_hho_threshold_tresca(cl, ET, uTF, cell_infos);
+                // std::cout << "Threshold: " << Ff1.norm() << std::endl;
+                // std::cout << Ff1.transpose() << std::endl
 
-            // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
-            K_cont += make_hho_matrix_tresca(cl, ET, uTF, cell_infos);
+                // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
+                K_cont += make_hho_matrix_tresca(cl, ET, uTF, cell_infos);
+            }
+            else if (m_rp.m_frot_type == COULOMB)
+            {
+                // compute (phi_t_theta, [phi_t_1(u)]_s)_FC / gamma
+                F_cont += make_hho_threshold_coulomb(cl, ET, uTF, cell_infos);
+
+                // auto Ff1 = make_hho_threshold_tresca(cl, ET, uTF, cell_infos);
+                // std::cout << "Threshold: " << Ff1.norm() << std::endl;
+                // std::cout << Ff1.transpose() << std::endl
+
+                // compute (phi_t_theta, (d_proj_alpha(u)) phi_t_1)_FC / gamma
+                K_cont += make_hho_matrix_coulomb(cl, ET, uTF, cell_infos);
+            }
         }
 
         tc.toc();
@@ -999,19 +1153,40 @@ class contact_contribution
 
     template<typename GradBasis, typename FaceBasis>
     vector_static
-    eval_proj_phi_t_uF(const vector_type&   ET_uTF,
-                       const GradBasis&     gb,
-                       const FaceBasis&     fb,
-                       const vector_type&   uTF,
-                       const size_t&        offset,
-                       const vector_static& n,
-                       const scalar_type&   gamma_F,
-                       const scalar_type&   s,
-                       const point_type&    pt) const
+    eval_proj_tresca_phi_t_uF(const vector_type&   ET_uTF,
+                              const GradBasis&     gb,
+                              const FaceBasis&     fb,
+                              const vector_type&   uTF,
+                              const size_t&        offset,
+                              const vector_static& n,
+                              const scalar_type&   gamma_F,
+                              const scalar_type&   s,
+                              const point_type&    pt) const
     {
         const vector_static phi_t_1_u = eval_phi_t_uF(ET_uTF, gb, fb, uTF, offset, n, gamma_F, pt);
 
         return make_proj_alpha(phi_t_1_u, s);
+    }
+
+    template<typename GradBasis, typename FaceBasis>
+    vector_static
+    eval_proj_coulomb_phi_t_uF(const face_type&     fc,
+                               const vector_type&   ET_uTF,
+                               const GradBasis&     gb,
+                               const FaceBasis&     fb,
+                               const vector_type&   uTF,
+                               const size_t&        offset,
+                               const vector_static& n,
+                               const scalar_type&   gamma_F,
+                               const scalar_type&   Fc,
+                               const point_type&    pt) const
+    {
+        const vector_static phi_t_1_u      = eval_phi_t_uF(ET_uTF, gb, fb, uTF, offset, n, gamma_F, pt);
+        const scalar_type   phi_n_1_u      = eval_phi_n_uF(fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, pt);
+        const scalar_type   proj_phi_n_1_u = std::min(scalar_type(0), phi_n_1_u);
+        const scalar_type   fric_bound     = -Fc * proj_phi_n_1_u;
+
+        return make_proj_alpha(phi_t_1_u, fric_bound);
     }
 
     template<typename GradBasis>
