@@ -37,7 +37,7 @@
 #include "diskpp/common/timecounter.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonIteration.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverInformations.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolverParameters.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
 #include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 #include "diskpp/methods/hho"
@@ -67,7 +67,7 @@ class NewtonStep
     typedef dynamic_matrix<scalar_type> matrix_type;
     typedef dynamic_vector<scalar_type> vector_type;
 
-    typedef NewtonSolverParameter<scalar_type>    param_type;
+    typedef NonLinearParameters<scalar_type> param_type;
     typedef vector_boundary_conditions<mesh_type> bnd_type;
     typedef Behavior<mesh_type>                   behavior_type;
 
@@ -175,7 +175,7 @@ class NewtonStep
             }
 
             // solve the global system
-            SolveInfo solve_info = newton_iter.solve();
+            SolveInfo solve_info = newton_iter.solve(rp.getLinearSolver());
             ni.updateSolveInfo(solve_info);
             // update unknowns
             ni.m_assembly_info.m_time_postpro += newton_iter.postprocess(msh, bnd, rp, degree_infos, fields);

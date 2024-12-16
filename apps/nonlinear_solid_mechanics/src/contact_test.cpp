@@ -35,7 +35,7 @@
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/timecounter.hpp"
 #include "diskpp/loaders/loader.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolver.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearSolver.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 
 struct error_type
@@ -173,12 +173,10 @@ renumber_boundaries_3d(Mesh& msh)
     }
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-error_type
-run_tresca_solver(Mesh<T, 2, Storage>&            msh,
-                  const disk::mechanics::NewtonSolverParameter<T>& rp,
-                  const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type run_tresca_solver(Mesh<T, 2, Storage> &msh,
+                             const disk::mechanics::NonLinearParameters<T> &rp,
+                             const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
     typedef disk::static_matrix<T, 2, 2>                grad_type;
@@ -234,7 +232,7 @@ run_tresca_solver(Mesh<T, 2, Storage>&            msh,
     bnd.addDirichletBC(disk::DIRICHLET, 3, solution);
     bnd.addDirichletBC(disk::DIRICHLET, 4, solution);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
     nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
@@ -266,12 +264,10 @@ run_tresca_solver(Mesh<T, 2, Storage>&            msh,
     return error;
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-error_type
-run_tresca_solver(const Mesh<T, 3, Storage>&      msh,
-                  const disk::mechanics::NewtonSolverParameter<T>& rp,
-                  const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type run_tresca_solver(const Mesh<T, 3, Storage> &msh,
+                             const disk::mechanics::NonLinearParameters<T> &rp,
+                             const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
     typedef disk::static_matrix<T, 3, 3>                grad_type;
@@ -323,7 +319,7 @@ run_tresca_solver(const Mesh<T, 3, Storage>&      msh,
     bnd.addContactBC(disk::SIGNORINI_FACE, 1, s);
     bnd.addDirichletBC(disk::DIRICHLET, 2, solution);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
     nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
@@ -436,10 +432,9 @@ printResults2(const std::vector<error_type>& error)
         std::cout << "The file error is empty" << std::endl;
 }
 
-template<typename T>
-void
-test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_triangles_fvca5(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -460,10 +455,9 @@ test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_triangles_netgen(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -484,10 +478,9 @@ test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexagons(const disk::mechanics::NonLinearParameters<T> &rp,
+                   const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -508,10 +501,9 @@ test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::m
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_kershaws(const disk::mechanics::NonLinearParameters<T> &rp,
+                   const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -532,10 +524,9 @@ test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::m
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_quads_fvca5(const disk::mechanics::NonLinearParameters<T> &rp,
+                      const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -556,10 +547,9 @@ test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_quads_diskpp(const disk::mechanics::NonLinearParameters<T> &rp,
+                       const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -582,10 +572,9 @@ test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const dis
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexahedra_diskpp(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -606,10 +595,9 @@ test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexahedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -630,10 +618,9 @@ test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_tetrahedra_netgen(const disk::mechanics::NonLinearParameters<T> &rp,
+                            const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -654,10 +641,9 @@ test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, cons
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_polyhedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 3;
 
     std::vector<std::string> paths;
@@ -677,10 +663,9 @@ test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_tetrahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_tetrahedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -701,10 +686,9 @@ test_tetrahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_triangles_fvca5_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_triangles_fvca5_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                                 disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -720,10 +704,9 @@ test_triangles_fvca5_robust(const disk::mechanics::NewtonSolverParameter<T>& rp,
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_quads_diskpp_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_quads_diskpp_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                              disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -739,10 +722,9 @@ test_quads_diskpp_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, di
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_hexagons_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexagons_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                          disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -758,10 +740,9 @@ test_hexagons_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_kershaws_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_kershaws_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                          disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -777,10 +758,9 @@ test_kershaws_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_tetrahedra_fvca6_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_tetrahedra_fvca6_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                                  disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -796,10 +776,9 @@ test_tetrahedra_fvca6_robust(const disk::mechanics::NewtonSolverParameter<T>& rp
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_hexahedra_fvca6_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexahedra_fvca6_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                                 disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -815,10 +794,9 @@ test_hexahedra_fvca6_robust(const disk::mechanics::NewtonSolverParameter<T>& rp,
     printResults2(error_sumup);
 }
 
-template<typename T>
-void
-test_polyhedra_fvca6_robust(const disk::mechanics::NewtonSolverParameter<T>& rp, disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_polyhedra_fvca6_robust(const disk::mechanics::NonLinearParameters<T> &rp,
+                                 disk::mechanics::MaterialData<T> &material_data) {
 
     std::vector<error_type> error_sumup;
 
@@ -852,7 +830,7 @@ main(int argc, char** argv)
               << std::endl;
 
     // Solver parameters
-    disk::mechanics::NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NonLinearParameters<RealType> rp;
     rp.m_precomputation    = true;
     rp.m_stab_type         = disk::mechanics::StabilizationType::HHO;
     rp.m_epsilon           = 2.0E-6;

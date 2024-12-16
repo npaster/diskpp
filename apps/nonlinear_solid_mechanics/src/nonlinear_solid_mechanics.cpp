@@ -33,17 +33,15 @@
 
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/loaders/loader.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolver.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearSolver.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 
 #include "diskpp/common/timecounter.hpp"
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-void
-run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
-                              const disk::mechanics::NewtonSolverParameter<T>& rp,
-                              const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+void run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage> &msh,
+                                   const disk::mechanics::NonLinearParameters<T> &rp,
+                                   const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
     typedef disk::static_matrix<T, 2, 2>                result_grad_type;
@@ -63,7 +61,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
     bnd.addDirichletBC(disk::CLAMPED, 3, zero);
     bnd.addNeumannBC(disk::NEUMANN, 8, trac);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
 #ifdef HAVE_MGIS
     // To use a law developped with Mfront
@@ -98,12 +96,10 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
     }
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-void
-run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
-                              const disk::mechanics::NewtonSolverParameter<T>& rp,
-                              const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+void run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage> &msh,
+                                   const disk::mechanics::NonLinearParameters<T> &rp,
+                                   const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
     typedef disk::static_matrix<T, 3, 3>                result_grad_type;
@@ -157,7 +153,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
     bnd.addDirichletBC(disk::DZ, 19, zero);
     bnd.addDirichletBC(disk::DIRICHLET, 27, deplr);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
 #ifdef HAVE_MGIS
     // To use a law developped with Mfront
@@ -198,7 +194,7 @@ main(int argc, char** argv)
 
     char* mesh_filename = nullptr;
 
-    disk::mechanics::NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NonLinearParameters<RealType> rp;
 
     const RealType MPa = 10E6;
     const RealType GPa = 10E9;

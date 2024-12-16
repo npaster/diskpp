@@ -52,7 +52,7 @@ class mechanical_computation
     typedef typename mesh_type::coordinate_type scalar_type;
     typedef typename mesh_type::cell            cell_type;
 
-    typedef NewtonSolverParameter<scalar_type>    param_type;
+    typedef NonLinearParameters<scalar_type> param_type;
     typedef Behavior<mesh_type>                   behavior_type;
     typedef vector_boundary_conditions<mesh_type> bnd_type;
 

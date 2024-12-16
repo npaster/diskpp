@@ -38,6 +38,16 @@ namespace disk
 namespace solvers
 {
 
+enum LinearSolverType {
+    PARDISO_LU,
+    PARDISO_LDLT,
+    MUMPS_LU,
+    MUMPS_LDLT,
+    SPARSE_LU,
+    CG,
+    BICGSTAB,
+};
+
 void
 init_lua(sol::state& lua)
 {
@@ -262,12 +272,14 @@ mkl_pardiso_ldlt(const pardiso_params<T>&                   params,
     if (solver.info() != Eigen::Success)
     {
         std::cerr << "ERROR: Could not factorize the matrix" << std::endl;
+        return false;
     }
 
     x = solver.solve(b);
     if (solver.info() != Eigen::Success)
     {
         std::cerr << "ERROR: Could not solve the linear system" << std::endl;
+        return false;
     }
 
     if (params.report_factorization_Mflops)
@@ -326,6 +338,83 @@ linear_solver(sol::state&                          lua,
     }
 
     return false;
+}
+
+template <typename T>
+Eigen::Matrix<T, Eigen::Dynamic, 1> linear_solver(const LinearSolverType &type,
+                                                  Eigen::SparseMatrix<T> &A,
+                                                  Eigen::Matrix<T, Eigen::Dynamic, 1> &b) {
+    Eigen::Matrix<T, Eigen::Dynamic, 1> x;
+    bool sucess = false;
+
+    switch (type) {
+    case LinearSolverType::PARDISO_LU: {
+        pardiso_params<T> pparams;
+#ifdef HAVE_INTEL_MKL
+        sucess = mkl_pardiso(pparams, A, b, x);
+#else
+        throw std::runtime_error("Pardiso is not installed");
+#endif /* HAVE_INTEL_MKL */
+        break;
+    }
+    case LinearSolverType::PARDISO_LDLT: {
+        pardiso_params<T> pparams;
+#ifdef HAVE_INTEL_MKL
+        sucess = mkl_pardiso_ldlt(pparams, A, b, x);
+#else
+        throw std::runtime_error("Pardiso is not installed");
+#endif /* HAVE_INTEL_MKL */
+        break;
+    }
+    case LinearSolverType::MUMPS_LU: {
+#ifdef HAVE_MUMPS
+        // x = mumps_lu(A, b);
+        sucess = false;
+#else
+        throw std::runtime_error("Mumps is not installed");
+#endif /* HAVE_INTEL_MKL */
+        break;
+    }
+    case LinearSolverType::MUMPS_LDLT: {
+#ifdef HAVE_MUMPS
+        // x = mumps_ldlt(A, b);
+        sucess = false;
+#else
+        throw std::runtime_error("Mumps is not installed");
+#endif /* HAVE_INTEL_MKL */
+        break;
+    }
+    case LinearSolverType::SPARSE_LU: {
+        Eigen::PardisoLDLT<Eigen::SparseMatrix<T>> solver;
+        solver.analyzePattern(A);
+        solver.factorize(A);
+        x = solver.solve(b);
+        sucess = solver.info() == Eigen::Success;
+        break;
+    }
+    case LinearSolverType::CG: {
+        conjugated_gradient_params<T> cg_params;
+
+        sucess = conjugated_gradient(cg_params, A, b, x);
+        break;
+    }
+    case LinearSolverType::BICGSTAB: {
+        Eigen::BiCGSTAB<Eigen::SparseMatrix<T>> solver;
+        solver.factorize(A);
+        x = solver.solve(b);
+        sucess = solver.info() == Eigen::Success;
+        break;
+    }
+    default:
+        throw std::runtime_error("Unexpected LinearSolver.");
+        break;
+    }
+
+    if (!sucess) {
+        throw std::runtime_error("Fail to solve the linear solver.");
+    }
+
+    return x;
 }
 
 } // namespace solvers

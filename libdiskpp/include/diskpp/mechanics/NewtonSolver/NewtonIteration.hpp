@@ -37,19 +37,18 @@
 #include "diskpp/bases/bases.hpp"
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/timecounter.hpp"
+
+#include "diskpp/mechanics/NewtonSolver/Fields.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverComput.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverDynamic.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverInformations.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolverParameters.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
 #include "diskpp/mechanics/NewtonSolver/StabilizationManager.hpp"
 #include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
-#include "diskpp/mechanics/NewtonSolver/Fields.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
+
 #include "diskpp/methods/hho"
 #include "diskpp/solvers/solver.hpp"
-
-#include "mumps.hpp"
-
 
 namespace disk
 {
@@ -77,7 +76,7 @@ class NewtonIteration
     typedef dynamic_matrix<scalar_type> matrix_type;
     typedef dynamic_vector<scalar_type> vector_type;
 
-    typedef NewtonSolverParameter<scalar_type> param_type;
+    typedef NonLinearParameters<scalar_type> param_type;
     typedef vector_boundary_conditions<mesh_type> bnd_type;
     typedef Behavior<mesh_type> behavior_type;
 
@@ -365,26 +364,15 @@ public:
         return ai;
     }
 
-    SolveInfo
-    solve(void)
-    {
+    SolveInfo solve(const solvers::LinearSolverType &type) {
         timecounter tc;
-
-        tc.tic();
-        m_system_displ = vector_type::Zero(m_assembler.LHS.rows());
-
-#ifdef HAVE_INTEL_MKL
-        solvers::pardiso_params<scalar_type> pparams;
-        mkl_pardiso(pparams, m_assembler.LHS, m_assembler.RHS, m_system_displ);
-#elif HAVE_MUMPS
-        m_system_displ = mumps_lu(m_assembler.LHS, m_assembler.RHS);
-#else
-        throw std::runtime_error("No linear solver avalaible.");
-#endif
-        tc.toc();
 
         // std::cout << "LHS" << m_assembler.LHS << std::endl;
         // std::cout << "RHS" << m_assembler.RHS << std::endl;
+
+        tc.tic();
+        m_system_displ = solvers::linear_solver(type, m_assembler.LHS, m_assembler.RHS);
+        tc.toc();
 
         return SolveInfo(m_assembler.LHS.rows(), m_assembler.LHS.nonZeros(), tc.elapsed());
     }

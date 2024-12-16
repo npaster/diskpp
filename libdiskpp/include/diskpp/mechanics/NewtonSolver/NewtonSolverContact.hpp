@@ -31,7 +31,7 @@
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/eigen.hpp"
 #include "diskpp/common/timecounter.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolverParameters.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
 #include "diskpp/mechanics/behaviors/laws/materialData.hpp"
 #include "diskpp/mechanics/behaviors/maths_tensor.hpp"
 #include "diskpp/methods/hho"
@@ -190,7 +190,7 @@ class contact_contribution
     typedef typename mesh_type::face                    face_type;
     typedef point<scalar_type, mesh_type::dimension>    point_type;
     typedef MaterialData<scalar_type>             material_type;
-    typedef NewtonSolverParameter<scalar_type>          param_type;
+    typedef NonLinearParameters<scalar_type> param_type;
     typedef vector_boundary_conditions<mesh_type> bnd_type;
 
     const static int dimension = mesh_type::dimension;

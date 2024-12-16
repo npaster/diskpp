@@ -32,7 +32,7 @@
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/colormanip.h"
 #include "diskpp/loaders/loader.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolver.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearSolver.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 
 struct error_type
@@ -55,12 +55,10 @@ usage(const char* progname)
     printf("    -v: verbose\n");
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-error_type
-run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
-                             const disk::mechanics::NewtonSolverParameter<T>& rp,
-                             const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type run_linear_elasticity_solver(const Mesh<T, 2, Storage> &msh,
+                                        const disk::mechanics::NonLinearParameters<T> &rp,
+                                        const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
     typedef disk::static_matrix<T, 2, 2>                grad_type;
@@ -117,62 +115,51 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
         return (pi2t2 / (lambda + 1)) * result_type{fx, fy} + rho * acceleration(p, time);
     };
 
-    // auto load = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type {
+    // auto displacement = [material_data, func_space](const disk::point<T, 2> &p,
+    //                                                 const T &time) -> result_type {
+    //     return sin(M_PI / 2.0 * time) * func_space(p);
+    // };
+
+    // auto velocity = [material_data, func_space](const disk::point<T, 2> &p,
+    //                                             const T &time) -> result_type {
+    //     return M_PI / 2.0 * cos(M_PI / 2.0 * time) * func_space(p);
+    // };
+
+    // auto acceleration = [material_data, func_space](const disk::point<T, 2> &p,
+    //                                                 const T &time) -> result_type {
+    //     return -(M_PI * M_PI / 4.0) * sin(M_PI / 2.0 * time) * func_space(p);
+    // };
+
+    // auto load = [material_data, acceleration](const disk::point<T, 2> &p,
+    //                                           const T &time) -> result_type {
     //     const T lambda = material_data.getLambda();
     //     const T mu     = material_data.getMu();
     //     const T rho = material_data.getRho();
 
-    //     T fx = -4.0*lambda*cos(M_PI * (p.x() + p.y())) +
-    //            8.0*mu*((4*lambda + 4)*sin(2 * M_PI * p.y())*cos(2 * M_PI * p.x()) +
-    //                    sin(M_PI * p.x())*sin(M_PI * p.y())) -
-    //            4.0*mu*(4*lambda*sin(2 * M_PI * p.y()) + 4*sin(2 * M_PI * p.y()) +
-    //                    cos(M_PI * (p.x() + p.y()))) -
-    //            rho*((lambda + 1)*(cos(2 * M_PI * p.x()) - 1)*sin(2 * M_PI * p.y()) +
-    //                 sin(M_PI * p.x())*sin(M_PI * p.y()));
-    //     T fy = -4.0*lambda*cos(M_PI * (p.x() + p.y())) -
-    //            8.0*mu*((4*lambda + 4)*sin(2 * M_PI * p.x())*cos(2 * M_PI * p.y()) -
-    //                    sin(M_PI * p.x())*sin(M_PI * p.y())) +
-    //            4.0*mu*(4*lambda*sin(2 * M_PI * p.x()) + 4*sin(2 * M_PI * p.x()) -
-    //                    cos(M_PI * (p.x() + p.y()))) +
-    //            rho*((lambda + 1)*(cos(2 * M_PI * p.y()) - 1)*sin(2 * M_PI * p.x()) -
-    //                 sin(M_PI * p.x())*sin(M_PI * p.y()));
+    //     T fx = -4.0 * lambda * cos(M_PI * (p.x() + p.y())) +
+    //            8.0 * mu *
+    //                ((4 * lambda + 4) * sin(2 * M_PI * p.y()) * cos(2 * M_PI * p.x()) +
+    //                 sin(M_PI * p.x()) * sin(M_PI * p.y())) -
+    //            4.0 * mu *
+    //                (4 * lambda * sin(2 * M_PI * p.y()) + 4 * sin(2 * M_PI * p.y()) +
+    //                 cos(M_PI * (p.x() + p.y())));
+    //     T fy = -4.0 * lambda * cos(M_PI * (p.x() + p.y())) -
+    //            8.0 * mu *
+    //                ((4 * lambda + 4) * sin(2 * M_PI * p.x()) * cos(2 * M_PI * p.y()) -
+    //                 sin(M_PI * p.x()) * sin(M_PI * p.y())) +
+    //            4.0 * mu *
+    //                (4 * lambda * sin(2 * M_PI * p.x()) + 4 * sin(2 * M_PI * p.x()) -
+    //                 cos(M_PI * (p.x() + p.y())));
 
-    //     return M_PI * M_PI * sin(M_PI / 2.0 * time) / (4.0 * (lambda + 1)) * result_type{fx, fy};
-    // };
-
-    // auto displacement = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type
-    // {
-    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-
-    //     return sin(M_PI / 2.0 * time) * result_type{ux, uy};
-    // };
-
-    // auto velocity = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type {
-    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-
-    //     return M_PI / 2.0 * cos(M_PI / 2.0 * time) * result_type{ux, uy};
-    // };
-
-    // auto acceleration = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type
-    // {
-    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-
-    //     return -(M_PI * M_PI / 4.0) * sin(M_PI / 2.0 * time) * result_type{ux, uy};
+    //     return M_PI * M_PI * sin(M_PI / 2.0 * time) / (4.0 * (lambda + 1)) * result_type{fx, fy}
+    //     +
+    //            rho * acceleration(p, time);
     // };
 
     Bnd_type bnd(msh);
     bnd.addDirichletEverywhere(displacement);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
     nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
@@ -210,16 +197,15 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
     // 2> &p)
     //                                      { return displacement(p, 1.0); });
 
+    // std::cout << error.error_L2 << ", " << error.error_H1 << std::endl;
     // throw std::runtime_error("error");
     return error;
 }
 
-template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
-error_type
-run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
-                             const disk::mechanics::NewtonSolverParameter<T>& rp,
-                             const disk::mechanics::MaterialData<T>&    material_data)
-{
+template <template <typename, size_t, typename> class Mesh, typename T, typename Storage>
+error_type run_linear_elasticity_solver(const Mesh<T, 3, Storage> &msh,
+                                        const disk::mechanics::NonLinearParameters<T> &rp,
+                                        const disk::mechanics::MaterialData<T> &material_data) {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
     typedef disk::static_matrix<T, 3, 3>                grad_type;
@@ -262,7 +248,7 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
     Bnd_type bnd(msh);
     bnd.addDirichletEverywhere(displacement);
 
-    disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
+    disk::mechanics::NonLinearSolver<mesh_type> nl(msh, bnd, rp);
 
     nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
@@ -338,10 +324,9 @@ printResults(const std::vector<error_type>& error)
         std::cout << "The file error is empty" << std::endl;
 }
 
-template<typename T>
-void
-test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_triangles_fvca5(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -362,10 +347,9 @@ test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_triangles_netgen(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -386,10 +370,9 @@ test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexagons(const disk::mechanics::NonLinearParameters<T> &rp,
+                   const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -410,10 +393,9 @@ test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::m
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_kershaws(const disk::mechanics::NonLinearParameters<T> &rp,
+                   const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -434,10 +416,9 @@ test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::m
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_quads_fvca5(const disk::mechanics::NonLinearParameters<T> &rp,
+                      const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 5;
 
     std::vector<std::string> paths;
@@ -458,10 +439,9 @@ test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_quads_diskpp(const disk::mechanics::NonLinearParameters<T> &rp,
+                       const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -482,10 +462,9 @@ test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const dis
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexahedra_diskpp(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -506,10 +485,9 @@ test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_hexahedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -530,10 +508,9 @@ test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_tetrahedra_netgen(const disk::mechanics::NonLinearParameters<T> &rp,
+                            const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -554,10 +531,9 @@ test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, cons
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_polyhedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                          const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 3;
 
     std::vector<std::string> paths;
@@ -577,10 +553,9 @@ test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const 
     printResults(error_sumup);
 }
 
-template<typename T>
-void
-test_tetrahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
-{
+template <typename T>
+void test_tetrahedra_fvca6(const disk::mechanics::NonLinearParameters<T> &rp,
+                           const disk::mechanics::MaterialData<T> &material_data) {
     int runs = 4;
 
     std::vector<std::string> paths;
@@ -654,7 +629,7 @@ main(int argc, char** argv)
     material_data.setLambda(1.0);
     material_data.setRho(1.0);
 
-    disk::mechanics::NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NonLinearParameters<RealType> rp;
     rp.setFaceDegree(degree);
     rp.setGradDegree(degree);
     rp.setCellDegree(degree + l);
@@ -663,12 +638,16 @@ main(int argc, char** argv)
     rp.setPrecomputation(true);
 
     std::map<std::string, RealType> dyna_para;
-    // dyna_para["beta"]  = 0.25;
-    // dyna_para["gamma"] = 0.5;
+    dyna_para["beta"] = 1. / 4.;
+    dyna_para["gamma"] = 0.5;
 
-    rp.setUnsteadyScheme(disk::mechanics::DynamicType::BACKWARD_EULER);
+    dyna_para["theta"] = 1.0;
+
+    rp.setUnsteadyScheme(disk::mechanics::DynamicType::NEWMARK);
     rp.setUnsteadyParameters(dyna_para);
-    rp.setTimeStep(1.0, 10);
+    rp.setTimeStep(1.0, 20);
+
+    rp.setLinearSolver(disk::solvers::LinearSolverType::PARDISO_LDLT);
 
     argc -= optind;
     argv += optind;
@@ -682,40 +661,40 @@ main(int argc, char** argv)
 
     if (dim == 3)
     {
-        tc.tic();
-        std::cout << "-Tetrahedras fvca6:" << std::endl;
-        test_tetrahedra_fvca6<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Tetrahedras fvca6:" << std::endl;
+        // test_tetrahedra_fvca6<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Tetrahedras netgen:" << std::endl;
-        test_tetrahedra_netgen<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Tetrahedras netgen:" << std::endl;
+        // test_tetrahedra_netgen<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Hexahedras fvca6:" << std::endl;
-        test_hexahedra_fvca6<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Hexahedras fvca6:" << std::endl;
+        // test_hexahedra_fvca6<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Hexahedras diskpp:" << std::endl;
-        test_hexahedra_diskpp<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Hexahedras diskpp:" << std::endl;
+        // test_hexahedra_diskpp<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Polyhedra:" << std::endl;
-        test_polyhedra_fvca6<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Polyhedra:" << std::endl;
+        // test_polyhedra_fvca6<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
     }
     else if (dim == 2)
     {
@@ -727,39 +706,39 @@ main(int argc, char** argv)
         std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
         std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Triangles netgen:" << std::endl;
-        test_triangles_netgen<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Triangles netgen:" << std::endl;
+        // test_triangles_netgen<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Quadrangles fvca5:" << std::endl;
-        test_quads_fvca5<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Quadrangles fvca5:" << std::endl;
+        // test_quads_fvca5<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Quadrangles diskpp:" << std::endl;
-        test_quads_diskpp<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Quadrangles diskpp:" << std::endl;
+        // test_quads_diskpp<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Hexagons:" << std::endl;
-        test_hexagons<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Hexagons:" << std::endl;
+        // test_hexagons<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
 
-        tc.tic();
-        std::cout << "-Kershaws:" << std::endl;
-        test_kershaws<RealType>(rp, material_data);
-        tc.toc();
-        std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
-        std::cout << " " << std::endl;
+        // tc.tic();
+        // std::cout << "-Kershaws:" << std::endl;
+        // test_kershaws<RealType>(rp, material_data);
+        // tc.toc();
+        // std::cout << "Time to test convergence rates: " << tc.elapsed() << std::endl;
+        // std::cout << " " << std::endl;
     }
 }

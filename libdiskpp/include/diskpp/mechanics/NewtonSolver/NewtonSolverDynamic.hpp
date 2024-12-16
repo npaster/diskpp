@@ -32,7 +32,7 @@
 #include "diskpp/common/eigen.hpp"
 #include "diskpp/common/timecounter.hpp"
 #include "diskpp/mechanics/NewtonSolver/Fields.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonSolverParameters.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
 #include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
 #include "diskpp/methods/hho"
 #include "diskpp/quadratures/quadratures.hpp"
@@ -43,7 +43,7 @@ namespace disk
     namespace mechanics
     {
 
-    template <typename T> int getNumberOfStepToSave(const NewtonSolverParameter<T> &rp) {
+    template <typename T> int getNumberOfStepToSave(const NonLinearParameters<T> &rp) {
         if (rp.isUnsteady()) {
             switch (rp.getUnsteadyScheme()) {
             case DynamicType::NEWMARK:
@@ -65,7 +65,7 @@ namespace disk
         return 2;
     }
 
-    template <typename T> void reformulation_dynamic(NewtonSolverParameter<T> &rp) {
+    template <typename T> void reformulation_dynamic(NonLinearParameters<T> &rp) {
         if (rp.isUnsteady()) {
             switch (rp.getUnsteadyScheme()) {
             case DynamicType::BACKWARD_EULER: {
@@ -109,7 +109,7 @@ namespace disk
 
             double time_dyna;
 
-            dynamic_computation(const NewtonSolverParameter<scalar_type> &rp) {
+            dynamic_computation(const NonLinearParameters<scalar_type> &rp) {
                 m_param = rp.getUnsteadyParameters();
                 m_scheme = rp.getUnsteadyScheme();
 
