@@ -36,41 +36,41 @@ namespace disk
     namespace mechanics
     {
 
-        enum FieldName
-        {
-            DEPL,
-            DEPL_CELLS,
-            DEPL_FACES,
-            VITE_CELLS,
-            ACCE_CELLS,
-        };
+    enum FieldName {
+        DEPL,
+        DEPL_CELLS,
+        DEPL_FACES,
+        VITE_CELLS,
+        ACCE_CELLS,
+        RESI_CELLS,
+    };
 
-        std::string
-        getFieldName(const FieldName &name)
-        {
-            switch (name)
-            {
-            case FieldName::DEPL:
-                return "DEPL";
-                break;
-            case FieldName::DEPL_CELLS:
-                return "DEPL_CELLS";
-                break;
-            case FieldName::DEPL_FACES:
-                return "DEPL_FACES";
-                break;
-            case FieldName::VITE_CELLS:
-                return "VITE_CELLS";
-                break;
-            case FieldName::ACCE_CELLS:
-                return "ACCE_CELLS";
-                break;
-            default:
-                break;
-            }
-
-            return "Unknown type";
+    std::string getFieldName(const FieldName &name) {
+        switch (name) {
+        case FieldName::DEPL:
+            return "DEPL";
+            break;
+        case FieldName::DEPL_CELLS:
+            return "DEPL_CELLS";
+            break;
+        case FieldName::DEPL_FACES:
+            return "DEPL_FACES";
+            break;
+        case FieldName::VITE_CELLS:
+            return "VITE_CELLS";
+            break;
+        case FieldName::ACCE_CELLS:
+            return "ACCE_CELLS";
+            break;
+        case FieldName::RESI_CELLS:
+            return "RESI_CELLS";
+            break;
+        default:
+            break;
         }
+
+        return "Unknown type";
+    }
 
         template <typename T> T norm(const std::vector<dynamic_vector<T>> &field) {
             T nm = 0.0;
@@ -128,7 +128,7 @@ namespace disk
             auto
             getField(const FieldName &name) const
             {
-                // std::cout << getFieldName(name) << ": " << norm(m_fields.at(name)) << std::endl;
+                // std::cout << getFieldName(name) << std::endl;
                 return m_fields.at(name);
             }
 
@@ -138,6 +138,15 @@ namespace disk
                 if (auto search = m_fields.find(name); search != m_fields.end())
                 {
                     m_fields.erase(search);
+                }
+            }
+
+            void getFieldInfo() const {
+                std::cout << "The TimeField at time=" << m_time << ", constains " << m_fields.size()
+                          << " fields." << std::endl;
+                for (auto &[key, val] : m_fields) {
+                    std::cout << "Field " << getFieldName(key) << " with norm: " << norm(val)
+                              << std::endl;
                 }
             }
 
@@ -241,6 +250,8 @@ namespace disk
 
                 this->setField(name, field);
             }
+
+            bool empty() const { return m_fields.empty(); }
         };
 
         template <typename scalar_type>

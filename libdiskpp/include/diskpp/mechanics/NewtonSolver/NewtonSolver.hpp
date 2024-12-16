@@ -618,13 +618,11 @@ class NewtonSolver
     }
 
     // compute l2 error
-    template<typename AnalyticalSolution>
-    scalar_type
-    compute_H1_error(const AnalyticalSolution& as)
-    {
-        scalar_type err_dof = 0;
+    template <typename AnalyticalSolution>
+    long double compute_H1_error(const AnalyticalSolution &as) {
+        using quad_type = long double;
+        quad_type err_dof = 0.;
 
-        size_t cell_i = 0;
         const auto depl = m_fields.getCurrentField(FieldName::DEPL);
 
         matrix_type grad;
@@ -677,17 +675,23 @@ class NewtonSolver
 
             const auto Ah = grad + stab;
 
+            const auto cell_i = m_msh.lookup(cl);
+
             const vector_type comp_dof = depl.at(cell_i);
             const vector_type true_dof = project_function(m_msh, cl, m_degree_infos, as, 2);
 
             const vector_type diff_dof = (true_dof - comp_dof);
-            assert(comp_dof.size() == true_dof.size());
-            err_dof += diff_dof.dot(Ah * diff_dof);
+            const vector_type Ah_diff_dof = Ah * diff_dof;
 
-            cell_i++;
+            const auto size = diff_dof.size();
+            for (int i = 0; i < size; i++) {
+                const quad_type x = static_cast<quad_type>(diff_dof(i));
+                const quad_type y = static_cast<quad_type>(Ah_diff_dof(i));
+                err_dof = std::fma(x, y, err_dof);
+            }
         }
 
-        return sqrt(err_dof);
+        return std::sqrt(err_dof);
     }
 
     void

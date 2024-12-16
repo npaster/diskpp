@@ -204,133 +204,18 @@ public:
         m_verbose = v;
     }
 
-    void initialize(const mesh_type &msh, MultiTimeField<scalar_type> &fields) {
-        m_dyna.prediction(msh, m_time_step, fields);
+    void initialize(const mesh_type &msh, const MeshDegreeInfo<mesh_type> &degree_infos,
+                    MultiTimeField<scalar_type> &fields) {
+        m_dyna.prediction(msh, degree_infos, m_time_step, fields);
     }
 
     template <typename LoadFunction>
-    AssemblyInfo compute_cells(const mesh_type &msh, const bnd_type &bnd, const param_type &rp,
-                               const MeshDegreeInfo<mesh_type> &degree_infos,
-                               const LoadFunction &lf,
-                               const std::vector<matrix_type> &gradient_precomputed,
-                               const std::vector<matrix_type> &stab_precomputed,
-                               behavior_type &behavior, StabCoeffManager<scalar_type> &stab_manager,
-                               MultiTimeField<scalar_type> &fields) {
-        elem_type elem;
-        AssemblyInfo ai;
-
-        if (m_dyna.isExplicit()) {
-
-            const bool small_def = (behavior.getDeformation() == SMALL_DEF);
-
-            // Like if it is an implicit scheme
-            const auto previous_time = m_time_step.start_time();
-            const auto dt = m_time_step.increment_time();
-
-            const auto depl_prev = fields.getField(-1, FieldName::DEPL);
-            const auto deplT_prev = fields.getField(-1, FieldName::DEPL_CELLS);
-            const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
-
-            auto depl_curr = fields.getCurrentField(FieldName::DEPL);
-
-            std::vector<vector_type> vite, acce, depl;
-            vite.reserve(msh.cells_size());
-            acce.reserve(msh.cells_size());
-            depl.reserve(msh.cells_size());
-
-            auto rlf = [&lf,
-                        previous_time](const point<scalar_type, mesh_type::dimension> &p) -> auto {
-                return lf(p, previous_time);
-            };
-
-            timecounter tc, ttot;
-
-            ttot.tic();
-
-            for (auto &cl : msh) {
-                const auto cell_i = msh.lookup(cl);
-
-                const auto huT = depl_prev.at(cell_i);
-
-                // Gradient Reconstruction
-                // std::cout << "Grad" << std::endl;
-                tc.tic();
-                matrix_type GT =
-                    _gradrec(msh, cl, rp, degree_infos, small_def, gradient_precomputed);
-                tc.toc();
-                ai.m_time_gradrec += tc.elapsed();
-
-                // Mechanical Computation
-
-                tc.tic();
-                // std::cout << "Elem" << std::endl;
-                elem.compute(msh, cl, bnd, rp, degree_infos, rlf, GT, huT, m_time_step, behavior,
-                             stab_manager, small_def, false);
-
-                vector_type rhs_all = elem.RTF;
-
-                tc.toc();
-                ai.m_time_elem += tc.elapsed();
-                ai.m_time_law += elem.time_law;
-
-                // Stabilisation Contribution
-                // std::cout << "Stab" << std::endl;
-                tc.tic();
-                if (rp.m_stab) {
-                    const auto beta_s = stab_manager.getValue(msh, cl);
-
-                    matrix_type stab = beta_s * _stab(msh, cl, rp, degree_infos, stab_precomputed);
-
-                    // std::cout << beta_s << std::endl;
-
-                    rhs_all -= stab * huT;
-                }
-                tc.toc();
-                ai.m_time_stab += tc.elapsed();
-
-                matrix_type lhs = (1.0 / (dt * dt)) * m_dyna.mass_matrix(msh, cl, degree_infos);
-
-                const auto num_cell_dofs = lhs.rows();
-
-                const vector_type depl_pred = deplT_prev.at(cell_i) + dt * vite_prev.at(cell_i);
-
-                const vector_type rhs = rhs_all.head(num_cell_dofs) + lhs * depl_pred;
-
-                const vector_type uT = lhs.ldlt().solve(rhs);
-                const vector_type aT = (1.0 / (dt * dt)) * (uT - depl_pred);
-                const vector_type vT = vite_prev.at(cell_i) + dt * aT;
-
-                acce.push_back(aT);
-                vite.push_back(vT);
-                depl.push_back(uT);
-
-                depl_curr[cell_i].head(num_cell_dofs) = uT;
-            }
-
-            fields.setCurrentField(FieldName::VITE_CELLS, vite);
-            fields.setCurrentField(FieldName::ACCE_CELLS, acce);
-            fields.setCurrentField(FieldName::DEPL_CELLS, depl);
-            fields.setCurrentField(FieldName::DEPL, depl_curr);
-
-            ttot.toc();
-            ai.m_time_assembly = ttot.elapsed();
-        }
-        return ai;
-    }
-
-    template <typename LoadFunction>
-    AssemblyInfo
-    assemble(const mesh_type &msh,
-             const bnd_type &bnd,
-             const param_type &rp,
-             const MeshDegreeInfo<mesh_type> &degree_infos,
-             const LoadFunction &lf,
-             const std::vector<matrix_type> &gradient_precomputed,
-             const std::vector<matrix_type> &stab_precomputed,
-             behavior_type &behavior,
-             StabCoeffManager<scalar_type> &stab_manager,
-             const MultiTimeField<scalar_type> &fields)
-    {
+    AssemblyInfo assemble(const mesh_type &msh, const bnd_type &bnd, const param_type &rp,
+                          const MeshDegreeInfo<mesh_type> &degree_infos, const LoadFunction &lf,
+                          const std::vector<matrix_type> &gradient_precomputed,
+                          const std::vector<matrix_type> &stab_precomputed, behavior_type &behavior,
+                          StabCoeffManager<scalar_type> &stab_manager,
+                          MultiTimeField<scalar_type> &fields) {
         elem_type elem;
         AssemblyInfo ai;
 
@@ -345,9 +230,12 @@ public:
         auto depl = fields.getCurrentField(FieldName::DEPL);
         auto depl_faces = fields.getCurrentField(FieldName::DEPL_FACES);
 
+        std::vector<vector_type> resi_cells;
+
         std::vector<vector_type> acce_cells;
         if (m_dyna.enable()) {
             acce_cells = fields.getCurrentField(FieldName::ACCE_CELLS);
+            resi_cells.reserve(msh.cells_size());
         }
 
         m_sol_norm = 0.0;
@@ -411,22 +299,12 @@ public:
 
             // Dynamic contribution
             if (m_dyna.enable()) {
+                m_dyna.compute(msh, cl, degree_infos, huT, acce_cells.at(cell_i), m_time_step);
                 if (!m_dyna.isExplicit()) {
-                    m_dyna.compute(msh, cl, degree_infos, huT, acce_cells.at(cell_i), m_time_step);
                     lhs += m_dyna.K_iner;
                     rhs += m_dyna.R_iner;
-                    ai.m_time_dyna += m_dyna.time_dyna;
-                } else {
-                    const auto num_cell_dofs = acce_cells.at(cell_i).size();
-                    const auto num_tot_dofs = lhs.rows();
-                    const auto num_faces_dofs = num_tot_dofs - num_cell_dofs;
-
-                    rhs.head(num_cell_dofs) = vector_type::Zero(num_cell_dofs);
-                    lhs.topLeftCorner(num_cell_dofs, num_cell_dofs) =
-                        matrix_type::Identity(num_cell_dofs, num_cell_dofs);
-                    lhs.topRightCorner(num_faces_dofs, num_cell_dofs) *= 0.;
-                    lhs.bottomLeftCorner(num_faces_dofs, num_cell_dofs) *= 0.;
                 }
+                ai.m_time_dyna += m_dyna.time_dyna;
             }
 
             // std::cout << "R: " << rhs.norm() << std::endl;
@@ -434,23 +312,45 @@ public:
 
             // Static Condensation
             // std::cout << "StatCond" << std::endl;
-            tc.tic();
-            const auto scnp = make_vector_static_condensation_withMatrix(msh, cl, degree_infos, lhs, rhs, true);
 
-            m_AL[cell_i] = std::get<1>(scnp);
-            m_bL[cell_i] = std::get<2>(scnp);
+            if (m_dyna.isExplicit()) {
+                tc.tic();
 
-            tc.toc();
-            ai.m_time_statcond += tc.elapsed();
+                const auto num_cell_dofs = acce_cells.at(cell_i).size();
+                const auto num_tot_dofs = lhs.rows();
+                const auto num_faces_dofs = num_tot_dofs - num_cell_dofs;
 
-            const auto &lc = std::get<0>(scnp);
+                m_AL[cell_i] = matrix_type::Zero(num_cell_dofs, num_faces_dofs);
+                m_bL[cell_i] = vector_type::Zero(num_cell_dofs);
 
-            // std::cout << "rhs: " << lc.second.norm() << std::endl;
-            // std::cout << lc.second.transpose() << std::endl;
-            // std::cout << "lhs: " << lc.first.norm() << std::endl;
+                resi_cells.push_back(rhs.head(num_cell_dofs));
 
-            // std::cout << "Assemb" << std::endl;
-            m_assembler.assemble_nonlinear(msh, cl, bnd, lc.first, lc.second, depl_faces);
+                tc.toc();
+                ai.m_time_statcond += tc.elapsed();
+
+                m_assembler.assemble_nonlinear(
+                    msh, cl, bnd, lhs.bottomRightCorner(num_faces_dofs, num_faces_dofs),
+                    rhs.tail(num_faces_dofs), depl_faces);
+
+            } else {
+                tc.tic();
+
+                const auto scnp = make_vector_static_condensation_withMatrix(msh, cl, degree_infos,
+                                                                             lhs, rhs, true);
+
+                m_AL[cell_i] = std::get<1>(scnp);
+                m_bL[cell_i] = std::get<2>(scnp);
+
+                tc.toc();
+                ai.m_time_statcond += tc.elapsed();
+
+                const auto &lc = std::get<0>(scnp);
+                m_assembler.assemble_nonlinear(msh, cl, bnd, lc.first, lc.second, depl_faces);
+            }
+        }
+
+        if (m_dyna.isExplicit()) {
+            fields.setCurrentField(FieldName::RESI_CELLS, resi_cells);
         }
 
         m_F_int = sqrt(m_F_int);

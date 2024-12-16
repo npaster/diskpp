@@ -130,12 +130,7 @@ class NewtonStep
         // initialise the NewtonRaphson iteration
         NewtonIteration<mesh_type> newton_iter(msh, bnd, rp, degree_infos, current_step);
 
-        newton_iter.initialize(msh, fields);
-
-        auto assembly_info =
-            newton_iter.compute_cells(msh, bnd, rp, degree_infos, lf, gradient_precomputed,
-                                      stab_precomputed, behavior, stab_manager, fields);
-        ni.updateAssemblyInfo(assembly_info);
+        newton_iter.initialize(msh, degree_infos, fields);
 
         m_convergence = false;
 

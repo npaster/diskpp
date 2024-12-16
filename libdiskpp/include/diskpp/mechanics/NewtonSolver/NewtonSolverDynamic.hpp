@@ -49,9 +49,12 @@ namespace disk
             case DynamicType::NEWMARK:
             case DynamicType::THETA:
             case DynamicType::BACKWARD_EULER:
-            case DynamicType::CRANK_NICOLSON:
-            case DynamicType::LEAP_FROG: {
+            case DynamicType::CRANK_NICOLSON: {
                 return 2;
+                break;
+            }
+            case DynamicType::LEAP_FROG: {
+                return 3;
                 break;
             }
             default:
@@ -119,17 +122,17 @@ namespace disk
 
             bool isExplicit() const { return m_scheme == DynamicType::LEAP_FROG; }
 
-            void prediction(const mesh_type &mesh, const TimeStep<scalar_type> &time_step,
+            void prediction(const mesh_type &mesh, const MeshDegreeInfo<mesh_type> &degree_infos,
+                            const TimeStep<scalar_type> &time_step,
                             MultiTimeField<scalar_type> &fields) {
                 if (this->enable()) {
                     m_acce_pred.clear();
                     m_acce_pred.reserve(mesh.cells_size());
 
-                    std::vector<vector_type> acce;
-                    acce.reserve(mesh.cells_size());
-
                     switch (m_scheme) {
                     case DynamicType::NEWMARK: {
+                        std::vector<vector_type> acce;
+                        acce.reserve(mesh.cells_size());
 
                         const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
@@ -148,9 +151,14 @@ namespace disk
                             m_acce_pred.push_back(cd * depl_prev[cl_id] + acce_curr);
                             acce.push_back(-acce_curr);
                         }
+
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
                         break;
                     }
                     case DynamicType::THETA: {
+                        std::vector<vector_type> acce;
+                        acce.reserve(mesh.cells_size());
+
                         const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
@@ -169,10 +177,73 @@ namespace disk
                             m_acce_pred.push_back(cd * depl_prev[cl_id] + acce_curr);
                             acce.push_back(-acce_curr);
                         }
+
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
                         break;
                     }
                     case DynamicType::LEAP_FROG: {
-                        acce = fields.getField(-1, FieldName::ACCE_CELLS);
+
+                        std::vector<vector_type> vite, acce, depl;
+                        vite.reserve(mesh.cells_size());
+                        acce.reserve(mesh.cells_size());
+                        depl.reserve(mesh.cells_size());
+
+                        const auto tf2 = fields.getTimeField(-2);
+
+                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
+                        const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
+
+                        auto depl_curr = fields.getCurrentField(FieldName::DEPL);
+
+                        const scalar_type dt = time_step.increment_time();
+                        const scalar_type dt2 = dt * dt;
+                        const scalar_type dt2s2 = dt * dt / 2.0;
+                        const scalar_type un_dt = 1.0 / dt;
+                        const scalar_type un_dt2 = 1.0 / (dt * dt);
+
+                        if (tf2.empty()) {
+                            const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
+
+                            for (auto &cl : mesh) {
+                                const auto cl_id = mesh.lookup(cl);
+                                const auto uT = depl_prev.at(cl_id) + dt * vite_prev.at(cl_id) +
+                                                dt2s2 * acce_prev.at(cl_id);
+                                const auto vT = vite_prev.at(cl_id) + dt * acce_prev.at(cl_id);
+                                const auto aT = acce_prev.at(cl_id);
+
+                                depl_curr[cl_id].head(uT.size()) = uT;
+
+                                acce.push_back(aT);
+                                vite.push_back(vT);
+                                depl.push_back(uT);
+                            }
+                        } else {
+                            const auto resi_prev = fields.getField(-1, FieldName::RESI_CELLS);
+                            const auto depl_pprev = tf2.getField(FieldName::DEPL_CELLS);
+
+                            for (auto &cl : mesh) {
+                                const auto cl_id = mesh.lookup(cl);
+                                const matrix_type mm = this->mass_matrix(mesh, cl, degree_infos);
+
+                                const vector_type depl_pred =
+                                    2.0 * depl_prev.at(cl_id) - depl_pprev.at(cl_id);
+
+                                const vector_type uT =
+                                    dt2 * (mm.ldlt().solve(resi_prev.at(cl_id))) + depl_pred;
+                                const auto vT = un_dt * (uT - depl_prev.at(cl_id));
+                                const auto aT = un_dt * (vT - vite_prev.at(cl_id));
+
+                                acce.push_back(aT);
+                                vite.push_back(vT);
+                                depl.push_back(uT);
+                                depl_curr[cl_id].head(uT.size()) = uT;
+                            }
+                        }
+
+                        fields.setCurrentField(FieldName::VITE_CELLS, vite);
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+                        fields.setCurrentField(FieldName::DEPL_CELLS, depl);
+                        fields.setCurrentField(FieldName::DEPL, depl_curr);
                         break;
                     }
                     default: {
@@ -180,7 +251,6 @@ namespace disk
                         break;
                     }
                     }
-                    fields.setCurrentField(FieldName::ACCE_CELLS, acce);
                 }
             }
 
