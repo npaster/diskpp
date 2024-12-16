@@ -61,6 +61,7 @@ enum DynamicType : int {
     BACKWARD_EULER = 2,
     THETA = 3,
     CRANK_NICOLSON = 4,
+    LEAP_FROG = 5,
 };
 
 std::string StabilizationName(const StabilizationType &type) {
@@ -133,6 +134,10 @@ std::string DynaSchemeName(const DynamicType &type) {
     }
     case CRANK_NICOLSON: {
         return "CRANK_NICOLSON";
+        break;
+    }
+    case LEAP_FROG: {
+        return "LEAP_FROG";
         break;
     }
     default:

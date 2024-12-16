@@ -132,6 +132,11 @@ class NewtonStep
 
         newton_iter.initialize(msh, fields);
 
+        auto assembly_info =
+            newton_iter.compute_cells(msh, bnd, rp, degree_infos, lf, gradient_precomputed,
+                                      stab_precomputed, behavior, stab_manager, fields);
+        ni.updateAssemblyInfo(assembly_info);
+
         m_convergence = false;
 
         for (size_t iter = 0; iter < rp.m_iter_max; iter++)

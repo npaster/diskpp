@@ -266,9 +266,6 @@ class NewtonSolver
             m_rp.infos();
         }
 
-        reformulation_dynamic(m_rp);
-        m_rp.m_dyna_para["rho"] = m_behavior.getMaterialData().getRho();
-
         // Initialization
         if (m_verbose)
             std::cout << "Initialization ..." << std::endl;
@@ -425,6 +422,11 @@ class NewtonSolver
             t1.toc();
             if (m_verbose)
                 std::cout << "Precomputation: " << t1.elapsed() << " sec" << std::endl;
+        }
+
+        if (m_rp.isUnsteady()) {
+            reformulation_dynamic(m_rp);
+            m_rp.m_dyna_para["rho"] = m_behavior.getMaterialData().getRho();
         }
 
         SolverInfo  si;

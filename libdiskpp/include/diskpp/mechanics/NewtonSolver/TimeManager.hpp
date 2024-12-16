@@ -281,6 +281,7 @@ class ListOfTimeStep
         const TimeStep<T> current_step = this->getCurrentTimeStep();
         const T           current_time = current_step.end_time();
 
+        std::cout << std::endl;
         std::cout << "------------------------------------------------------------------------"
                      "----------------------"
                   << std::endl;

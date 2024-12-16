@@ -339,20 +339,12 @@ class mechanical_computation
     }
 
     template <typename Function>
-    void
-    compute(const mesh_type &msh,
-            const cell_type &cl,
-            const bnd_type &bnd,
-            const param_type &rp,
-            const MeshDegreeInfo<mesh_type> &degree_infos,
-            const Function &load,
-            const matrix_type &RkT,
-            const vector_type &uTF,
-            const TimeStep<scalar_type> &time_step,
-            behavior_type &behavior,
-            StabCoeffManager<scalar_type> &stab_manager,
-            const bool small_def)
-    {
+    void compute(const mesh_type &msh, const cell_type &cl, const bnd_type &bnd,
+                 const param_type &rp, const MeshDegreeInfo<mesh_type> &degree_infos,
+                 const Function &load, const matrix_type &RkT, const vector_type &uTF,
+                 const TimeStep<scalar_type> &time_step, behavior_type &behavior,
+                 StabCoeffManager<scalar_type> &stab_manager, const bool small_def,
+                 const bool tangent_matix = true) {
         time_law     = 0.0;
         time_contact = 0.0;
         timecounter tc;
@@ -404,8 +396,7 @@ class mechanical_computation
         eigen_compatible_stdvector<static_matrix_type> gphi;
 
         const auto cell_id             = msh.lookup(cl);
-        const auto nb_qp               = behavior.numberOfQP(cell_id);
-        const bool use_tangent_modulus = true;
+        const auto nb_qp = behavior.numberOfQP(cell_id);
 
         scalar_type beta_comp = 0.0, total_weight = 0.0;
         for (int i_qp = 0; i_qp < nb_qp; i_qp++)
@@ -435,8 +426,9 @@ class mechanical_computation
             // Compute behavior
             // if small_def stress = Cauchy else stress = PK1
             tc.tic();
+
             const auto [stress, Cep] =
-              compute_behavior(behavior, cell_id, i_qp, RkT_iqn, small_def, use_tangent_modulus);
+                compute_behavior(behavior, cell_id, i_qp, RkT_iqn, small_def, tangent_matix);
             // std::cout << "stress: " << stress.norm() << std::endl;
             // std::cout << stress << std::endl;
             // std::cout << "Cep: " << Cep.norm() << std::endl;
@@ -444,25 +436,27 @@ class mechanical_computation
             tc.toc();
             time_law += tc.elapsed();
 
-            // Compute rigidity
-            this->compute_rigidity(Cep, gphi, small_def, qp.weight(), grad_dim_dofs, grad_basis_size, AT);
+            if (tangent_matix) {
+
+                // Compute rigidity
+                this->compute_rigidity(Cep, gphi, small_def, qp.weight(), grad_dim_dofs,
+                                       grad_basis_size, AT);
+            }
+
             // Compute internal force
-            this->compute_internal_forces(stress, gphi, small_def, qp.weight(), grad_dim_dofs, grad_basis_size, aT);
+            this->compute_internal_forces(stress, gphi, small_def, qp.weight(), grad_dim_dofs,
+                                          grad_basis_size, aT);
 
             // compute new possible value for stabilization
-            if (rp.m_adapt_stab)
-            {
+            if (rp.m_adapt_stab) {
                 scalar_type sigma_dev_norm, eps_dev_norm;
-                if (small_def)
-                {
+                if (small_def) {
                     sigma_dev_norm = deviator(stress).norm();
-                    eps_dev_norm   = deviator(RkT_iqn).norm();
-                }
-                else
-                {
-                    const auto F   = convertGtoF(RkT_iqn);
+                    eps_dev_norm = deviator(RkT_iqn).norm();
+                } else {
+                    const auto F = convertGtoF(RkT_iqn);
                     const auto EGL = convertFtoGreenLagrange(F);
-                    eps_dev_norm   = deviator(EGL).norm();
+                    eps_dev_norm = deviator(EGL).norm();
 
                     const auto PK2 = convertPK1toPK2(stress, F);
                     sigma_dev_norm = deviator(PK2).norm();
@@ -470,8 +464,8 @@ class mechanical_computation
                     // const auto Cauchy = convertPK1toCauchy(stress, F);
                     // const auto eps    = convertGtoLinearizedStrain(RkT_iqn);
 
-                    // std::cout << sigma_dev_norm / eps_dev_norm << " vs " << deviator(Cauchy).norm() /
-                    // deviator(eps).norm()
+                    // std::cout << sigma_dev_norm / eps_dev_norm << " vs " <<
+                    // deviator(Cauchy).norm() / deviator(eps).norm()
                     //           << std::endl;
                 }
 
@@ -497,14 +491,17 @@ class mechanical_computation
         // std::cout << "R_ext: " << RTF.norm() << std::endl;
         // std::cout << RTF.transpose() << std::endl;
 
-        // Symmetrize rigidity matrix
-        this->symmetrized_rigidity_matrix(grad_basis_size, AT, small_def);
+        if (tangent_matix) {
 
-        // std::cout << "AT: " << AT.norm() << std::endl;
-        // std::cout << AT << std::endl;
-        // std::cout << "aT: " << aT.norm() << std::endl;
+            // Symmetrize rigidity matrix
+            this->symmetrized_rigidity_matrix(grad_basis_size, AT, small_def);
 
-        K_int = RkT.transpose() * AT * RkT;
+            // std::cout << "AT: " << AT.norm() << std::endl;
+            // std::cout << AT << std::endl;
+            // std::cout << "aT: " << aT.norm() << std::endl;
+
+            K_int = RkT.transpose() * AT * RkT;
+        }
         F_int = RkT.transpose() * aT;
         RTF -= F_int;
 

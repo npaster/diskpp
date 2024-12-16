@@ -49,7 +49,8 @@ namespace disk
             case DynamicType::NEWMARK:
             case DynamicType::THETA:
             case DynamicType::BACKWARD_EULER:
-            case DynamicType::CRANK_NICOLSON: {
+            case DynamicType::CRANK_NICOLSON:
+            case DynamicType::LEAP_FROG: {
                 return 2;
                 break;
             }
@@ -94,85 +95,92 @@ namespace disk
             typedef dynamic_matrix<scalar_type> matrix_type;
             typedef dynamic_vector<scalar_type> vector_type;
 
-            bool m_enable;
-
             std::map<std::string, scalar_type> m_param;
             DynamicType m_scheme;
 
-        public:
+            std::vector<vector_type> m_acce_pred;
+
+          public:
             matrix_type K_iner;
             vector_type R_iner;
 
             double time_dyna;
 
-            dynamic_computation(const NewtonSolverParameter<scalar_type> &rp)
-            {
-                m_enable = rp.isUnsteady();
+            dynamic_computation(const NewtonSolverParameter<scalar_type> &rp) {
                 m_param = rp.getUnsteadyParameters();
                 m_scheme = rp.getUnsteadyScheme();
+
+                // for (auto &[key, val] : m_param) {
+                //     std::cout << key << " : " << val << std::endl;
+                // }
             }
 
-            bool
-            enable(void) const
-            {
-                return m_enable;
-            }
+            bool enable(void) const { return m_scheme != DynamicType::STATIC; }
+
+            bool isExplicit() const { return m_scheme == DynamicType::LEAP_FROG; }
 
             void prediction(const mesh_type &mesh, const TimeStep<scalar_type> &time_step,
                             MultiTimeField<scalar_type> &fields) {
-                if (this->enable())
-                {
-                    switch (m_scheme)
-                    {
-                    case DynamicType::NEWMARK:
-                    {
-                        std::vector<vector_type> acce;
-                        acce.reserve(mesh.cells_size());
+                if (this->enable()) {
+                    m_acce_pred.clear();
+                    m_acce_pred.reserve(mesh.cells_size());
 
+                    std::vector<vector_type> acce;
+                    acce.reserve(mesh.cells_size());
+
+                    switch (m_scheme) {
+                    case DynamicType::NEWMARK: {
+
+                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
                         const auto beta = m_param.at("beta");
                         const scalar_type dt = time_step.increment_time();
+                        const scalar_type cd = 1.0 / (beta * dt * dt);
                         const scalar_type cv = 1.0 / (beta * dt);
                         const scalar_type ca = (1.0 - 2.0 * beta) / (2.0 * beta);
 
-                        for (auto &cl : mesh)
-                        {
+                        for (auto &cl : mesh) {
                             const auto cl_id = mesh.lookup(cl);
-                            acce.push_back(-(cv * velo_prev[cl_id] + ca * acce_prev[cl_id]));
+                            const vector_type acce_curr =
+                                cv * velo_prev[cl_id] + ca * acce_prev[cl_id];
+                            m_acce_pred.push_back(cd * depl_prev[cl_id] + acce_curr);
+                            acce.push_back(-acce_curr);
                         }
-                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
-
                         break;
                     }
                     case DynamicType::THETA: {
-                        std::vector<vector_type> acce;
-                        acce.reserve(mesh.cells_size());
-
+                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
                         const scalar_type dt = time_step.increment_time();
                         const auto theta = m_param.at("theta");
 
+                        const scalar_type cd = 1.0 / (theta * theta * dt * dt);
                         const scalar_type cv = 1.0 / (theta * theta * dt);
                         const scalar_type ca = (1.0 - theta) / theta;
 
                         for (auto &cl : mesh) {
                             const auto cl_id = mesh.lookup(cl);
-                            acce.push_back(-(cv * velo_prev[cl_id] + ca * acce_prev[cl_id]));
+                            const vector_type acce_curr =
+                                cv * velo_prev[cl_id] + ca * acce_prev[cl_id];
+                            m_acce_pred.push_back(cd * depl_prev[cl_id] + acce_curr);
+                            acce.push_back(-acce_curr);
                         }
-                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
-
+                        break;
+                    }
+                    case DynamicType::LEAP_FROG: {
+                        acce = fields.getField(-1, FieldName::ACCE_CELLS);
                         break;
                     }
                     default: {
-                      std::runtime_error(
-                          "Scheme not implemented for prediction");
-                      break;
+                        std::runtime_error("Scheme not implemented for prediction");
+                        break;
                     }
                     }
+                    fields.setCurrentField(FieldName::ACCE_CELLS, acce);
                 }
             }
 
@@ -191,7 +199,6 @@ namespace disk
                         vite.reserve(msh.cells_size());
                         acce.reserve(msh.cells_size());
 
-                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
@@ -203,16 +210,12 @@ namespace disk
 
                         const scalar_type g0 = (1.0 - gamma) * dt, g1 = gamma * dt;
                         const scalar_type cd = 1.0 / (beta * dt * dt);
-                        const scalar_type cv = 1.0 / (beta * dt);
-                        const scalar_type ca = (1.0 - 2.0 * beta) / (2.0 * beta);
 
                         for (auto &cl : msh)
                         {
                             const auto cell_i = msh.lookup(cl);
-                            auto aT_pred = cd * depl_prev[cell_i] + cv * vite_prev[cell_i] +
-                                           ca * acce_prev[cell_i];
 
-                            auto aT = cd * depl_cells.at(cell_i) - aT_pred;
+                            auto aT = cd * depl_cells.at(cell_i) - m_acce_pred[cell_i];
                             auto vT = vite_prev.at(cell_i) + g0 * acce_prev.at(cell_i) + g1 * aT;
 
                             vite.push_back(vT);
@@ -220,13 +223,13 @@ namespace disk
                         }
                         fields.setCurrentField(FieldName::VITE_CELLS, vite);
                         fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+                        break;
                     }
                     case DynamicType::THETA: {
                         std::vector<vector_type> vite, acce;
                         vite.reserve(msh.cells_size());
                         acce.reserve(msh.cells_size());
 
-                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
@@ -236,18 +239,13 @@ namespace disk
                         const auto theta = m_param.at("theta");
 
                         const scalar_type cd = 1.0 / (theta * theta * dt * dt);
-                        const scalar_type cv = 1.0 / (theta * theta * dt);
-                        const scalar_type ca = (1.0 - theta) / theta;
 
                         const scalar_type v0 = (1.0 - theta) * dt;
                         const scalar_type v1 = theta * dt;
 
                         for (auto &cl : msh) {
                             const auto cell_i = msh.lookup(cl);
-                            auto aT_pred = cd * depl_prev[cell_i] + cv * vite_prev[cell_i] +
-                                           ca * acce_prev[cell_i];
-
-                            auto aT = cd * depl_cells.at(cell_i) - aT_pred;
+                            auto aT = cd * depl_cells.at(cell_i) - m_acce_pred[cell_i];
                             auto vT = vite_prev.at(cell_i) + v0 * acce_prev.at(cell_i) + v1 * aT;
 
                             vite.push_back(vT);
@@ -255,6 +253,10 @@ namespace disk
                         }
                         fields.setCurrentField(FieldName::VITE_CELLS, vite);
                         fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+                        break;
+                    }
+                    case DynamicType::LEAP_FROG: {
+                        break;
                     }
                     default: {
                       std::runtime_error(
@@ -284,8 +286,6 @@ namespace disk
                     const auto cell_infos = degree_infos.cellDegreeInfo(msh, cl);
                     const auto cell_degree = cell_infos.cell_degree();
 
-                    const auto cb = make_vector_monomial_basis(msh, cl, cell_degree);
-
                     const auto faces_infos = cell_infos.facesDegreeInfo();
 
                     const auto num_cell_dofs = vector_basis_size(cell_degree, mesh_type::dimension, mesh_type::dimension);
@@ -303,22 +303,25 @@ namespace disk
                     case DynamicType::THETA: {
 
                         auto dt = time_step.increment_time();
-                        scalar_type c0 = 0.0;
+                        scalar_type c0 = 1.0;
                         if (m_scheme == DynamicType::NEWMARK) {
                             c0 = m_param.at("beta");
                         } else if (m_scheme == DynamicType::THETA) {
                             const scalar_type theta = m_param.at("theta");
                             c0 = theta * theta;
                         }
-                        auto rho = m_param.at("rho");
 
-                        const matrix_type mass_mat = rho * make_mass_matrix(msh, cl, cb);
+                        const matrix_type mass_mat = this->mass_matrix(msh, cl, degree_infos);
 
                         const auto coeff = 1.0 / (c0 * dt * dt);
 
                         K_iner.topLeftCorner(num_cell_dofs, num_cell_dofs) = coeff * mass_mat;
 
                         R_iner.head(num_cell_dofs) -= mass_mat * aT;
+                        break;
+                    }
+                    case DynamicType::LEAP_FROG: {
+                        break;
                     }
                     default: {
                         std::runtime_error("Scheme not implemented for inertial forces");
@@ -329,7 +332,20 @@ namespace disk
                 tc.toc();
                 time_dyna += tc.elapsed();
             }
+
+            matrix_type mass_matrix(const mesh_type &msh, const cell_type &cl,
+                                    const MeshDegreeInfo<mesh_type> &degree_infos) const {
+
+                const auto cell_infos = degree_infos.cellDegreeInfo(msh, cl);
+                const auto cell_degree = cell_infos.cell_degree();
+
+                const auto cb = make_vector_monomial_basis(msh, cl, cell_degree);
+
+                auto rho = m_param.at("rho");
+                return rho * make_mass_matrix(msh, cl, cb);
+            };
         };
-    }
+
+        } // namespace mechanics
 
 } // end namespace diskpp

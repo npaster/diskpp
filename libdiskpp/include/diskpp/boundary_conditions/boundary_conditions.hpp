@@ -819,6 +819,10 @@ private:
         m_time = time;
     }
 
+    void setTimeAsConst(const scalar_type &time) const {
+        const_cast<BoundaryConditions<MeshType, ScalarBoundary> *>(this)->m_time = time;
+    }
+
     scalar_type getTime(void) const {
         return m_time;
     }
