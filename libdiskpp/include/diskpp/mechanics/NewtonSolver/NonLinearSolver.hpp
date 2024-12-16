@@ -36,6 +36,7 @@
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverInformations.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonStep.hpp"
 #include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
+#include "diskpp/mechanics/NewtonSolver/SplittingStep.hpp"
 #include "diskpp/mechanics/NewtonSolver/StabilizationManager.hpp"
 #include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
@@ -424,6 +425,18 @@ template <typename Mesh> class NonLinearSolver {
             case NonLinearSolverType::NEWTON: {
                 // Newton step
                 NewtonStep<mesh_type> newton_step(m_rp);
+
+                newton_info = newton_step.compute(
+                    m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step, m_gradient_precomputed,
+                    m_stab_precomputed, m_behavior, m_stab_manager, m_fields);
+
+                // Test convergence
+                m_convergence = newton_step.convergence();
+                break;
+            }
+            case NonLinearSolverType::SPLITTING: {
+                // Newton step
+                SplittingStep<mesh_type> newton_step(m_rp);
 
                 newton_info = newton_step.compute(
                     m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step, m_gradient_precomputed,

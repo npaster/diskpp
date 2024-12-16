@@ -470,6 +470,9 @@ template <typename T> class NonLinearParameters {
 
     void setNonLinearSolver(const NonLinearSolverType &type) { m_nlin_solv = type; }
     NonLinearSolverType getNonLinearSolver() const { return m_nlin_solv; }
+
+    void setMaximumNumberNLIteration(const int &n_iter) { m_iter_max = n_iter; }
+    int getMaximumNumberNLIteration() const { return m_iter_max; }
 };
 
 } // namespace mechanics

@@ -197,8 +197,8 @@ error_type run_linear_elasticity_solver(const Mesh<T, 2, Storage> &msh,
     // 2> &p)
     //                                      { return displacement(p, 1.0); });
 
-    // std::cout << error.error_L2 << ", " << error.error_H1 << std::endl;
-    // throw std::runtime_error("error");
+    std::cout << error.error_L2 << ", " << error.error_H1 << std::endl;
+    throw std::runtime_error("error");
     return error;
 }
 
@@ -643,11 +643,14 @@ main(int argc, char** argv)
 
     dyna_para["theta"] = 1.0;
 
-    rp.setUnsteadyScheme(disk::mechanics::DynamicType::NEWMARK);
+    rp.setUnsteadyScheme(disk::mechanics::DynamicType::LEAP_FROG);
     rp.setUnsteadyParameters(dyna_para);
-    rp.setTimeStep(1.0, 20);
+    rp.setTimeStep(1.0, 200);
 
     rp.setLinearSolver(disk::solvers::LinearSolverType::PARDISO_LDLT);
+    rp.setNonLinearSolver(disk::mechanics::NonLinearSolverType::SPLITTING);
+
+    rp.setMaximumNumberNLIteration(1000);
 
     argc -= optind;
     argv += optind;

@@ -385,7 +385,7 @@ Eigen::Matrix<T, Eigen::Dynamic, 1> linear_solver(const LinearSolverType &type,
         break;
     }
     case LinearSolverType::SPARSE_LU: {
-        Eigen::PardisoLDLT<Eigen::SparseMatrix<T>> solver;
+        Eigen::SparseLU<Eigen::SparseMatrix<T>> solver;
         solver.analyzePattern(A);
         solver.factorize(A);
         x = solver.solve(b);

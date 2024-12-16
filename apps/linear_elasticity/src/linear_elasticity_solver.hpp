@@ -79,7 +79,7 @@ class linear_elasticity_solver
     typedef disk::dynamic_matrix<scalar_type> matrix_dynamic;
     typedef disk::dynamic_vector<scalar_type> vector_dynamic;
 
-    typedef disk::assembler_mechanics<mesh_type> assembler_type;
+    typedef disk::vector_mechanics_hho_assembler<mesh_type> assembler_type;
 
     size_t m_cell_degree, m_face_degree;
 
@@ -128,7 +128,7 @@ class linear_elasticity_solver
         m_elas_parameters.lambda = data.lambda;
 
         m_hdi       = disk::hho_degree_info(m_cell_degree, m_face_degree);
-        m_assembler = disk::make_mechanics_assembler(m_msh, m_hdi, m_bnd);
+        m_assembler = disk::vector_mechanics_hho_assembler(m_msh, m_hdi, m_bnd);
         m_AL.clear();
         m_AL.reserve(m_msh.cells_size());
 
@@ -210,7 +210,8 @@ class linear_elasticity_solver
             tc.toc();
             ai.time_statcond += tc.elapsed();
 
-            m_assembler.assemble(m_msh, cl, m_bnd, std::get<0>(scnp), 2);
+            m_assembler.assemble(m_msh, cl, m_bnd, std::get<0>(scnp).first,
+                                 std::get<0>(scnp).second, 2);
         }
 
         m_assembler.impose_neumann_boundary_conditions(m_msh, m_bnd);
