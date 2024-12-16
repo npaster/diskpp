@@ -144,31 +144,26 @@ class NewtonIteration
         {
             switch (rp.m_stab_type)
             {
-            case HHO_SYM:
-            {
+            case StabilizationType::HHO_SYM: {
                 const auto recons = make_vector_hho_symmetric_laplacian(msh, cl, degree_infos);
                 return make_vector_hho_stabilization(msh, cl, recons.first,
                                                      degree_infos);
                 break;
             }
-            case HHO:
-            {
+            case StabilizationType::HHO: {
                 const auto recons_scalar = make_scalar_hho_laplacian(msh, cl, degree_infos);
                 return make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first, degree_infos);
                 break;
             }
-            case HDG:
-            {
+            case StabilizationType::HDG: {
                 return make_vector_hdg_stabilization(msh, cl, degree_infos);
                 break;
             }
-            case DG:
-            {
+            case StabilizationType::DG: {
                 return make_vector_dg_stabilization(msh, cl, degree_infos);
                 break;
             }
-            case NO:
-            {
+            case StabilizationType::NO: {
                 break;
             }
             default:
@@ -209,11 +204,8 @@ public:
         m_verbose = v;
     }
 
-    void
-    initialize(const mesh_type &msh,
-               const MultiTimeField<scalar_type> &fields)
-    {
-        m_dyna.prediction(msh, fields, m_time_step);
+    void initialize(const mesh_type &msh, MultiTimeField<scalar_type> &fields) {
+        m_dyna.prediction(msh, m_time_step, fields);
     }
 
     template <typename LoadFunction>
@@ -241,11 +233,21 @@ public:
         const auto depl = fields.getCurrentField(FieldName::DEPL);
         const auto depl_faces = fields.getCurrentField(FieldName::DEPL_FACES);
 
+        std::vector<vector_type> acce_cells;
+        if (rp.isUnsteady()) {
+            acce_cells = fields.getCurrentField(FieldName::ACCE_CELLS);
+        }
+
         m_sol_norm = 0.0;
         for (auto &uF : depl_faces)
         {
             m_sol_norm += uF.squaredNorm();
         }
+
+        auto current_time = m_time_step.end_time();
+        auto rlf = [&lf, &current_time](const point<scalar_type, mesh_type::dimension> &p) -> auto {
+            return lf(p, current_time);
+        };
 
         timecounter tc, ttot;
 
@@ -268,18 +270,8 @@ public:
 
             tc.tic();
             // std::cout << "Elem" << std::endl;
-            elem.compute(msh,
-                         cl,
-                         bnd,
-                         rp,
-                         degree_infos,
-                         lf,
-                         GT,
-                         huT,
-                         m_time_step,
-                         behavior,
-                         stab_manager,
-                         small_def);
+            elem.compute(msh, cl, bnd, rp, degree_infos, rlf, GT, huT, m_time_step, behavior,
+                         stab_manager, small_def);
 
             matrix_type lhs = elem.K_int;
             vector_type rhs = elem.RTF;
@@ -309,9 +301,9 @@ public:
             // Dynamic contribution
             if (m_dyna.enable())
             {
-                m_dyna.compute(msh, cl, degree_infos, huT, m_time_step);
+                m_dyna.compute(msh, cl, degree_infos, huT, acce_cells.at(cell_i), m_time_step);
                 lhs += m_dyna.K_iner;
-                rhs += m_dyna.RTF;
+                rhs += m_dyna.R_iner;
                 ai.m_time_dyna += m_dyna.time_dyna;
             }
 
@@ -430,7 +422,7 @@ public:
         }
         fields.setCurrentField(FieldName::DEPL_FACES, depl_faces_new);
 
-        m_dyna.postprocess(msh, fields, m_time_step);
+        m_dyna.postprocess(msh, m_time_step, fields);
 
         tc.toc();
         return tc.elapsed();

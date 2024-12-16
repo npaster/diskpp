@@ -59,8 +59,8 @@ usage(const char* progname)
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
 run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
-                             const NewtonSolverParameter<T>& rp,
-                             const disk::MaterialData<T>&    material_data)
+                             const disk::mechanics::NewtonSolverParameter<T>& rp,
+                             const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
@@ -138,7 +138,7 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
 
     disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
 
-    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::ELASTIC);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
 
     nl.initial_guess(solution);
@@ -168,8 +168,8 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
 run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
-                             const NewtonSolverParameter<T>& rp,
-                             const disk::MaterialData<T>&    material_data)
+                             const disk::mechanics::NewtonSolverParameter<T>& rp,
+                             const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
@@ -247,7 +247,7 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
 
     disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
 
-    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::ELASTIC);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
 
     nl.initial_guess(solution);
@@ -321,7 +321,7 @@ printResults(const std::vector<error_type>& error)
 
 template<typename T>
 void
-test_triangles_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -345,7 +345,7 @@ test_triangles_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_triangles_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -369,7 +369,7 @@ test_triangles_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialDa
 
 template<typename T>
 void
-test_hexagons(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -393,7 +393,7 @@ test_hexagons(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& m
 
 template<typename T>
 void
-test_kershaws(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -417,7 +417,7 @@ test_kershaws(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& m
 
 template<typename T>
 void
-test_quads_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -441,7 +441,7 @@ test_quads_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>
 
 template<typename T>
 void
-test_quads_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -465,7 +465,7 @@ test_quads_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T
 
 template<typename T>
 void
-test_hexahedra_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -489,7 +489,7 @@ test_hexahedra_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialDa
 
 template<typename T>
 void
-test_hexahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -513,7 +513,7 @@ test_hexahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_tetrahedra_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -537,7 +537,7 @@ test_tetrahedra_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialD
 
 template<typename T>
 void
-test_polyhedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 3;
 
@@ -560,7 +560,7 @@ test_polyhedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_tetrahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -630,11 +630,11 @@ main(int argc, char** argv)
     }
 
     // Elasticity Parameters
-    disk::MaterialData<RealType> material_data;
+    disk::mechanics::MaterialData<RealType> material_data;
     material_data.setMu(1.0);
     material_data.setLambda(10E5);
 
-    NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NewtonSolverParameter<RealType> rp;
     rp.setFaceDegree(degree);
     rp.setGradDegree(degree);
     rp.setCellDegree(degree + l);

@@ -144,7 +144,6 @@ class NewtonSolver
             tf.createZeroField(FieldName::ACCE_CELLS, m_msh, m_degree_infos);
         }
         m_fields.setCurrentTimeField(tf);
-        m_fields.setTimeField(-1, tf);
 
         // compute mesh for post-processing
         m_post_mesh = PostMesh<mesh_type>(m_msh);
@@ -191,34 +190,32 @@ class NewtonSolver
             {
                 switch (m_rp.m_stab_type)
                 {
-                    case HHO:
-                    {
-                        const auto recons_scalar = make_scalar_hho_laplacian(m_msh, cl, m_degree_infos);
-                        m_stab_precomputed.push_back(
-                            make_vector_hho_stabilization_optim(m_msh, cl, recons_scalar.first, m_degree_infos));
-                        break;
-                    }
-                    case HHO_SYM:
-                    {
-                        const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_degree_infos);
-                        m_stab_precomputed.push_back(
-                            make_vector_hho_stabilization(m_msh, cl, recons.first, m_degree_infos));
-                        break;
-                    }
-                    case HDG:
-                    {
-                        m_stab_precomputed.push_back(make_vector_hdg_stabilization(m_msh, cl, m_degree_infos));
-                        break;
-                    }
-                    case DG:
-                    {
-                        m_stab_precomputed.push_back(make_vector_dg_stabilization(m_msh, cl, m_degree_infos));
-                        break;
-                    }
-                    case NO:
-                    {
-                        break;
-                    }
+                case StabilizationType::HHO: {
+                    const auto recons_scalar = make_scalar_hho_laplacian(m_msh, cl, m_degree_infos);
+                    m_stab_precomputed.push_back(make_vector_hho_stabilization_optim(
+                        m_msh, cl, recons_scalar.first, m_degree_infos));
+                    break;
+                }
+                case StabilizationType::HHO_SYM: {
+                    const auto recons =
+                        make_vector_hho_symmetric_laplacian(m_msh, cl, m_degree_infos);
+                    m_stab_precomputed.push_back(
+                        make_vector_hho_stabilization(m_msh, cl, recons.first, m_degree_infos));
+                    break;
+                }
+                case StabilizationType::HDG: {
+                    m_stab_precomputed.push_back(
+                        make_vector_hdg_stabilization(m_msh, cl, m_degree_infos));
+                    break;
+                }
+                case StabilizationType::DG: {
+                    m_stab_precomputed.push_back(
+                        make_vector_dg_stabilization(m_msh, cl, m_degree_infos));
+                    break;
+                }
+                case StabilizationType::NO: {
+                    break;
+                }
                     default: throw std::invalid_argument("Unknown stabilization");
                 }
             }
@@ -226,60 +223,58 @@ class NewtonSolver
     }
 
   public:
-      NewtonSolver(const mesh_type &msh, const bnd_type &bnd, const param_type &rp) : m_msh(msh), m_verbose(rp.m_verbose),
-                                                                                      m_convergence(false), m_rp(rp), m_bnd(bnd),
-                                                                                      m_stab_manager(msh, rp.m_beta),
-                                                                                      m_fields(2)
-      {
-          if (m_verbose)
-          {
-              std::cout << "------------------------------------------------------------------------"
-                           "----------------------"
-                        << std::endl;
-              std::cout
-                  << "|********************** Nonlinear Newton's Solver for solid mechanics ***********************|"
-                  << std::endl;
-              std::cout << "------------------------------------------------------------------------"
-                           "----------------------"
-                        << std::endl;
-          }
-          int face_degree = rp.m_face_degree;
-          if (rp.m_face_degree < 0)
-          {
-              std::cout << "'face_degree' should be > 0. Reverting to 1." << std::endl;
-              face_degree = 1;
-          }
+    NewtonSolver(const mesh_type &msh, const bnd_type &bnd, const param_type &rp)
+        : m_msh(msh), m_verbose(rp.m_verbose), m_convergence(false), m_rp(rp), m_bnd(bnd),
+          m_stab_manager(msh, rp.m_beta), m_fields(getNumberOfStepToSave(rp)) {
+        if (m_verbose) {
+            std::cout << "------------------------------------------------------------------------"
+                         "----------------------"
+                      << std::endl;
+            std::cout << "|********************** Nonlinear Newton's Solver for solid mechanics "
+                         "***********************|"
+                      << std::endl;
+            std::cout << "------------------------------------------------------------------------"
+                         "----------------------"
+                      << std::endl;
+        }
+        int face_degree = rp.m_face_degree;
+        if (rp.m_face_degree < 0) {
+            std::cout << "'face_degree' should be > 0. Reverting to 1." << std::endl;
+            face_degree = 1;
+        }
 
-          m_rp.m_face_degree = face_degree;
+        m_rp.m_face_degree = face_degree;
 
-          int cell_degree = rp.m_cell_degree;
-          if ((face_degree - 1 > cell_degree) or (cell_degree > face_degree + 1))
-          {
-              std::cout << "'cell_degree' should be 'face_degree + 1' =>"
-                        << "'cell_degree' => 'face_degree -1'. Reverting to 'face_degree'." << std::endl;
-              cell_degree = face_degree;
-          }
+        int cell_degree = rp.m_cell_degree;
+        if ((face_degree - 1 > cell_degree) or (cell_degree > face_degree + 1)) {
+            std::cout << "'cell_degree' should be 'face_degree + 1' =>"
+                      << "'cell_degree' => 'face_degree -1'. Reverting to 'face_degree'."
+                      << std::endl;
+            cell_degree = face_degree;
+        }
 
-          m_rp.m_cell_degree = cell_degree;
+        m_rp.m_cell_degree = cell_degree;
 
-          int grad_degree = rp.m_grad_degree;
-          if (grad_degree < face_degree)
-          {
-              std::cout << "'grad_degree' should be >= 'face_degree'. Reverting to 'face_degree'." << std::endl;
-              grad_degree = face_degree;
-          }
+        int grad_degree = rp.m_grad_degree;
+        if (grad_degree < face_degree) {
+            std::cout << "'grad_degree' should be >= 'face_degree'. Reverting to 'face_degree'."
+                      << std::endl;
+            grad_degree = face_degree;
+        }
 
-          if (m_verbose)
-          {
-              m_rp.infos();
-          }
+        if (m_verbose) {
+            m_rp.infos();
+        }
 
-          // Initialization
-          if (m_verbose)
-              std::cout << "Initialization ..." << std::endl;
-          this->init_degree(cell_degree, face_degree, grad_degree);
-          this->init();
-      }
+        reformulation_dynamic(m_rp);
+        m_rp.m_dyna_para["rho"] = m_behavior.getMaterialData().getRho();
+
+        // Initialization
+        if (m_verbose)
+            std::cout << "Initialization ..." << std::endl;
+        this->init_degree(cell_degree, face_degree, grad_degree);
+        this->init();
+    }
 
     /**
      * @brief return a boolean to know if the verbosity mode is activated
@@ -327,13 +322,10 @@ class NewtonSolver
     void
     initial_field(const FieldName &name, const vector_rhs_function<mesh_type> func)
     {
-        if(name == FieldName::DEPL){
-            m_fields.createField(-1, FieldName::DEPL_CELLS, m_msh, m_degree_infos, func);
-            m_fields.createField(-1, FieldName::DEPL_FACES, m_msh, m_degree_infos, func);
+        if (name == FieldName::DEPL) {
             m_fields.createField(0, FieldName::DEPL_CELLS, m_msh, m_degree_infos, func);
             m_fields.createField(0, FieldName::DEPL_FACES, m_msh, m_degree_infos, func);
         }
-        m_fields.createField(-1, name, m_msh, m_degree_infos, func);
         m_fields.createField(0, name, m_msh, m_degree_infos, func);
     }
 
@@ -459,6 +451,9 @@ class NewtonSolver
         // Newton step
         NewtonStep<mesh_type> newton_step(m_rp);
 
+        // update initial state;
+        m_fields.update();
+
         // Loop on time step
         while (!list_time_step.empty())
         {
@@ -471,22 +466,12 @@ class NewtonSolver
                 list_time_step.printCurrentTimeStep();
             }
 
-            auto rlf = [&lf, &current_time](const point<scalar_type, mesh_type::dimension> &p) -> auto
-            { return lf(p, current_time); };
             m_bnd.setTime(current_time);
 
             //  Newton correction
-            NewtonSolverInfo newton_info = newton_step.compute(m_msh,
-                                                               m_bnd,
-                                                               m_rp,
-                                                               m_degree_infos,
-                                                               rlf,
-                                                               current_step,
-                                                               m_gradient_precomputed,
-                                                               m_stab_precomputed,
-                                                               m_behavior,
-                                                               m_stab_manager,
-                                                               m_fields);
+            NewtonSolverInfo newton_info = newton_step.compute(
+                m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step, m_gradient_precomputed,
+                m_stab_precomputed, m_behavior, m_stab_manager, m_fields);
             si.updateInfo(newton_info);
 
             if (m_verbose)
@@ -594,30 +579,40 @@ class NewtonSolver
     }
 
     // compute l2 error
-    template<typename AnalyticalSolution>
-    scalar_type
-    compute_l2_displacement_error(const AnalyticalSolution& as)
-    {
-        scalar_type err_dof = 0;
+    template <typename AnalyticalSolution>
+    long double compute_l2_error(const FieldName &name, const AnalyticalSolution &as) {
+        using quad_type = long double;
+        quad_type err_dof = 0.;
 
         size_t cell_i = 0;
-        const auto depl_cells = m_fields.getCurrentField(FieldName::DEPL_CELLS);
+        const auto field = m_fields.getCurrentField(name);
 
-        for (auto& cl : m_msh)
-        {
-            const auto cdi             = m_degree_infos.degreeInfo(m_msh, cl);
-            const vector_type comp_dof = depl_cells.at(cell_i++);
+        for (auto &cl : m_msh) {
+            const auto cdi = m_degree_infos.degreeInfo(m_msh, cl);
+            const vector_type comp_dof = field.at(cell_i++);
             const vector_type true_dof = project_function(m_msh, cl, cdi.degree(), as, 2);
 
-            const auto        cb   = make_vector_monomial_basis(m_msh, cl, cdi.degree());
+            const auto cb = make_vector_monomial_basis(m_msh, cl, cdi.degree());
             const matrix_type mass = make_mass_matrix(m_msh, cl, cb);
 
             const vector_type diff_dof = (true_dof - comp_dof);
-            assert(comp_dof.size() == true_dof.size());
-            err_dof += diff_dof.dot(mass * diff_dof);
+            const vector_type mass_diff = mass * diff_dof;
+            const auto size = diff_dof.size();
+
+            for (int i = 0; i < size; i++) {
+                const quad_type x = static_cast<quad_type>(diff_dof(i));
+                const quad_type y = static_cast<quad_type>(mass_diff(i));
+                err_dof = std::fma(x, y, err_dof);
+            }
         }
 
-        return sqrt(err_dof);
+        return std::sqrt(err_dof);
+    }
+
+    // compute l2 error
+    template <typename AnalyticalSolution>
+    scalar_type compute_l2_displacement_error(const AnalyticalSolution &as) {
+        return compute_l2_error(FieldName::DEPL_CELLS, as);
     }
 
     // compute l2 error
@@ -650,31 +645,26 @@ class NewtonSolver
             {
                 switch (m_rp.m_stab_type)
                 {
-                case HHO_SYM:
-                {
+                case StabilizationType::HHO_SYM: {
                     const auto recons = make_vector_hho_symmetric_laplacian(m_msh, cl, m_degree_infos);
                     stab = make_vector_hho_stabilization(m_msh, cl, recons.first,
                                                          m_degree_infos);
                     break;
                 }
-                case HHO:
-                {
+                case StabilizationType::HHO: {
                     const auto recons_scalar = make_scalar_hho_laplacian(m_msh, cl, m_degree_infos);
                     stab = make_vector_hho_stabilization_optim(m_msh, cl, recons_scalar.first, m_degree_infos);
                     break;
                 }
-                case HDG:
-                {
+                case StabilizationType::HDG: {
                     stab = make_vector_hdg_stabilization(m_msh, cl, m_degree_infos);
                     break;
                 }
-                case DG:
-                {
+                case StabilizationType::DG: {
                     stab = make_vector_dg_stabilization(m_msh, cl, m_degree_infos);
                     break;
                 }
-                case NO:
-                {
+                case StabilizationType::NO: {
                     break;
                     stab.setZero();
                 }

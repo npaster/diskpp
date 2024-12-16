@@ -43,6 +43,8 @@
 
 namespace disk
 {
+namespace mechanics
+{
 
 // Law developped with Front interface
 // see http://tfel.sourceforge.net/index.html
@@ -239,4 +241,5 @@ class Mfront_qp : public law_qp_bones<T, DIM>
     }
 };
 #endif
+}
 }

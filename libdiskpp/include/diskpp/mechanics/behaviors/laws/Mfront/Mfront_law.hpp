@@ -35,6 +35,8 @@
 
 namespace disk
 {
+namespace mechanics
+{
 
 // Law bones
 
@@ -123,5 +125,5 @@ class Mfront_law
         return m_list_cell_qp.at(cell_id);
     }
 };
-}
+}}
 #endif

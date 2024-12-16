@@ -38,7 +38,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 // Law for Linear Isotropic and Kinematic Hardening model with von Mises Criteria  in small
 
 // Input : symetric stain tensor(Gs)
@@ -133,4 +134,4 @@ class HenckyMises_qp : public law_qp_bones<T, DIM>
         return std::make_pair(stress, Cep);
     }
 };
-}
+}}

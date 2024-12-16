@@ -41,8 +41,8 @@
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 void
 run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
-                              const NewtonSolverParameter<T>& rp,
-                              const disk::MaterialData<T>&    material_data)
+                              const disk::mechanics::NewtonSolverParameter<T>& rp,
+                              const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
@@ -73,7 +73,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
     nl.addBehavior(filename, "LogarithmicStrainPlasticity", hypo);
 #else
     // To use a native law from DiSk++
-    nl.addBehavior(disk::DeformationMeasure::LOGARITHMIC_DEF, disk::LawType::LINEAR_HARDENING);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::LOGARITHMIC_DEF, disk::mechanics::LawType::LINEAR_HARDENING);
 #endif
 
     nl.addMaterialData(material_data);
@@ -101,8 +101,8 @@ run_nl_solid_mechanics_solver(const Mesh<T, 2, Storage>&      msh,
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 void
 run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
-                              const NewtonSolverParameter<T>& rp,
-                              const disk::MaterialData<T>&    material_data)
+                              const disk::mechanics::NewtonSolverParameter<T>& rp,
+                              const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
@@ -166,7 +166,7 @@ run_nl_solid_mechanics_solver(const Mesh<T, 3, Storage>&      msh,
     nl.addBehavior(filename, "LogarithmicStrainPlasticity", hypo);
 #else
     // To use a native law from DiSk++
-    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::LINEAR_HARDENING);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::LINEAR_HARDENING);
 #endif
 
     nl.addMaterialData(material_data);
@@ -198,13 +198,13 @@ main(int argc, char** argv)
 
     char* mesh_filename = nullptr;
 
-    NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NewtonSolverParameter<RealType> rp;
 
     const RealType MPa = 10E6;
     const RealType GPa = 10E9;
 
     // Elasticity Parameters
-    disk::MaterialData<RealType> material_data;
+    disk::mechanics::MaterialData<RealType> material_data;
 
     // // Cook Parameters HPP (mm, MPa, kN)
     RealType E  = 70;

@@ -38,7 +38,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 // Law for Isotropic Hardening model with von Mises Criteria in small deformation
 // where the curve (p, R(p)) is given point by point
 // see https://www.code-aster.org/doc/default/en/man_r/r5/r5.03.02.pdf section 3.1.2
@@ -309,4 +310,4 @@ class IsotropicHardeningVMis_qp : public law_qp_bones<T, DIM>
         return std::make_pair(stress, Cep);
     }
 };
-}
+}}

@@ -36,7 +36,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 // Law for linear elasticity
 
 template<typename T, int DIM>
@@ -119,4 +120,4 @@ class LinearElasticity_qp : public law_qp_bones<T, DIM>
         return std::make_pair(stress, Cep);
     }
 };
-}
+}}

@@ -30,7 +30,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 
 enum DeformationMeasure : size_t
 {
@@ -102,4 +103,4 @@ MfrontVariableTypeName(const size_t& var)
         default: throw std::invalid_argument("Not known variable"); break;
     }
 }
-};
+}};

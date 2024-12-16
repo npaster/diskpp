@@ -32,6 +32,13 @@
 #include <string>
 #include <vector>
 
+namespace disk
+{
+
+namespace mechanics
+{
+
+
 enum StabilizationType : int
 {
     HDG = 0,
@@ -48,12 +55,92 @@ enum FrictionType : int
     COULOMB     = 2,
 };
 
-enum DynamicType : int
-{
+enum DynamicType : int {
     STATIC = 0,
-    HHT = 1,
-    NEWMARK = 2,
+    NEWMARK = 1,
+    BACKWARD_EULER = 2,
+    THETA = 3,
+    CRANK_NICOLSON = 4,
 };
+
+std::string StabilizationName(const StabilizationType &type) {
+    switch (type) {
+    case HDG: {
+        return "HDG";
+        break;
+    }
+    case HHO: {
+        return "HHO";
+        break;
+    }
+    case HHO_SYM: {
+        return "HHO_SYM";
+        break;
+    }
+    case NO: {
+        return "NO";
+        break;
+    }
+    case DG: {
+        return "DG";
+        break;
+    }
+    default:
+        break;
+    }
+
+    return "Unknown name";
+}
+
+std::string FrictionName(const FrictionType &type) {
+    switch (type) {
+    case NO_FRICTION: {
+        return "NO_FRICTION";
+        break;
+    }
+    case TRESCA: {
+        return "TRESCA";
+        break;
+    }
+    case COULOMB: {
+        return "COULOMB";
+        break;
+    }
+    default:
+        break;
+    }
+
+    return "Unknown name";
+}
+
+std::string DynaSchemeName(const DynamicType &type) {
+    switch (type) {
+    case STATIC: {
+        return "STATIC";
+        break;
+    }
+    case NEWMARK: {
+        return "NEWMARK";
+        break;
+    }
+    case BACKWARD_EULER: {
+        return "BACKWARD_EULER";
+        break;
+    }
+    case THETA: {
+        return "THETA";
+        break;
+    }
+    case CRANK_NICOLSON: {
+        return "CRANK_NICOLSON";
+        break;
+    }
+    default:
+        break;
+    }
+
+    return "Unknown name";
+}
 
 template<typename T>
 class NewtonSolverParameter
@@ -74,13 +161,12 @@ class NewtonSolverParameter
 
     bool m_precomputation; // to compute the gradient before (it's memory consuption)
 
-    int  m_stab_type;  // type of stabilization
+    StabilizationType m_stab_type; // type of stabilization
     T    m_beta;       // stabilization parameter
     bool m_stab;       // stabilization yes or no
     bool m_adapt_stab; // adaptative stabilization
 
     DynamicType m_dyna_type;              // type of dyna
-    bool m_dynamic;                       // dynamic or static simulation
     std::map<std::string, T> m_dyna_para; // list of parameters
 
     int          m_n_time_save; // number of saving
@@ -89,13 +175,14 @@ class NewtonSolverParameter
     T   m_theta;     // theta-parameter for contact
     T   m_gamma_0;   // parameter for Nitsche
     T   m_threshold; // threshol for Tesca friction
-    int m_frot_type; // Friction type ?
+    FrictionType m_frot_type; // Friction type ?
 
-    NewtonSolverParameter() : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_sublevel(5), m_iter_max(20), m_epsilon(T(1E-6)),
-                              m_verbose(false), m_precomputation(false), m_stab(true), m_beta(1), m_stab_type(HHO), m_n_time_save(0),
-                              m_user_end_time(1.0), m_has_user_end_time(false), m_adapt_stab(false), m_dynamic(false), m_theta(1), m_gamma_0(1),
-                              m_threshold(0), m_frot_type(NO_FRICTION), m_dyna_type(DynamicType::STATIC)
-    {
+    NewtonSolverParameter()
+        : m_face_degree(1), m_cell_degree(1), m_grad_degree(1), m_sublevel(5), m_iter_max(20),
+          m_epsilon(T(1E-6)), m_verbose(false), m_precomputation(false), m_stab(true), m_beta(1),
+          m_stab_type(HHO), m_n_time_save(0), m_user_end_time(1.0), m_has_user_end_time(false),
+          m_adapt_stab(false), m_theta(1), m_gamma_0(1), m_threshold(0), m_frot_type(NO_FRICTION),
+          m_dyna_type(DynamicType::STATIC) {
         m_time_step.push_back(std::make_pair(m_user_end_time, 1));
     }
 
@@ -106,7 +193,7 @@ class NewtonSolverParameter
         std::cout << " - Face degree: " << m_face_degree << std::endl;
         std::cout << " - Cell degree: " << m_cell_degree << std::endl;
         std::cout << " - Grad degree: " << m_grad_degree << std::endl;
-        std::cout << " - Stabilization ?: " << m_stab << std::endl;
+        std::cout << " - Stabilization ?: " << StabilizationName(m_stab_type) << std::endl;
         std::cout << " - AdaptativeStabilization ?: " << m_adapt_stab << std::endl;
         std::cout << " - Type: " << m_stab_type << std::endl;
         std::cout << " - Beta: " << m_beta << std::endl;
@@ -115,8 +202,8 @@ class NewtonSolverParameter
         std::cout << " - IterMax: " << m_iter_max << std::endl;
         std::cout << " - Epsilon: " << m_epsilon << std::endl;
         std::cout << " - Precomputation: " << m_precomputation << std::endl;
-        std::cout << " - Dynamic: " << m_dynamic << std::endl;
-        std::cout << " - Friction ?: " << m_frot_type << std::endl;
+        std::cout << " - Dynamic scheme: " << DynaSchemeName(m_dyna_type) << std::endl;
+        std::cout << " - Friction ?: " << FrictionName(m_frot_type) << std::endl;
         std::cout << " - Threshold: " << m_threshold << std::endl;
         std::cout << " - Gamma_0: " << m_gamma_0 << std::endl;
         std::cout << " - Theta: " << m_theta << std::endl;
@@ -306,13 +393,13 @@ class NewtonSolverParameter
             }
             else if (keyword == "Dynamic")
             {
-                std::string logical;
-                ifs >> logical;
+                std::string type;
+                ifs >> type;
                 line++;
-                if (logical == "true" || logical == "True")
-                    m_dynamic = true;
-                else
-                    m_dynamic = false;
+                if (type == "STATIC" || type == "NO")
+                    m_dyna_type = STATIC;
+                else if (type == "NEWMARK")
+                    m_dyna_type = NEWMARK;
             }
             else
             {
@@ -400,11 +487,7 @@ class NewtonSolverParameter
         return m_precomputation;
     }
 
-    bool
-    isUnsteady() const
-    {
-        return m_dynamic;
-    }
+    bool isUnsteady() const { return m_dyna_type != STATIC; }
 
     DynamicType getUnsteadyScheme() const
     {
@@ -415,12 +498,6 @@ class NewtonSolverParameter
     setUnsteadyScheme(const DynamicType &scheme)
     {
         m_dyna_type = scheme;
-    }
-
-    void
-    isUnsteady(const bool dyna)
-    {
-        m_dynamic = dyna;
     }
 
     auto
@@ -442,3 +519,6 @@ class NewtonSolverParameter
         m_time_step.push_back(std::make_pair(end_time, n_time_step));
     }
 };
+
+}
+}

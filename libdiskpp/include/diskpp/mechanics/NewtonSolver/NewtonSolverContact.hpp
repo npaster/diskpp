@@ -189,9 +189,9 @@ class contact_contribution
     typedef typename mesh_type::cell                    cell_type;
     typedef typename mesh_type::face                    face_type;
     typedef point<scalar_type, mesh_type::dimension>    point_type;
-    typedef disk::MaterialData<scalar_type>             material_type;
+    typedef MaterialData<scalar_type>             material_type;
     typedef NewtonSolverParameter<scalar_type>          param_type;
-    typedef disk::vector_boundary_conditions<mesh_type> bnd_type;
+    typedef vector_boundary_conditions<mesh_type> bnd_type;
 
     const static int dimension = mesh_type::dimension;
 

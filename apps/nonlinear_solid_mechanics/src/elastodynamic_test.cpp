@@ -40,8 +40,8 @@ struct error_type
     int    degree;
     int    nb_dof;
     double h;
-    double error_L2;
-    double error_H1;
+    long double error_L2;
+    long double error_H1;
 };
 
 void
@@ -58,8 +58,8 @@ usage(const char* progname)
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
 run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
-                             const NewtonSolverParameter<T>& rp,
-                             const disk::MaterialData<T>&    material_data)
+                             const disk::mechanics::NewtonSolverParameter<T>& rp,
+                             const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 2, Storage>                         mesh_type;
     typedef disk::static_vector<T, 2>                   result_type;
@@ -69,51 +69,112 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
     timecounter tc;
     tc.tic();
 
-    auto load = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type
-    {
+    auto func_space = [material_data](const disk::point<T, 2> &p) -> result_type {
+        const T coeff = 1.0 / (1 + material_data.getLambda());
+        T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+               coeff * sin(M_PI * p.x()) * sin(M_PI * p.y());
+        T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+               coeff * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+        return result_type{ux, uy};
+    };
+
+    auto displacement = [material_data, func_space](const disk::point<T, 2> &p,
+                                                    const T &time) -> result_type {
+        return time * time * func_space(p);
+    };
+
+    auto velocity = [material_data, func_space](const disk::point<T, 2> &p,
+                                                const T &time) -> result_type {
+        return 2.0 * time * func_space(p);
+    };
+
+    auto acceleration = [material_data, func_space](const disk::point<T, 2> &p,
+                                                    const T &time) -> result_type {
+        return 2.0 * func_space(p);
+    };
+
+    auto load = [material_data, acceleration](const disk::point<T, 2> &p,
+                                              const T &time) -> result_type {
         const T lambda = material_data.getLambda();
         const T mu     = material_data.getMu();
+        const T rho = material_data.getRho();
+        const T pi2t2 = M_PI * M_PI * time * time;
 
-        T fx =
-          lambda * cos(M_PI * (p.x() + p.y())) -
-          2.0 * mu *
-            ((4 * lambda + 4) * sin(2 * M_PI * p.y()) * cos(2 * M_PI * p.x()) + sin(M_PI * p.x()) * sin(M_PI * p.y())) +
-          2.0 * mu *
-            (2.0 * lambda * sin(2 * M_PI * p.y()) + 2.0 * sin(2 * M_PI * p.y()) + 0.5 * cos(M_PI * (p.x() + p.y())));
-        T fy =
-          lambda * cos(M_PI * (p.x() + p.y())) +
-          2.0 * mu *
-            ((4 * lambda + 4) * sin(2 * M_PI * p.x()) * cos(2 * M_PI * p.y()) - sin(M_PI * p.x()) * sin(M_PI * p.y())) -
-          2.0 * mu *
-            (2.0 * lambda * sin(2 * M_PI * p.x()) + 2.0 * sin(2 * M_PI * p.x()) - 0.5 * cos(M_PI * (p.x() + p.y())));
+        T fx = -mu * (4 * lambda * sin(2 * M_PI * p.y()) + 4 * sin(2 * M_PI * p.y()) +
+                      cos(M_PI * (p.x() + p.y()))) -
+               (1.0 * lambda * cos(M_PI * (p.x() + p.y())) -
+                2.0 * mu *
+                    ((4 * lambda + 4) * sin(2 * M_PI * p.y()) * cos(2 * M_PI * p.x()) +
+                     sin(M_PI * p.x()) * sin(M_PI * p.y())));
+        T fy = mu * (4 * lambda * sin(2 * M_PI * p.x()) + 4 * sin(2 * M_PI * p.x()) -
+                     cos(M_PI * (p.x() + p.y()))) -
+               (1.0 * lambda * cos(M_PI * (p.x() + p.y())) +
+                2.0 * mu *
+                    ((4 * lambda + 4) * sin(2 * M_PI * p.x()) * cos(2 * M_PI * p.y()) -
+                     sin(M_PI * p.x()) * sin(M_PI * p.y())));
 
-        return -M_PI * M_PI / (lambda + 1) * result_type{fx, fy};
+        return (pi2t2 / (lambda + 1)) * result_type{fx, fy} + rho * acceleration(p, time);
     };
 
-    auto displacement = [material_data](const disk::point<T, 2>& p, const T& time) -> result_type
-    {
-        T fx   = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
-               1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
-        T fy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
-               1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    // auto load = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type {
+    //     const T lambda = material_data.getLambda();
+    //     const T mu     = material_data.getMu();
+    //     const T rho = material_data.getRho();
 
-        return time * result_type{fx, fy};
-    };
+    //     T fx = -4.0*lambda*cos(M_PI * (p.x() + p.y())) +
+    //            8.0*mu*((4*lambda + 4)*sin(2 * M_PI * p.y())*cos(2 * M_PI * p.x()) +
+    //                    sin(M_PI * p.x())*sin(M_PI * p.y())) -
+    //            4.0*mu*(4*lambda*sin(2 * M_PI * p.y()) + 4*sin(2 * M_PI * p.y()) +
+    //                    cos(M_PI * (p.x() + p.y()))) -
+    //            rho*((lambda + 1)*(cos(2 * M_PI * p.x()) - 1)*sin(2 * M_PI * p.y()) +
+    //                 sin(M_PI * p.x())*sin(M_PI * p.y()));
+    //     T fy = -4.0*lambda*cos(M_PI * (p.x() + p.y())) -
+    //            8.0*mu*((4*lambda + 4)*sin(2 * M_PI * p.x())*cos(2 * M_PI * p.y()) -
+    //                    sin(M_PI * p.x())*sin(M_PI * p.y())) +
+    //            4.0*mu*(4*lambda*sin(2 * M_PI * p.x()) + 4*sin(2 * M_PI * p.x()) -
+    //                    cos(M_PI * (p.x() + p.y()))) +
+    //            rho*((lambda + 1)*(cos(2 * M_PI * p.y()) - 1)*sin(2 * M_PI * p.x()) -
+    //                 sin(M_PI * p.x())*sin(M_PI * p.y()));
 
-    auto velocity = [material_data, displacement](const disk::point<T, 2>& p, const T& time) -> result_type
-    {
-        return displacement(p, 1.0);
-    };
+    //     return M_PI * M_PI * sin(M_PI / 2.0 * time) / (4.0 * (lambda + 1)) * result_type{fx, fy};
+    // };
 
-    auto acceleration = [material_data, displacement](const disk::point<T, 2> &p, const T &time) -> result_type
-    { return displacement(p, 0.0); };
+    // auto displacement = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type
+    // {
+    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+    //     return sin(M_PI / 2.0 * time) * result_type{ux, uy};
+    // };
+
+    // auto velocity = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type {
+    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+    //     return M_PI / 2.0 * cos(M_PI / 2.0 * time) * result_type{ux, uy};
+    // };
+
+    // auto acceleration = [material_data](const disk::point<T, 2> &p, const T &time) -> result_type
+    // {
+    //     T ux = sin(2 * M_PI * p.y()) * (cos(2 * M_PI * p.x()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+    //     T uy = -sin(2 * M_PI * p.x()) * (cos(2 * M_PI * p.y()) - 1) +
+    //            1.0 / (1 + material_data.getLambda()) * sin(M_PI * p.x()) * sin(M_PI * p.y());
+
+    //     return -(M_PI * M_PI / 4.0) * sin(M_PI / 2.0 * time) * result_type{ux, uy};
+    // };
 
     Bnd_type bnd(msh);
     bnd.addDirichletEverywhere(displacement);
 
     disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
 
-    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::ELASTIC);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
 
     nl.initial_field(disk::mechanics::FieldName::DEPL, [displacement](const disk::point<T, 2> &p)
@@ -139,19 +200,25 @@ run_linear_elasticity_solver(const Mesh<T, 2, Storage>&      msh,
     error.h        = average_diameter(msh);
     error.degree   = rp.m_face_degree;
     error.nb_dof   = nl.numberOfDofs();
-    error.error_L2 = nl.compute_l2_displacement_error([displacement](const disk::point<T, 2> &p)
-                                                      { return displacement(p, 1.0); });
-    error.error_H1 = nl.compute_H1_error([displacement](const disk::point<T, 2> &p)
-                                         { return displacement(p, 1.0); });
+    error.error_L2 = nl.compute_l2_error(
+        disk::mechanics::FieldName::DEPL_CELLS,
+        [displacement](const disk::point<T, 2> &p) { return displacement(p, 1.0); });
+    error.error_H1 = nl.compute_l2_error(
+        disk::mechanics::FieldName::ACCE_CELLS,
+        [acceleration](const disk::point<T, 2> &p) { return acceleration(p, 1.0); });
+    // error.error_H1 = nl.compute_H1_error([displacement](const disk::point<T,
+    // 2> &p)
+    //                                      { return displacement(p, 1.0); });
 
+    // throw std::runtime_error("error");
     return error;
 }
 
 template<template<typename, size_t, typename> class Mesh, typename T, typename Storage>
 error_type
 run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
-                             const NewtonSolverParameter<T>& rp,
-                             const disk::MaterialData<T>&    material_data)
+                             const disk::mechanics::NewtonSolverParameter<T>& rp,
+                             const disk::mechanics::MaterialData<T>&    material_data)
 {
     typedef Mesh<T, 3, Storage>                         mesh_type;
     typedef disk::static_vector<T, 3>                   result_type;
@@ -197,7 +264,7 @@ run_linear_elasticity_solver(const Mesh<T, 3, Storage>&      msh,
 
     disk::mechanics::NewtonSolver<mesh_type> nl(msh, bnd, rp);
 
-    nl.addBehavior(disk::DeformationMeasure::SMALL_DEF, disk::LawType::ELASTIC);
+    nl.addBehavior(disk::mechanics::DeformationMeasure::SMALL_DEF, disk::mechanics::LawType::ELASTIC);
     nl.addMaterialData(material_data);
 
     nl.initial_field(disk::mechanics::FieldName::DEPL, [displacement](const disk::point<T, 3> &p)
@@ -273,7 +340,7 @@ printResults(const std::vector<error_type>& error)
 
 template<typename T>
 void
-test_triangles_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -297,7 +364,7 @@ test_triangles_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_triangles_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_triangles_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -321,7 +388,7 @@ test_triangles_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialDa
 
 template<typename T>
 void
-test_hexagons(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexagons(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -345,7 +412,7 @@ test_hexagons(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& m
 
 template<typename T>
 void
-test_kershaws(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_kershaws(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -369,7 +436,7 @@ test_kershaws(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& m
 
 template<typename T>
 void
-test_quads_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_fvca5(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 5;
 
@@ -393,7 +460,7 @@ test_quads_fvca5(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>
 
 template<typename T>
 void
-test_quads_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_quads_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -417,7 +484,7 @@ test_quads_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T
 
 template<typename T>
 void
-test_hexahedra_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_diskpp(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -441,7 +508,7 @@ test_hexahedra_diskpp(const NewtonSolverParameter<T>& rp, const disk::MaterialDa
 
 template<typename T>
 void
-test_hexahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_hexahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -465,7 +532,7 @@ test_hexahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_tetrahedra_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_netgen(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -489,7 +556,7 @@ test_tetrahedra_netgen(const NewtonSolverParameter<T>& rp, const disk::MaterialD
 
 template<typename T>
 void
-test_polyhedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_polyhedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 3;
 
@@ -512,7 +579,7 @@ test_polyhedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialDat
 
 template<typename T>
 void
-test_tetrahedra_fvca6(const NewtonSolverParameter<T>& rp, const disk::MaterialData<T>& material_data)
+test_tetrahedra_fvca6(const disk::mechanics::NewtonSolverParameter<T>& rp, const disk::mechanics::MaterialData<T>& material_data)
 {
     int runs = 4;
 
@@ -582,24 +649,24 @@ main(int argc, char** argv)
     }
 
     // Elasticity Parameters
-    disk::MaterialData<RealType> material_data;
+    disk::mechanics::MaterialData<RealType> material_data;
     material_data.setMu(1.0);
     material_data.setLambda(1.0);
+    material_data.setRho(1.0);
 
-    NewtonSolverParameter<RealType> rp;
+    disk::mechanics::NewtonSolverParameter<RealType> rp;
     rp.setFaceDegree(degree);
     rp.setGradDegree(degree);
     rp.setCellDegree(degree + l);
     rp.setStabilizationParameter(2.0 * material_data.getMu());
     rp.setVerbose(verbose);
     rp.setPrecomputation(true);
-    rp.isUnsteady(true);
 
     std::map<std::string, RealType> dyna_para;
-    dyna_para["rho"]   = 1.0;
-    dyna_para["beta"]  = 0.25;
-    dyna_para["gamma"] = 0.5;
+    // dyna_para["beta"]  = 0.25;
+    // dyna_para["gamma"] = 0.5;
 
+    rp.setUnsteadyScheme(disk::mechanics::DynamicType::BACKWARD_EULER);
     rp.setUnsteadyParameters(dyna_para);
     rp.setTimeStep(1.0, 10);
 

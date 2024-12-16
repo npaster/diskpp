@@ -38,7 +38,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 // Law for LinearLaw (test of finite deformations)
 
 template<typename T, int DIM>
@@ -96,4 +97,4 @@ class LinearLaw_qp : public law_qp_bones<T, DIM>
         return std::make_pair(stress, Cep);
     }
 };
-}
+}}

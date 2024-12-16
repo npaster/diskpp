@@ -72,6 +72,16 @@ namespace disk
             return "Unknown type";
         }
 
+        template <typename T> T norm(const std::vector<dynamic_vector<T>> &field) {
+            T nm = 0.0;
+
+            for (auto &vect : field) {
+                nm += vect.squaredNorm();
+            }
+
+            return std::sqrt(nm);
+        };
+
         /**
          * @brief Field at one time.
          *
@@ -118,7 +128,7 @@ namespace disk
             auto
             getField(const FieldName &name) const
             {
-                // std::cout << getFieldName(name) << std::endl;
+                // std::cout << getFieldName(name) << ": " << norm(m_fields.at(name)) << std::endl;
                 return m_fields.at(name);
             }
 
@@ -284,6 +294,10 @@ namespace disk
             auto
             getField(const int &relative_index, const FieldName &name) const
             {
+                // std::cout << "Get " << getFieldName(name) << " (" << relative_index
+                //           << "): " << norm(m_fields.at(-relative_index).getField(name))
+                //           << std::endl;
+
                 return m_fields.at(-relative_index).getField(name);
             }
 
@@ -296,6 +310,9 @@ namespace disk
             void
             setField(const int &relative_index, const FieldName &name, const std::vector<vector_type> &field)
             {
+                // std::cout << "Set " << getFieldName(name) << " (" << relative_index
+                //           << "): " << norm(field) << std::endl;
+
                 return m_fields.at(-relative_index).setField(name, field);
             }
 

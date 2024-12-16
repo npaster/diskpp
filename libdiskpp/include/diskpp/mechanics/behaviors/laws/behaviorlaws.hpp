@@ -45,6 +45,8 @@
 
 namespace disk
 {
+namespace mechanics
+{
 
 template<typename MeshType>
 using Cavitation =
@@ -541,4 +543,5 @@ class Behavior
     //     }
     // }
 };
+}
 }

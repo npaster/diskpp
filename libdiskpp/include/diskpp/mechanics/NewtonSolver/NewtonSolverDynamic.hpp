@@ -43,6 +43,47 @@ namespace disk
     namespace mechanics
     {
 
+    template <typename T> int getNumberOfStepToSave(const NewtonSolverParameter<T> &rp) {
+        if (rp.isUnsteady()) {
+            switch (rp.getUnsteadyScheme()) {
+            case DynamicType::NEWMARK:
+            case DynamicType::THETA:
+            case DynamicType::BACKWARD_EULER:
+            case DynamicType::CRANK_NICOLSON: {
+                return 2;
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        return 2;
+    }
+
+    template <typename T> void reformulation_dynamic(NewtonSolverParameter<T> &rp) {
+        if (rp.isUnsteady()) {
+            switch (rp.getUnsteadyScheme()) {
+            case DynamicType::BACKWARD_EULER: {
+                rp.setUnsteadyScheme(DynamicType::THETA);
+                std::map<std::string, T> dyna_para;
+                dyna_para["theta"] = 1.0;
+                rp.setUnsteadyParameters(dyna_para);
+                break;
+            }
+            case DynamicType::CRANK_NICOLSON: {
+                rp.setUnsteadyScheme(DynamicType::THETA);
+                std::map<std::string, T> dyna_para;
+                dyna_para["theta"] = 0.5;
+                rp.setUnsteadyParameters(dyna_para);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+
         template <typename MeshType>
         class dynamic_computation
         {
@@ -58,11 +99,9 @@ namespace disk
             std::map<std::string, scalar_type> m_param;
             DynamicType m_scheme;
 
-            std::vector<vector_type> m_acce_pred;
-
         public:
             matrix_type K_iner;
-            vector_type RTF;
+            vector_type R_iner;
 
             double time_dyna;
 
@@ -79,49 +118,66 @@ namespace disk
                 return m_enable;
             }
 
-            void
-            prediction(const mesh_type &mesh,
-                       const MultiTimeField<scalar_type> &fields,
-                       const TimeStep<scalar_type> &time_step)
-            {
+            void prediction(const mesh_type &mesh, const TimeStep<scalar_type> &time_step,
+                            MultiTimeField<scalar_type> &fields) {
                 if (this->enable())
                 {
                     switch (m_scheme)
                     {
                     case DynamicType::NEWMARK:
                     {
-                        m_acce_pred.clear();
-                        m_acce_pred.reserve(mesh.cells_size());
+                        std::vector<vector_type> acce;
+                        acce.reserve(mesh.cells_size());
 
-                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
-                        auto beta = m_param.at("beta");
-                        scalar_type dt = time_step.increment_time();
-                        scalar_type denom = 1.0 / (beta * dt * dt);
-                        scalar_type nume = dt * dt / 2.0 * (1.0 - 2.0 * beta);
+                        const auto beta = m_param.at("beta");
+                        const scalar_type dt = time_step.increment_time();
+                        const scalar_type cv = 1.0 / (beta * dt);
+                        const scalar_type ca = (1.0 - 2.0 * beta) / (2.0 * beta);
 
                         for (auto &cl : mesh)
                         {
                             const auto cl_id = mesh.lookup(cl);
-
-                            auto aT_pred = denom * (depl_prev[cl_id] + dt * velo_prev[cl_id] + nume * acce_prev[cl_id]);
-                            m_acce_pred.push_back(aT_pred);
+                            acce.push_back(-(cv * velo_prev[cl_id] + ca * acce_prev[cl_id]));
                         }
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+
                         break;
                     }
-                    default:
+                    case DynamicType::THETA: {
+                        std::vector<vector_type> acce;
+                        acce.reserve(mesh.cells_size());
+
+                        const auto velo_prev = fields.getField(-1, FieldName::VITE_CELLS);
+                        const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
+
+                        const scalar_type dt = time_step.increment_time();
+                        const auto theta = m_param.at("theta");
+
+                        const scalar_type cv = 1.0 / (theta * theta * dt);
+                        const scalar_type ca = (1.0 - theta) / theta;
+
+                        for (auto &cl : mesh) {
+                            const auto cl_id = mesh.lookup(cl);
+                            acce.push_back(-(cv * velo_prev[cl_id] + ca * acce_prev[cl_id]));
+                        }
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+
                         break;
+                    }
+                    default: {
+                      std::runtime_error(
+                          "Scheme not implemented for prediction");
+                      break;
+                    }
                     }
                 }
             }
 
-            scalar_type
-            postprocess(const mesh_type &msh,
-                        MultiTimeField<scalar_type> &fields,
-                        const TimeStep<scalar_type> &time_step) const
-            {
+            scalar_type postprocess(const mesh_type &msh, const TimeStep<scalar_type> &time_step,
+                                    MultiTimeField<scalar_type> &fields) const {
                 timecounter tc;
                 tc.tic();
 
@@ -134,6 +190,8 @@ namespace disk
                         std::vector<vector_type> vite, acce;
                         vite.reserve(msh.cells_size());
                         acce.reserve(msh.cells_size());
+
+                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
                         const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
                         const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
 
@@ -143,15 +201,18 @@ namespace disk
                         auto gamma = m_param.at("gamma");
                         scalar_type dt = time_step.increment_time();
 
-                        const scalar_type denom = 1.0 / (beta * dt * dt);
-                        const scalar_type nume = dt * dt / 2.0 * (1.0 - 2.0 * beta);
                         const scalar_type g0 = (1.0 - gamma) * dt, g1 = gamma * dt;
+                        const scalar_type cd = 1.0 / (beta * dt * dt);
+                        const scalar_type cv = 1.0 / (beta * dt);
+                        const scalar_type ca = (1.0 - 2.0 * beta) / (2.0 * beta);
 
                         for (auto &cl : msh)
                         {
                             const auto cell_i = msh.lookup(cl);
+                            auto aT_pred = cd * depl_prev[cell_i] + cv * vite_prev[cell_i] +
+                                           ca * acce_prev[cell_i];
 
-                            auto aT = denom * depl_cells.at(cell_i) - m_acce_pred.at(cell_i);
+                            auto aT = cd * depl_cells.at(cell_i) - aT_pred;
                             auto vT = vite_prev.at(cell_i) + g0 * acce_prev.at(cell_i) + g1 * aT;
 
                             vite.push_back(vT);
@@ -160,8 +221,46 @@ namespace disk
                         fields.setCurrentField(FieldName::VITE_CELLS, vite);
                         fields.setCurrentField(FieldName::ACCE_CELLS, acce);
                     }
-                    default:
-                        break;
+                    case DynamicType::THETA: {
+                        std::vector<vector_type> vite, acce;
+                        vite.reserve(msh.cells_size());
+                        acce.reserve(msh.cells_size());
+
+                        const auto depl_prev = fields.getField(-1, FieldName::DEPL_CELLS);
+                        const auto vite_prev = fields.getField(-1, FieldName::VITE_CELLS);
+                        const auto acce_prev = fields.getField(-1, FieldName::ACCE_CELLS);
+
+                        const auto depl_cells = fields.getCurrentField(FieldName::DEPL_CELLS);
+
+                        scalar_type dt = time_step.increment_time();
+                        const auto theta = m_param.at("theta");
+
+                        const scalar_type cd = 1.0 / (theta * theta * dt * dt);
+                        const scalar_type cv = 1.0 / (theta * theta * dt);
+                        const scalar_type ca = (1.0 - theta) / theta;
+
+                        const scalar_type v0 = (1.0 - theta) * dt;
+                        const scalar_type v1 = theta * dt;
+
+                        for (auto &cl : msh) {
+                            const auto cell_i = msh.lookup(cl);
+                            auto aT_pred = cd * depl_prev[cell_i] + cv * vite_prev[cell_i] +
+                                           ca * acce_prev[cell_i];
+
+                            auto aT = cd * depl_cells.at(cell_i) - aT_pred;
+                            auto vT = vite_prev.at(cell_i) + v0 * acce_prev.at(cell_i) + v1 * aT;
+
+                            vite.push_back(vT);
+                            acce.push_back(aT);
+                        }
+                        fields.setCurrentField(FieldName::VITE_CELLS, vite);
+                        fields.setCurrentField(FieldName::ACCE_CELLS, acce);
+                    }
+                    default: {
+                      std::runtime_error(
+                          "Scheme not implemented for post-processing");
+                      break;
+                    }
                     }
                 }
 
@@ -169,12 +268,9 @@ namespace disk
                 return tc.elapsed();
             }
 
-            void compute(const mesh_type &msh,
-                         const cell_type &cl,
-                         const MeshDegreeInfo<mesh_type> &degree_infos,
-                         const vector_type &uTF,
-                         const TimeStep<scalar_type> &time_step)
-            {
+            void compute(const mesh_type &msh, const cell_type &cl,
+                         const MeshDegreeInfo<mesh_type> &degree_infos, const vector_type &uTF,
+                         const vector_type &aT, const TimeStep<scalar_type> &time_step) {
                 // Unsteady Computation
 
                 time_dyna = 0.0;
@@ -198,31 +294,36 @@ namespace disk
 
                     const vector_type uT = uTF.head(num_cell_dofs);
 
-                    RTF = vector_type::Zero(num_total_dofs);
+                    R_iner = vector_type::Zero(num_total_dofs);
                     K_iner = matrix_type::Zero(num_total_dofs, num_total_dofs);
 
                     switch (m_scheme)
                     {
                     case DynamicType::NEWMARK:
-                    {
+                    case DynamicType::THETA: {
 
                         auto dt = time_step.increment_time();
-                        auto beta = m_param.at("beta");
+                        scalar_type c0 = 0.0;
+                        if (m_scheme == DynamicType::NEWMARK) {
+                            c0 = m_param.at("beta");
+                        } else if (m_scheme == DynamicType::THETA) {
+                            const scalar_type theta = m_param.at("theta");
+                            c0 = theta * theta;
+                        }
                         auto rho = m_param.at("rho");
 
                         const matrix_type mass_mat = rho * make_mass_matrix(msh, cl, cb);
 
-                        const auto coeff = 1.0 / (beta * dt * dt);
+                        const auto coeff = 1.0 / (c0 * dt * dt);
 
                         K_iner.topLeftCorner(num_cell_dofs, num_cell_dofs) = coeff * mass_mat;
 
-                        auto F_iner = coeff * (mass_mat * uT);
-                        RTF.head(num_cell_dofs) -= F_iner;
-
-                        RTF.head(num_cell_dofs) += mass_mat * m_acce_pred.at(cell_i);
+                        R_iner.head(num_cell_dofs) -= mass_mat * aT;
                     }
-                    default:
+                    default: {
+                        std::runtime_error("Scheme not implemented for inertial forces");
                         break;
+                    }
                     }
                 }
                 tc.toc();

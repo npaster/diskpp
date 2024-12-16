@@ -36,6 +36,9 @@
 namespace disk
 {
 
+namespace mechanics
+{
+
 // Law bones
 
 template<typename MeshType, typename LawTypeQp, bool PlasticBehavior>
@@ -118,4 +121,4 @@ class LawTypeBones
         return m_list_cell_qp.at(cell_id);
     }
 };
-}
+}}

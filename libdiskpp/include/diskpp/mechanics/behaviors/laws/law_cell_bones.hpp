@@ -38,7 +38,8 @@
 
 namespace disk
 {
-
+namespace mechanics
+{
 /// Law cell bones
 
 template<typename MeshType, typename LawTypeQp, bool PlasticBehavior>
@@ -138,9 +139,9 @@ class LawTypeCellBones
             const auto gphi   = gb.eval_functions(qp.point());
             assert(gphi.size() == grad_basis_size);
 
-            const auto qp_stress = priv::inner_product(qp.weight(), stress);
+            const auto qp_stress = disk::priv::inner_product(qp.weight(), stress);
 
-            rhs += priv::outer_product(gphi, qp_stress);
+            rhs += disk::priv::outer_product(gphi, qp_stress);
         }
 
         return mass.ldlt().solve(rhs);
@@ -201,4 +202,4 @@ class LawTypeCellBones
         return vector_type::Zero(pbs);
     }
 };
-}
+}}

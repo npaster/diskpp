@@ -31,6 +31,9 @@
 namespace disk
 {
 
+namespace mechanics
+{
+
 template<typename T>
 class curve_point
 {
@@ -70,12 +73,12 @@ class MaterialData
     size_t                                m_type;
     std::vector<curve_point<scalar_type>> m_Rp_curve;
     std::vector<MfrontType>               m_mfront_param;
+    scalar_type m_rho;
 
   public:
-    MaterialData() :
-      m_lambda(1.0), m_mu(1.0), m_H(0), m_K(0), m_sigma_y0(std::numeric_limits<scalar_type>::max()), m_type(1)
-    {
-    }
+    MaterialData()
+        : m_lambda(1.0), m_mu(1.0), m_H(0), m_K(0),
+          m_sigma_y0(std::numeric_limits<scalar_type>::max()), m_type(1), m_rho(0.0) {}
 
     MaterialData(const scalar_type& lambda,
                  const scalar_type& mu,
@@ -133,6 +136,8 @@ class MaterialData
     {
         m_K = K;
     }
+
+    void setRho(const scalar_type rho) { m_rho = rho; }
 
     void
     setSigma_y0(const scalar_type sigma_y0)
@@ -213,6 +218,8 @@ class MaterialData
         return m_sigma_y0;
     }
 
+    scalar_type getRho() const { return m_rho; }
+
     size_t
     getType() const
     {
@@ -275,6 +282,7 @@ class MaterialData
         std::cout << "* Sy0: " << getSigma_y0() << std::endl;
         std::cout << "* Lambda: " << getLambda() << std::endl;
         std::cout << "* Mu: " << getMu() << std::endl;
+        std::cout << "* Rho: " << getRho() << std::endl;
         std::cout << "* Traction Curve:" << std::endl;
         std::cout << "(p, R(p))" << std::endl;
         for (auto& pt : m_Rp_curve)
@@ -285,4 +293,7 @@ class MaterialData
             std::cout << "( " << param << ", " << value << " )" << std::endl;
     }
 };
+
+}
+
 }

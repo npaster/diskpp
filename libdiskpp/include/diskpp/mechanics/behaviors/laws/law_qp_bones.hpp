@@ -36,6 +36,8 @@
 
 namespace disk
 {
+namespace mechanics
+{
 
 // Bones for the computation of a behavior law at a quadrature point
 
@@ -161,4 +163,4 @@ class law_qp_bones
         m_estrain_prev = m_estrain_curr;
     }
 };
-}
+}}
