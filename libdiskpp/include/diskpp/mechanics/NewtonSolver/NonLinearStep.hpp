@@ -7,7 +7,7 @@
  *  /_\/_\/_\/_\   methods.
  *
  * This file is copyright of the following authors:
- * Nicolas Pignet  (C) 2025                     nicolas.pignet@enpc.fr
+ * Nicolas Pignet  (C) 2019                     nicolas.pignet@enpc.fr
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -31,9 +31,10 @@
 #include "diskpp/adaptivity/adaptivity.hpp"
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/timecounter.hpp"
+#include "diskpp/mechanics/NewtonSolver/NewtonIteration.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverInformations.hpp"
 #include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
-#include "diskpp/mechanics/NewtonSolver/SplittingIteration.hpp"
+#include "diskpp/mechanics/NewtonSolver/QuasiNewtonIteration.hpp"
 #include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 #include "diskpp/methods/hho"
@@ -57,7 +58,7 @@ namespace mechanics {
  * @tparam MeshType type of the mesh
  */
 template < typename MeshType >
-class SplittingStep {
+class NonLinearStep {
     typedef MeshType mesh_type;
     typedef typename mesh_type::coordinate_type scalar_type;
 
@@ -72,7 +73,7 @@ class SplittingStep {
     bool m_convergence;
 
   public:
-    SplittingStep( const param_type &rp ) : m_verbose( rp.m_verbose ), m_convergence( false ) {}
+    NonLinearStep( const param_type &rp ) : m_verbose( rp.m_verbose ), m_convergence( false ) {}
 
     /**
      * @brief return a boolean to know if the verbosity mode is activated
@@ -110,15 +111,32 @@ class SplittingStep {
         timecounter tc;
         tc.tic();
 
-        if ( rp.getUnsteadyScheme() != DynamicType::LEAP_FROG ) {
-            throw std::runtime_error( "Splitting is only implemented for LEAP_FROG." );
+        // initialise the NewtonRaphson iteration
+
+        std::unique_ptr< GenericIteration< mesh_type > > nlIter;
+
+        switch ( rp.getNonLinearSolver() ) {
+        case NonLinearSolverType::NEWTON: {
+            // Newton step
+            nlIter = std::make_unique< NewtonIteration< mesh_type > >( msh, bnd, rp, degree_infos,
+                                                                       current_step );
+            break;
+        }
+        case NonLinearSolverType::QNEWTON_BDIAG_JACO:
+        case NonLinearSolverType::QNEWTON_BDIAG_ELAS:
+        case NonLinearSolverType::QNEWTON_BDIAG_STAB: {
+            nlIter = std::make_unique< QuasiNewtonIteration< mesh_type > >(
+                msh, bnd, rp, degree_infos, current_step );
+            break;
+        }
+        default:
+            throw std::runtime_error( "Unexpected NonLinearSolver." );
+            break;
         }
 
-        // initialise the NewtonRaphson iteration
-        SplittingIteration< mesh_type > splitting_iter( msh, bnd, rp, degree_infos, current_step );
-
-        splitting_iter.initialize( msh, bnd, rp, degree_infos, stab_precomputed, stab_manager,
-                                   fields );
+        auto iinfo = nlIter->initialize( msh, bnd, rp, degree_infos, gradient_precomputed,
+                                         stab_precomputed, behavior, stab_manager, fields );
+        ni.updateInitInfo( iinfo );
 
         m_convergence = false;
 
@@ -127,8 +145,8 @@ class SplittingStep {
             AssemblyInfo assembly_info;
             try {
                 assembly_info =
-                    splitting_iter.assemble( msh, bnd, rp, degree_infos, lf, gradient_precomputed,
-                                             stab_precomputed, behavior, stab_manager, fields );
+                    nlIter->assemble( msh, bnd, rp, degree_infos, lf, gradient_precomputed,
+                                      stab_precomputed, behavior, stab_manager, fields );
             } catch ( const std::invalid_argument &ia ) {
                 std::cerr << "Invalid argument: " << ia.what() << std::endl;
                 m_convergence = false;
@@ -140,7 +158,7 @@ class SplittingStep {
             ni.updateAssemblyInfo( assembly_info );
             // test convergence
             try {
-                m_convergence = splitting_iter.convergence( rp, iter, fields );
+                m_convergence = nlIter->convergence( rp, iter, fields );
             } catch ( const std::runtime_error &ia ) {
                 std::cerr << "Runtime error: " << ia.what() << std::endl;
                 m_convergence = false;
@@ -150,7 +168,7 @@ class SplittingStep {
             }
 
             if ( m_convergence ) {
-                ni.m_assembly_info.m_time_postpro += splitting_iter.post_convergence(
+                ni.m_assembly_info.m_time_postpro += nlIter->post_convergence(
                     msh, bnd, rp, degree_infos, stab_precomputed, stab_manager, fields );
                 tc.toc();
                 ni.m_time_newton = tc.elapsed();
@@ -158,11 +176,11 @@ class SplittingStep {
             }
 
             // solve the global system
-            SolveInfo solve_info = splitting_iter.solve( rp.getLinearSolver() );
+            SolveInfo solve_info = nlIter->solve( rp.getLinearSolver() );
             ni.updateSolveInfo( solve_info );
             // update unknowns
             ni.m_assembly_info.m_time_postpro +=
-                splitting_iter.postprocess( msh, bnd, rp, degree_infos, fields );
+                nlIter->postprocess( msh, bnd, rp, degree_infos, fields );
 
             ni.m_iter++;
         }

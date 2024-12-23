@@ -108,6 +108,8 @@ class dynamic_computation {
 
     double time_dyna;
 
+    dynamic_computation() : m_scheme( DynamicType::STATIC ) {}
+
     dynamic_computation( const NonLinearParameters< scalar_type > &rp ) {
         m_param = rp.getUnsteadyParameters();
         m_scheme = rp.getUnsteadyScheme();

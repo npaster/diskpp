@@ -177,14 +177,18 @@ class MaterialData {
         std::cout << "* Lambda: " << getLambda() << std::endl;
         std::cout << "* Mu: " << getMu() << std::endl;
         std::cout << "* Rho: " << getRho() << std::endl;
-        std::cout << "* Traction Curve:" << std::endl;
-        std::cout << "(p, R(p))" << std::endl;
-        for ( auto &pt : m_Rp_curve )
-            std::cout << "( " << pt.getP() << ", " << pt.getRp() << " )" << std::endl;
-        std::cout << "* Mfront parameters:" << std::endl;
-        std::cout << "(parameter, value)" << std::endl;
-        for ( auto &[param, value] : m_mfront_param )
-            std::cout << "( " << param << ", " << value << " )" << std::endl;
+        if ( !m_Rp_curve.empty() ) {
+            std::cout << "* Traction Curve:" << std::endl;
+            std::cout << "(p, R(p))" << std::endl;
+            for ( auto &pt : m_Rp_curve )
+                std::cout << "( " << pt.getP() << ", " << pt.getRp() << " )" << std::endl;
+        }
+        if ( !m_mfront_param.empty() ) {
+            std::cout << "* Mfront parameters:" << std::endl;
+            std::cout << "(parameter, value)" << std::endl;
+            for ( auto &[param, value] : m_mfront_param )
+                std::cout << "( " << param << ", " << value << " )" << std::endl;
+        }
     }
 };
 

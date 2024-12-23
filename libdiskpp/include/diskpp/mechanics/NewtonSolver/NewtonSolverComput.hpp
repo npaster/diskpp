@@ -170,9 +170,9 @@ class mechanical_computation {
      */
 
     std::pair< static_matrix_type, static_tensor_type >
-    compute_behavior( behavior_type &behavior, const size_t &cell_id, const size_t &qp_id,
-                      const static_matrix_type &RkT_iqn, const bool small_def,
-                      const bool use_tangent_modulus ) const {
+    _compute_behavior( behavior_type &behavior, const size_t &cell_id, const size_t &qp_id,
+                       const static_matrix_type &RkT_iqn, const bool small_def,
+                       const bool use_tangent_modulus ) const {
         if ( small_def ) {
             return behavior.compute_whole( cell_id, qp_id, RkT_iqn, use_tangent_modulus );
         } else {
@@ -181,12 +181,15 @@ class mechanical_computation {
         }
     }
 
-    void compute_rigidity( const static_tensor_type &Cep,
-                           const eigen_compatible_stdvector< static_matrix_type > &gphi,
-                           const bool &small_def, const scalar_type weight,
-                           const size_t grad_dim_dofs, const size_t grad_basis_size,
-                           matrix_type &AT ) const {
+    void _compute_rigidity( const static_tensor_type &Cep,
+                            const eigen_compatible_stdvector< static_matrix_type > &gphi,
+                            const bool &small_def, const scalar_type weight,
+                            const size_t grad_dim_dofs, const size_t grad_basis_size,
+                            matrix_type &AT ) {
         // std::cout << "module : " << Cep << std::endl;
+        timecounter tc;
+        tc.tic();
+
         if ( small_def ) {
             // upper part
             for ( size_t j = 0; j < grad_basis_size; j++ ) {
@@ -227,10 +230,15 @@ class mechanical_computation {
                 }
             }
         }
+        tc.toc();
+        time_rigi += tc.elapsed();
     }
 
-    void symmetrized_rigidity_matrix( const size_t grad_basis_size, matrix_type &AT,
-                                      const bool small_def ) const {
+    void _symmetrized_rigidity_matrix( const size_t grad_basis_size, matrix_type &AT,
+                                       const bool small_def ) {
+        timecounter tc;
+        tc.tic();
+
         if ( small_def ) {
             // lower part AT
             for ( size_t j = 0; j < grad_basis_size; j++ )
@@ -242,21 +250,32 @@ class mechanical_computation {
                 for ( size_t j = i; j < grad_basis_size; j++ )
                     AT( i, j ) = AT( j, i );
         }
+        tc.toc();
+        time_rigi += tc.elapsed();
     }
 
     template < typename Function >
     void compute_external_forces( const mesh_type &msh, const cell_type &cl, const Function &load,
                                   const size_t cell_degree ) {
+        timecounter tc;
+        tc.tic();
+
         // compute (f,v)_T
         const auto cb = make_vector_monomial_basis( msh, cl, cell_degree );
         RTF.head( cb.size() ) += make_rhs( msh, cl, cb, load, 1 );
+
+        tc.toc();
+        time_load += tc.elapsed();
     }
 
     void compute_internal_forces( const static_matrix_type &stress,
                                   const eigen_compatible_stdvector< static_matrix_type > &gphi,
                                   const bool &small_def, const scalar_type weight,
                                   const size_t grad_dim_dofs, const size_t grad_basis_size,
-                                  vector_type &aT ) const {
+                                  vector_type &aT ) {
+        timecounter tc;
+        tc.tic();
+
         //   std::cout << "stress" << std::endl;
         //   std::cout << stress << std::endl;
         const static_matrix_type stress_qp = weight * stress;
@@ -290,6 +309,8 @@ class mechanical_computation {
                 }
             }
         }
+        tc.toc();
+        time_fint += tc.elapsed();
     }
 
     void compute_contact_terms( const mesh_type &msh, const cell_type &cl, const bnd_type &bnd,
@@ -328,10 +349,11 @@ class mechanical_computation {
     matrix_type K_int;
     vector_type RTF;
     vector_type F_int;
-    double time_law;
+    double time_law, time_load, time_fint, time_rigi;
     double time_contact;
 
-    mechanical_computation( void ) {
+    mechanical_computation( void )
+        : time_law( 0. ), time_load( 0. ), time_contact( 0. ), time_fint( 0. ), time_rigi( 0. ) {
         if ( dimension == 2 )
             two_dim = true;
         else if ( dimension == 3 )
@@ -347,8 +369,6 @@ class mechanical_computation {
                   const TimeStep< scalar_type > &time_step, behavior_type &behavior,
                   StabCoeffManager< scalar_type > &stab_manager, const bool small_def,
                   const bool tangent_matix = true ) {
-        time_law = 0.0;
-        time_contact = 0.0;
         timecounter tc;
 
         const auto cell_infos = degree_infos.cellDegreeInfo( msh, cl );
@@ -421,21 +441,19 @@ class mechanical_computation {
             // Compute behavior
             // if small_def stress = Cauchy else stress = PK1
             tc.tic();
-
             const auto [stress, Cep] =
-                compute_behavior( behavior, cell_id, i_qp, RkT_iqn, small_def, tangent_matix );
+                _compute_behavior( behavior, cell_id, i_qp, RkT_iqn, small_def, tangent_matix );
+            tc.toc();
+            time_law += tc.elapsed();
             // std::cout << "stress: " << stress.norm() << std::endl;
             // std::cout << stress << std::endl;
             // std::cout << "Cep: " << Cep.norm() << std::endl;
             // std::cout << Cep << std::endl;
-            tc.toc();
-            time_law += tc.elapsed();
 
             if ( tangent_matix ) {
-
                 // Compute rigidity
-                this->compute_rigidity( Cep, gphi, small_def, qp.weight(), grad_dim_dofs,
-                                        grad_basis_size, AT );
+                this->_compute_rigidity( Cep, gphi, small_def, qp.weight(), grad_dim_dofs,
+                                         grad_basis_size, AT );
             }
 
             // Compute internal force
@@ -489,18 +507,25 @@ class mechanical_computation {
         if ( tangent_matix ) {
 
             // Symmetrize rigidity matrix
-            this->symmetrized_rigidity_matrix( grad_basis_size, AT, small_def );
+            this->_symmetrized_rigidity_matrix( grad_basis_size, AT, small_def );
 
             // std::cout << "AT: " << AT.norm() << std::endl;
             // std::cout << AT << std::endl;
             // std::cout << "aT: " << aT.norm() << std::endl;
 
+            tc.tic();
             K_int = RkT.transpose() * AT * RkT;
+            tc.toc();
+            time_rigi += tc.elapsed();
         }
+        tc.tic();
         F_int = RkT.transpose() * aT;
         RTF -= F_int;
+        tc.toc();
+        time_fint += tc.elapsed();
 
         // Compute contact terms
+
         this->compute_contact_terms( msh, cl, bnd, rp, cell_infos, RkT, uTF, time_step, behavior );
 
         // std::cout << "K: " << K_int.norm() << std::endl;
@@ -515,6 +540,124 @@ class mechanical_computation {
         assert( K_int.rows() == num_total_dofs );
         assert( K_int.cols() == num_total_dofs );
         assert( RTF.rows() == num_total_dofs );
+    }
+
+    void compute_rigidity_matrix( const mesh_type &msh, const cell_type &cl, const bnd_type &bnd,
+                                  const param_type &rp,
+                                  const MeshDegreeInfo< mesh_type > &degree_infos,
+                                  const matrix_type &RkT, const vector_type &uTF,
+                                  const TimeStep< scalar_type > &time_step, behavior_type &behavior,
+                                  const bool small_def, bool use_tangente = true ) {
+        timecounter tc;
+
+        const auto cell_infos = degree_infos.cellDegreeInfo( msh, cl );
+        const auto faces_infos = cell_infos.facesDegreeInfo();
+
+        const auto cell_degree = cell_infos.cell_degree();
+        const auto grad_degree = cell_infos.grad_degree();
+
+        const auto cell_basis_size = vector_basis_size( cell_degree, dimension, dimension );
+
+        size_t gb_size = 0;
+        if ( small_def ) {
+            gb_size = sym_matrix_basis_size( grad_degree, dimension, dimension );
+        } else {
+            gb_size = matrix_basis_size( grad_degree, dimension, dimension );
+        }
+
+        const auto grad_basis_size = gb_size;
+
+        const auto num_faces_dofs = vector_faces_dofs( msh, faces_infos );
+        const auto num_total_dofs = cell_basis_size + num_faces_dofs;
+        const auto grad_dim_dofs = num_grad_dim_dofs( small_def );
+
+        matrix_type AT = matrix_type::Zero( grad_basis_size, grad_basis_size );
+
+        RTF = vector_type::Zero( num_total_dofs );
+
+        assert( RkT.cols() == uTF.rows() );
+        assert( RkT.rows() == grad_basis_size );
+
+        // std::cout << "sol" << std::endl;
+        // std::cout << uTF.transpose() << std::endl;
+
+        const vector_type RkT_uTF = RkT * uTF;
+
+        // std::cout << "RkT: " << RkT.norm() << std::endl;
+        // std::cout << "RkT_Utf: " << RkT_uTF.transpose() << std::endl;
+
+        const auto gb = make_matrix_monomial_basis( msh, cl, grad_degree );
+        const auto gbs = make_sym_matrix_monomial_basis( msh, cl, grad_degree );
+
+        eigen_compatible_stdvector< static_matrix_type > gphi;
+
+        const auto cell_id = msh.lookup( cl );
+        const auto nb_qp = behavior.numberOfQP( cell_id );
+
+        scalar_type beta_comp = 0.0, total_weight = 0.0;
+        for ( int i_qp = 0; i_qp < nb_qp; i_qp++ ) {
+            // Compute gradient basis function
+            const auto qp = behavior.quadrature_point( cell_id, i_qp );
+            // std::cout << "qp: " << qp.point() << std::endl;
+
+            if ( small_def ) {
+                gphi = gbs.eval_functions( qp.point() );
+            } else {
+                gphi = gb.eval_functions( qp.point() );
+            }
+
+            assert( gphi.size() == grad_basis_size );
+
+            // Compute local gradient and norm
+            // RkT_iqn = Grad_sym for small def else RkT_iqn = Grad
+            const auto RkT_iqn = eval( RkT_uTF, gphi );
+
+            // std::cout << "RkT_iqn" << std::endl;
+            // std::cout << RkT_iqn << std::endl;
+
+            // Compute behavior
+            // if small_def stress = Cauchy else stress = PK1
+            tc.tic();
+            const auto [stress, Cep] = this->_compute_behavior( behavior, cell_id, i_qp, RkT_iqn,
+                                                                small_def, use_tangente );
+            tc.toc();
+            time_law += tc.elapsed();
+            // std::cout << "stress: " << stress.norm() << std::endl;
+            // std::cout << stress << std::endl;
+            // std::cout << "Cep: " << Cep.norm() << std::endl;
+            // std::cout << Cep << std::endl;
+
+            // Compute rigidity
+            this->_compute_rigidity( Cep, gphi, small_def, qp.weight(), grad_dim_dofs,
+                                     grad_basis_size, AT );
+        }
+
+        // Symmetrize rigidity matrix
+        this->_symmetrized_rigidity_matrix( grad_basis_size, AT, small_def );
+
+        // std::cout << "AT: " << AT.norm() << std::endl;
+        // std::cout << AT << std::endl;
+        // std::cout << "aT: " << aT.norm() << std::endl;
+
+        tc.tic();
+        K_int = RkT.transpose() * AT * RkT;
+        tc.toc();
+        time_rigi += tc.elapsed();
+        // Compute contact terms
+        // this->compute_contact_terms( msh, cl, bnd, rp, cell_infos, RkT, uTF, time_step,
+        // behavior );
+
+        // std::cout << "K: " << K_int.norm() << std::endl;
+        // // std::cout << K_int << std::endl;
+        // std::cout << "F_int: " << F_int.norm() << std::endl;
+        // std::cout << F_int.transpose() << std::endl;
+        // std::cout << "RTF: " << RTF.norm() << std::endl;
+        // std::cout << RTF.transpose() << std::endl;
+
+        // throw std::runtime_error("");
+
+        assert( K_int.rows() == num_total_dofs );
+        assert( K_int.cols() == num_total_dofs );
     }
 };
 } // namespace mechanics

@@ -30,19 +30,14 @@
 
 #include "diskpp/adaptivity/adaptivity.hpp"
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
-#include "diskpp/mechanics/NewtonSolver/Fields.hpp"
 #include "diskpp/mechanics/NewtonSolver/NewtonSolverInformations.hpp"
-#include "diskpp/mechanics/NewtonSolver/NewtonStep.hpp"
-#include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
-#include "diskpp/mechanics/NewtonSolver/SplittingStep.hpp"
-#include "diskpp/mechanics/NewtonSolver/StabilizationManager.hpp"
-#include "diskpp/mechanics/NewtonSolver/TimeManager.hpp"
-#include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
+#include "diskpp/mechanics/NewtonSolver/NonLinearStep.hpp"
 #include "diskpp/mechanics/behaviors/tensor_conversion.hpp"
 #include "diskpp/mechanics/stress_tensors.hpp"
 #include "diskpp/methods/hho"
 #include "diskpp/output/gmshConvertMesh.hpp"
 #include "diskpp/output/gmshDisk.hpp"
+#include "diskpp/output/plotOverTime.hpp"
 #include "diskpp/output/postMesh.hpp"
 
 #include <iostream>
@@ -73,6 +68,7 @@ template < typename Mesh >
 class NonLinearSolver {
     typedef Mesh mesh_type;
     typedef typename mesh_type::coordinate_type scalar_type;
+    typedef typename mesh_type::point_type point_type;
 
     typedef dynamic_matrix< scalar_type > matrix_type;
     typedef dynamic_vector< scalar_type > vector_type;
@@ -80,6 +76,7 @@ class NonLinearSolver {
     typedef NonLinearParameters< scalar_type > param_type;
     typedef vector_boundary_conditions< mesh_type > bnd_type;
     typedef Behavior< mesh_type > behavior_type;
+    typedef PlotPointOverTime< mesh_type > ppt_type;
 
     bnd_type m_bnd;
     const mesh_type &m_msh;
@@ -92,6 +89,8 @@ class NonLinearSolver {
     std::vector< matrix_type > m_gradient_precomputed, m_stab_precomputed;
 
     PostMesh< mesh_type > m_post_mesh;
+
+    std::vector< ppt_type > m_ppt;
 
     bool m_verbose, m_convergence;
 
@@ -204,6 +203,22 @@ class NonLinearSolver {
         }
     }
 
+    // compute l2 error
+    auto _eval( const FieldName &name, const int cell_id, const point_type &pt ) {
+
+        const auto field = m_fields.getCurrentField( name );
+
+        const auto cl = m_msh[cell_id];
+
+        const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
+        const auto cb = make_vector_monomial_basis( m_msh, cl, di.cell_degree() );
+        const vector_type x = field.at( cell_id );
+
+        const auto phi = cb.eval_functions( pt );
+
+        return eval( x, phi );
+    }
+
   public:
     NonLinearSolver( const mesh_type &msh, const bnd_type &bnd, const param_type &rp )
         : m_msh( msh ),
@@ -254,8 +269,10 @@ class NonLinearSolver {
         }
 
         // Initialization
-        if ( m_verbose )
+        if ( m_verbose ) {
+            std::cout << std::endl;
             std::cout << "Initialization ..." << std::endl;
+        }
         this->init_degree( cell_degree, face_degree, grad_degree );
         this->init();
     }
@@ -309,10 +326,13 @@ class NonLinearSolver {
      */
     void addBehavior( const size_t deformation, const size_t law ) {
         if ( m_verbose ) {
+            std::cout << std::endl;
             std::cout << "Add behavior ..." << std::endl;
         }
 
+        const auto mater = m_behavior.getMaterialData();
         m_behavior = behavior_type( m_msh, 2 * m_rp.m_grad_degree, deformation, law );
+        m_behavior.addMaterialData( mater );
 
         if ( m_verbose ) {
             std::cout << "** Deformations: " << m_behavior.getDeformationName() << std::endl;
@@ -332,10 +352,13 @@ class NonLinearSolver {
     void addBehavior( const std::string &filename, const std::string &law,
                       const mgis::behaviour::Hypothesis h ) {
         if ( m_verbose ) {
+            std::cout << std::endl;
             std::cout << "Add behavior ..." << std::endl;
         }
 
+        const auto mater = m_behavior.getMaterialData();
         m_behavior = behavior_type( m_msh, 2 * m_rp.m_grad_degree, filename, law, h );
+        m_behavior.addMaterialData( mater );
 
         if ( m_verbose ) {
             std::cout << "** Deformations: " << m_behavior.getDeformationName() << std::endl;
@@ -354,6 +377,7 @@ class NonLinearSolver {
     void addBehavior( const behavior_type &behavior ) {
         m_behavior = behavior;
         if ( m_verbose ) {
+            std::cout << std::endl;
             std::cout << "Add behavior ..." << std::endl;
             std::cout << "** Number of integration points: " << m_behavior.numberOfQP()
                       << std::endl;
@@ -374,6 +398,35 @@ class NonLinearSolver {
         }
     }
 
+    void addPointPlot( const point_type &pt, const std::string &filename ) {
+        auto ppt = ppt_type( m_msh, pt );
+
+        std::vector< std::string > cmps;
+        cmps.push_back( "ux" );
+        cmps.push_back( "uy" );
+        if ( mesh_type::dimension == 3 ) {
+            cmps.push_back( "uz" );
+        }
+
+        if ( m_rp.isUnsteady() ) {
+            cmps.push_back( "vx" );
+            cmps.push_back( "vy" );
+            if ( mesh_type::dimension == 3 ) {
+                cmps.push_back( "vz" );
+            }
+            cmps.push_back( "ax" );
+            cmps.push_back( "ay" );
+            if ( mesh_type::dimension == 3 ) {
+                cmps.push_back( "az" );
+            }
+        }
+
+        ppt.addComponents( cmps );
+        ppt.setFilename( filename );
+
+        m_ppt.push_back( ppt );
+    }
+
     template < typename LoadFunction >
     SolverInfo compute( const LoadFunction &lf ) {
         // Precomputation
@@ -391,7 +444,25 @@ class NonLinearSolver {
             m_rp.m_dyna_para["rho"] = m_behavior.getMaterialData().getRho();
         }
 
+        // save first state;
+        for ( auto &ppt : m_ppt ) {
+            std::vector< static_vector< scalar_type, mesh_type::dimension > > vals;
+            auto depl = _eval( FieldName::DEPL_CELLS, ppt.getCellId(), ppt.getPoint() );
+            vals.push_back( depl );
+
+            if ( m_rp.isUnsteady() ) {
+                auto vite = _eval( FieldName::VITE_CELLS, ppt.getCellId(), ppt.getPoint() );
+                vals.push_back( vite );
+                auto acce = _eval( FieldName::ACCE_CELLS, ppt.getCellId(), ppt.getPoint() );
+                vals.push_back( acce );
+            }
+            ppt.addValues( 0.0, vals );
+        }
+
         SolverInfo si;
+        ppt_type stat;
+        stat.setFilename( "statistics.csv" );
+
         timecounter ttot;
         ttot.tic();
 
@@ -430,35 +501,14 @@ class NonLinearSolver {
 
             m_bnd.setTime( current_time );
 
-            switch ( m_rp.getNonLinearSolver() ) {
-            case NonLinearSolverType::NEWTON: {
-                // Newton step
-                NewtonStep< mesh_type > newton_step( m_rp );
+            NonLinearStep< mesh_type > nlStep( m_rp );
 
-                newton_info = newton_step.compute(
-                    m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step, m_gradient_precomputed,
-                    m_stab_precomputed, m_behavior, m_stab_manager, m_fields );
+            newton_info = nlStep.compute( m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step,
+                                          m_gradient_precomputed, m_stab_precomputed, m_behavior,
+                                          m_stab_manager, m_fields );
 
-                // Test convergence
-                m_convergence = newton_step.convergence();
-                break;
-            }
-            case NonLinearSolverType::SPLITTING: {
-                // Newton step
-                SplittingStep< mesh_type > newton_step( m_rp );
-
-                newton_info = newton_step.compute(
-                    m_msh, m_bnd, m_rp, m_degree_infos, lf, current_step, m_gradient_precomputed,
-                    m_stab_precomputed, m_behavior, m_stab_manager, m_fields );
-
-                // Test convergence
-                m_convergence = newton_step.convergence();
-                break;
-            }
-            default:
-                throw std::runtime_error( "Unexpected NonLinearSolver." );
-                break;
-            }
+            // Test convergence
+            m_convergence = nlStep.convergence();
 
             //  Newton correction
             si.updateInfo( newton_info );
@@ -487,6 +537,7 @@ class NonLinearSolver {
                     }
 
                     list_time_step.splitCurrentTimeStep();
+                    m_fields.restore();
                 }
             } else {
                 list_time_step.removeCurrentTimeStep();
@@ -499,8 +550,8 @@ class NonLinearSolver {
                     std::string name = "result" + std::to_string( mesh_type::dimension ) + "D_t" +
                                        std::to_string( current_time ) + "_";
 
-                    this->output_discontinuous_displacement( name + "depl_disc.msh" );
-                    this->output_continuous_displacement( name + "depl_cont.msh" );
+                    this->output_discontinuous_field( name + "depl_disc.msh", DEPL_CELLS );
+                    this->output_continuous_field( name + "depl_cont.msh", DEPL_CELLS );
                     this->output_CauchyStress_GP( name + "CauchyStress_GP.msh" );
                     this->output_CauchyStress_GP( name + "CauchyStress_GP_def.msh", true );
                     this->output_discontinuous_deformed( name + "deformed_disc.msh" );
@@ -508,13 +559,42 @@ class NonLinearSolver {
                     this->output_stabCoeff( name + "stabCoeff.msh" );
                     this->output_equivalentPlasticStrain_GP( name +
                                                              "equivalentPlasticStrain_GP.msh" );
+                    if ( m_rp.isUnsteady() ) {
+                        this->output_discontinuous_field( name + "vite_disc.msh", VITE_CELLS );
+                        this->output_continuous_field( name + "vite_cont.msh", VITE_CELLS );
+                        this->output_discontinuous_field( name + "acce_disc.msh", ACCE_CELLS );
+                        this->output_continuous_field( name + "acce_cont.msh", ACCE_CELLS );
+                    }
 
                     m_rp.m_time_save.pop_front();
                     if ( m_rp.m_time_save.empty() )
                         time_saving = false;
                 }
+
+                // Compute observation
+                for ( auto &ppt : m_ppt ) {
+                    std::vector< static_vector< scalar_type, mesh_type::dimension > > vals;
+                    auto depl = _eval( FieldName::DEPL_CELLS, ppt.getCellId(), ppt.getPoint() );
+                    vals.push_back( depl );
+
+                    if ( m_rp.isUnsteady() ) {
+                        auto vite = _eval( FieldName::VITE_CELLS, ppt.getCellId(), ppt.getPoint() );
+                        vals.push_back( vite );
+                        auto acce = _eval( FieldName::ACCE_CELLS, ppt.getCellId(), ppt.getPoint() );
+                        vals.push_back( acce );
+                    }
+                    ppt.addValues( current_time, vals );
+                }
+
+                // Update stats
+                stat.addValues( current_time, newton_info.getValues() );
             }
         }
+
+        for ( auto &ppt : m_ppt ) {
+            ppt.write();
+        }
+        stat.write();
 
         si.m_time_step = list_time_step.numberOfTimeStep();
 
@@ -661,13 +741,13 @@ class NonLinearSolver {
         return std::sqrt( err_dof );
     }
 
-    void output_discontinuous_displacement( const std::string &filename ) const {
+    void output_discontinuous_field( const std::string &filename, const FieldName &name ) const {
         gmsh::Gmesh gmsh( mesh_type::dimension );
 
         std::vector< gmsh::Data > data;             // create data (not used)
         const std::vector< gmsh::SubData > subdata; // create subdata to save soution at gauss point
 
-        const auto depl_cells = m_fields.getCurrentField( FieldName::DEPL_CELLS );
+        const auto depl_cells = m_fields.getCurrentField( name );
 
         int cell_i = 0;
         int nb_nodes = 0;
@@ -707,7 +787,7 @@ class NonLinearSolver {
         nodedata.saveNodeData( filename, gmsh );
     }
 
-    void output_continuous_displacement( const std::string &filename ) const {
+    void output_continuous_field( const std::string &filename, const FieldName &name ) const {
         const auto dimension = mesh_type::dimension;
 
         gmsh::Gmesh gmsh = convertMesh( m_post_mesh );

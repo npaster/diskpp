@@ -172,15 +172,19 @@ error_type run_linear_elasticity_solver( const Mesh< T, 2, Storage > &msh,
         disk::mechanics::FieldName::ACCE_CELLS,
         [acceleration]( const disk::point< T, 2 > &p ) { return acceleration( p, 0.0 ); } );
 
+    nl.addPointPlot( { 0.5, 0.5 }, "pointA.csv" );
+
     if ( nl.verbose() ) {
         std::cout << "Solving the problem ..." << '\n';
     }
 
-    SolverInfo solve_info = nl.compute( load );
+    disk::mechanics::SolverInfo solve_info = nl.compute( load );
 
     if ( nl.verbose() ) {
         solve_info.printInfo();
     }
+
+    nl.output_discontinuous_field( "depl_disc.msh", disk::mechanics::FieldName::DEPL_CELLS );
 
     error_type error;
     error.h = average_diameter( msh );
@@ -262,7 +266,7 @@ error_type run_linear_elasticity_solver( const Mesh< T, 3, Storage > &msh,
         std::cout << "Solving the problem ..." << '\n';
     }
 
-    SolverInfo solve_info = nl.compute( load );
+    disk::mechanics::SolverInfo solve_info = nl.compute( load );
 
     if ( nl.verbose() ) {
         solve_info.printInfo();
@@ -644,10 +648,10 @@ int main( int argc, char **argv ) {
     rp.setTimeStep( 1.0, 200 );
 
     rp.setLinearSolver( disk::solvers::LinearSolverType::PARDISO_LDLT );
-    rp.setNonLinearSolver( disk::mechanics::NonLinearSolverType::SPLITTING );
-    rp.setConvergenceCriteria( 10e-10 );
+    rp.setNonLinearSolver( disk::mechanics::NonLinearSolverType::NEWTON );
+    rp.setMaximumNumberNLIteration( 1000 );
 
-    rp.setMaximumNumberNLIteration( 2000 );
+    rp.setConvergenceCriteria( 1.e-7 );
 
     argc -= optind;
     argv += optind;

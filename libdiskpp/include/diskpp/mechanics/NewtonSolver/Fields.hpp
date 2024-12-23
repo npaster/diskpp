@@ -81,6 +81,25 @@ T norm( const std::vector< dynamic_vector< T > > &field ) {
     return std::sqrt( nm );
 };
 
+template < typename T >
+dynamic_vector< T > asVector( const std::vector< dynamic_vector< T > > &field ) {
+    int size = 0;
+
+    for ( auto &vect : field ) {
+        size += vect.size();
+    }
+
+    dynamic_vector< T > ret = dynamic_vector< T >( size );
+
+    size = 0;
+    for ( auto &vect : field ) {
+        ret.segment( size, vect.size() ) = vect;
+        size += vect.size();
+    }
+
+    return ret;
+}
+
 /**
  * @brief Field at one time.
  *
@@ -290,6 +309,8 @@ class MultiTimeField {
             m_fields.at( i ) = m_fields.at( i - 1 );
         }
     }
+
+    void restore() { m_fields.at( 0 ) = m_fields.at( 1 ); }
 };
 } // namespace mechanics
 

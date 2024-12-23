@@ -206,7 +206,7 @@ error_type run_tresca_solver( Mesh< T, 2, Storage > &msh,
         std::cout << "Solving the problem ..." << '\n';
     }
 
-    SolverInfo solve_info = nl.compute( load );
+    disk::mechanics::SolverInfo solve_info = nl.compute( load );
 
     if ( nl.verbose() ) {
         solve_info.printInfo();
@@ -288,7 +288,7 @@ error_type run_tresca_solver( const Mesh< T, 3, Storage > &msh,
 
     nl.initial_guess( sol );
 
-    SolverInfo solve_info = nl.compute( load );
+    disk::mechanics::SolverInfo solve_info = nl.compute( load );
 
     if ( nl.verbose() ) {
         solve_info.printInfo();

@@ -57,7 +57,9 @@ enum DynamicType : int {
 
 enum NonLinearSolverType {
     NEWTON,
-    SPLITTING,
+    QNEWTON_BDIAG_JACO,
+    QNEWTON_BDIAG_STAB,
+    QNEWTON_BDIAG_ELAS,
 };
 
 std::string StabilizationName( const StabilizationType &type ) {
@@ -186,8 +188,16 @@ std::string NonLinearSolverName( const NonLinearSolverType &type ) {
         return "NEWTON";
         break;
     }
-    case SPLITTING: {
-        return "SPLITTING";
+    case QNEWTON_BDIAG_JACO: {
+        return "QNEWTON_BDIAG_JACO";
+        break;
+    }
+    case QNEWTON_BDIAG_STAB: {
+        return "QNEWTON_BDIAG_STAB";
+        break;
+    }
+    case QNEWTON_BDIAG_ELAS: {
+        return "QNEWTON_BDIAG_ELAS";
         break;
     }
     default:
@@ -354,16 +364,6 @@ class NonLinearParameters {
                     m_time_save.push_back( time );
                     line++;
                 }
-            } else if ( keyword == "Stabilization" ) {
-                std::string logical;
-                ifs >> logical;
-                line++;
-                if ( logical == "true" || logical == "True" )
-                    m_stab = true;
-                else {
-                    m_stab = false;
-                    m_stab_type = NO;
-                }
             } else if ( keyword == "AdaptativeStabilization" ) {
                 std::string logical;
                 ifs >> logical;
@@ -375,6 +375,7 @@ class NonLinearParameters {
                 std::string type;
                 ifs >> type;
                 line++;
+                m_stab = true;
                 if ( type == "HDG" )
                     m_stab_type = HDG;
                 else if ( type == "HHO" )
@@ -383,8 +384,10 @@ class NonLinearParameters {
                     m_stab_type = HHO_SYM;
                 else if ( type == "DG" )
                     m_stab_type = DG;
-                else if ( type == "NO" )
+                else if ( type == "NO" ) {
+                    m_stab = false;
                     m_stab_type = NO;
+                }
             } else if ( keyword == "Beta" ) {
                 ifs >> m_beta;
                 line++;
@@ -436,6 +439,12 @@ class NonLinearParameters {
                     m_dyna_type = STATIC;
                 else if ( type == "NEWMARK" )
                     m_dyna_type = NEWMARK;
+                else if ( type == "LEAP_FROG" )
+                    m_dyna_type = LEAP_FROG;
+                else if ( type == "CRANK_NICOLSON" )
+                    m_dyna_type = CRANK_NICOLSON;
+                else if ( type == "THETA" )
+                    m_dyna_type = THETA;
             } else {
                 std::cout << "Error parsing Parameters file:" << keyword << " line: " << line
                           << std::endl;

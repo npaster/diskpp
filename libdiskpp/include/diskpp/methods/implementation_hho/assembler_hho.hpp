@@ -4113,6 +4113,10 @@ class vector_mechanics_hho_assembler
                     const auto fcj           = fcs[face_j];
                     const auto n_face_dofs_j = num_face_dofs(fcs_id[face_j]);
 
+                    if ( lhs.rows() == 0 || lhs.cols() == 0 ) {
+                        throw std::runtime_error( "Empty matrix" );
+                    }
+
                     matrix_type mat_Fj =
                       lhs.block(offset_faces[face_j], offset_faces[face_i], n_face_dofs_j, n_face_dofs);
 
@@ -4325,6 +4329,10 @@ class vector_mechanics_hho_assembler
                 for (size_t face_j = 0; face_j < fcs.size(); face_j++) {
                     const auto fcj = fcs[face_j];
                     const auto n_face_dofs_j = num_face_dofs(fcs_id[face_j]);
+
+                    if ( lhs.rows() == 0 || lhs.cols() == 0 ) {
+                        throw std::runtime_error( "Empty matrix" );
+                    }
 
                     matrix_type mat_Fj = lhs.block(offset_faces[face_j], offset_faces[face_i],
                                                    n_face_dofs_j, n_face_dofs);
@@ -4604,14 +4612,14 @@ class vector_mechanics_hho_assembler
         assert(lhs.rows() == rhs.size());
         assert(rhs.size() == rhs_bc.size());
 
+        const auto size = rhs.size();
+
 #ifdef FILL_COLMAJOR
-        for (size_t j = 0; j < lhs.rows(); j++)
-        {
+        for ( size_t j = 0; j < size; j++ ) {
             if (!asm_map[j].assemble())
                 continue;
 
-            for (size_t i = 0; i < lhs.cols(); i++)
-            {
+            for ( size_t i = 0; i < size; i++ ) {
                 if (asm_map[i].assemble())
                     triplets.push_back(Triplet<scalar_type>(asm_map[i], asm_map[j], lhs(i, j)));
             }
@@ -4619,13 +4627,11 @@ class vector_mechanics_hho_assembler
             duos.push_back(std::make_pair(asm_map[i], rhs(i) - rhs_bc(i)));
         }
 #else
-        for (size_t i = 0; i < lhs.rows(); i++)
-        {
+        for ( size_t i = 0; i < size; i++ ) {
             if (!asm_map[i].assemble())
                 continue;
 
-            for (size_t j = 0; j < lhs.cols(); j++)
-            {
+            for ( size_t j = 0; j < size; j++ ) {
                 if (asm_map[j].assemble())
                     triplets.push_back(Triplet<scalar_type>(asm_map[i], asm_map[j], lhs(i, j)));
             }
@@ -4643,12 +4649,14 @@ class vector_mechanics_hho_assembler
         assert(lhs.rows() == rhs.size());
         assert(rhs.size() == rhs_bc.size());
 
+        const auto size = lhs.rows();
+
 #ifdef FILL_COLMAJOR
-        for (size_t j = 0; j < lhs.rows(); j++) {
+        for ( size_t j = 0; j < size; j++ ) {
             if (!asm_map[j].assemble())
                 continue;
 
-            for (size_t i = 0; i < lhs.cols(); i++) {
+            for ( size_t i = 0; i < size; i++ ) {
                 if (asm_map[i].assemble())
                     triplets.push_back(Triplet<scalar_type>(asm_map[i], asm_map[j], lhs(i, j)));
             }
@@ -4656,11 +4664,11 @@ class vector_mechanics_hho_assembler
             duos.push_back(std::make_pair(asm_map[i], rhs(i) - rhs_bc(i)));
         }
 #else
-        for (size_t i = 0; i < lhs.rows(); i++) {
+        for ( size_t i = 0; i < size; i++ ) {
             if (!asm_map[i].assemble())
                 continue;
 
-            for (size_t j = 0; j < lhs.cols(); j++) {
+            for ( size_t j = 0; j < size; j++ ) {
                 if (asm_map[j].assemble())
                     triplets.push_back(Triplet<scalar_type>(asm_map[i], asm_map[j], lhs(i, j)));
             }
@@ -4674,25 +4682,34 @@ class vector_mechanics_hho_assembler
                       const matrix_type &lhs, const vector_type &rhs, int di = 1) {
         const auto [rhs_bc, asm_map] = create_local_connectivity_lin(msh, cl, bnd, lhs, rhs, di);
 
-        assert(lhs.rows() == lhs.cols());
-        assert(lhs.rows() == rhs.size());
-        assert(rhs.size() == rhs_bc.size());
+        const auto size = rhs.size();
+        assert( rhs.size() == rhs_bc.size() );
 
-#ifdef FILL_COLMAJOR
-        for (size_t j = 0; j < lhs.rows(); j++) {
-            if (!asm_map[j].assemble())
-                continue;
-
-            duos.push_back(std::make_pair(asm_map[i], rhs(i) - rhs_bc(i)));
-        }
-#else
-        for (size_t i = 0; i < lhs.rows(); i++) {
+        for ( size_t i = 0; i < size; i++ ) {
             if (!asm_map[i].assemble())
                 continue;
 
             duos.push_back(std::make_pair(asm_map[i], rhs(i) - rhs_bc(i)));
         }
-#endif
+    }
+
+    void assemble_nonlinear_rhs( const mesh_type &msh, const cell_type &cl,
+                                 const boundary_type &bnd, const matrix_type &lhs,
+                                 const vector_type &rhs, const std::vector< vector_type > &sol_F,
+                                 int di = 1 ) {
+        const auto [rhs_bc, asm_map] =
+            create_local_connectivity( msh, cl, bnd, lhs, rhs, sol_F, di );
+
+        assert( rhs.size() == rhs_bc.size() );
+
+        const auto size = rhs.size();
+
+        for ( int i = 0; i < size; i++ ) {
+            if ( !asm_map[i].assemble() )
+                continue;
+
+            duos.push_back( std::make_pair( asm_map[i], rhs( i ) - rhs_bc( i ) ) );
+        }
     }
 
     vector_type
@@ -4987,18 +5004,16 @@ class vector_mechanics_hho_assembler
         return ret;
     }
 
-    vector_type
-    expand_solution_nonlinear(const mesh_type&                msh,
-                              const boundary_type&            bnd,
-                              const vector_type&              solution,
-                              const std::vector<vector_type>& sol_F,
-                              int                             di = 1) const
-    {
+    std::pair< vector_type, dynamic_vector< size_t > >
+    expand_solution_nonlinear( const mesh_type &msh, const boundary_type &bnd,
+                               const vector_type &solution, const std::vector< vector_type > &sol_F,
+                               int di = 1 ) const {
         assert(solution.size() == system_size);
         assert(sol_F.size() == msh.faces_size());
 
         vector_type ret         = vector_type::Zero(m_total_dofs);
-        size_t      face_offset = 0;
+        dynamic_vector< size_t > idx = dynamic_vector< size_t >::Zero( msh.faces_size() + 1 );
+        size_t face_offset = 0, face_i = 0;
 
         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++)
         {
@@ -5010,9 +5025,11 @@ class vector_mechanics_hho_assembler
             ret.segment(face_offset, n_face_dofs) = take_local_solution_nonlinear(msh, bfc, bnd, solution, sol_F, di);
 
             face_offset += n_face_dofs;
+            face_i++;
+            idx( face_i ) = idx( face_i - 1 ) + n_face_dofs;
         }
 
-        return ret;
+        return std::make_pair( ret, idx );
     }
 
     vector_type expand_solution(const mesh_type &msh, const boundary_type &bnd,

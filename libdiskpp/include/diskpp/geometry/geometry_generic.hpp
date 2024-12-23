@@ -311,6 +311,53 @@ diameter(const generic_mesh<T,1>&, const typename generic_mesh<T,1>::face&)
     return 1.;
 }
 
+/**
+ * \brief Allows to known if the given point is inside a 2D cell
+ *
+ * \param msh a reference to the mesh
+ * \param cl a 3D cell
+ * \param pt coordinate of a point
+ *
+ */
+
+template < typename T >
+bool is_inside( const generic_mesh< T, 2 > &msh, const typename generic_mesh< T, 2 >::cell &cl,
+                const typename generic_mesh< T, 2 >::point_type &pt ) {
+    auto tris = triangulate_polygon( msh, cl );
+
+    for ( auto &tri : tris ) {
+        const auto area_tri = measure( tri );
+
+        if ( is_inside( tri, pt ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * \brief Allows to known if the given point is inside a 2D cell
+ *
+ * \param msh a reference to the mesh
+ * \param cl a 3D cell
+ * \param pt coordinate of a point
+ *
+ */
+
+template < typename T >
+bool is_inside( const generic_mesh< T, 3 > &msh, const typename generic_mesh< T, 3 >::cell &cl,
+                const typename generic_mesh< T, 3 >::point_type &pt ) {
+
+    auto rss = split_in_raw_tetrahedra( msh, cl );
+    for ( auto &rs : rss ) {
+        if ( is_inside( rs, pt ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 } // namespace disk
 

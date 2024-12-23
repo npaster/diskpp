@@ -1,8 +1,9 @@
 #pragma once
 
-#include "diskpp/common/simplicial_formula.hpp"
-
 #include "triangle_mesher.h"
+
+#include "diskpp/common/simplicial_formula.hpp"
+#include "diskpp/mesh/mesh.hpp"
 
 namespace disk {
 
@@ -24,7 +25,29 @@ template<typename T, size_t DIM>
 auto
 measure(const triangle<T,DIM>& t)
 {
-    return area_triangle_kahan(t.p0, t.p1, t.p2);   
+    return area_triangle_kahan( t.p0, t.p1, t.p2 );
+}
+
+template < typename T, size_t DIM >
+bool is_inside( const triangle< T, DIM > &t, const point< T, DIM > &p ) {
+    const T tole = 1e-12;
+    const auto area = measure( t );
+    const T un_2a = 1.0 / ( 2.0 * area );
+
+    const T sp = un_2a * ( t.p0.y() * t.p2.x() - t.p0.x() * t.p2.y() +
+                           ( t.p2.y() - t.p0.y() ) * p.x() + ( t.p0.x() - t.p2.x() ) * p.y() );
+
+    if ( -tole < sp && sp < ( 1.0 + tole ) ) {
+        const T tp = un_2a * ( t.p0.x() * t.p1.y() - t.p0.y() * t.p1.x() +
+                               ( t.p0.y() - t.p1.y() ) * p.x() + ( t.p1.x() - t.p0.x() ) * p.y() );
+        if ( -tole < tp && tp < ( 1.0 + tole ) ) {
+            if ( ( sp + tp ) < ( 1.0 + tole ) ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /* Call J. R. Shewchuk's Triangle to triangulate a mesh element */
@@ -76,7 +99,7 @@ triangulate_nonconvex_polygon(const generic_mesh<double,2>& msh,
         t.p0 = point<double,2>( tio_out.pointlist[2*p0base+0], tio_out.pointlist[2*p0base+1] );
         t.p1 = point<double,2>( tio_out.pointlist[2*p1base+0], tio_out.pointlist[2*p1base+1] );
         t.p2 = point<double,2>( tio_out.pointlist[2*p2base+0], tio_out.pointlist[2*p2base+1] );
-        
+
         ret.push_back(t);
     }
 
