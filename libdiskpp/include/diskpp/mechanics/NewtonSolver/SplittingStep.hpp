@@ -138,7 +138,7 @@ template <typename MeshType> class SplittingStep {
             ni.updateAssemblyInfo(assembly_info);
             // test convergence
             try {
-                m_convergence = splitting_iter.convergence(rp, iter);
+                m_convergence = splitting_iter.convergence(rp, iter, fields);
             } catch (const std::runtime_error &ia) {
                 std::cerr << "Runtime error: " << ia.what() << std::endl;
                 m_convergence = false;
@@ -148,6 +148,8 @@ template <typename MeshType> class SplittingStep {
             }
 
             if (m_convergence) {
+                ni.m_assembly_info.m_time_postpro += splitting_iter.post_convergence(
+                    msh, bnd, rp, degree_infos, stab_precomputed, stab_manager, fields);
                 tc.toc();
                 ni.m_time_newton = tc.elapsed();
                 return ni;

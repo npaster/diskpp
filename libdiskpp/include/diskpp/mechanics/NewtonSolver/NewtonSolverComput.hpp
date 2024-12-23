@@ -45,6 +45,66 @@ namespace disk
 namespace mechanics
 {
 
+template <typename mesh_type, typename T>
+dynamic_matrix<T> _gradrec(const mesh_type &msh, const typename mesh_type::cell &cl,
+                           const NonLinearParameters<T> &rp,
+                           const MeshDegreeInfo<mesh_type> &degree_infos, const bool &small_def,
+                           const std::vector<dynamic_matrix<T>> &gradient_precomputed) {
+    if (rp.m_precomputation) {
+        const auto cell_i = msh.lookup(cl);
+        return gradient_precomputed[cell_i];
+    }
+
+    if (small_def) {
+        const auto gradrec_sym_full = make_matrix_hho_symmetric_gradrec(msh, cl, degree_infos);
+        return gradrec_sym_full.first;
+    } else {
+        const auto gradrec_full = make_matrix_hho_gradrec(msh, cl, degree_infos);
+        return gradrec_full.first;
+    }
+
+    return dynamic_matrix<T>();
+}
+
+template <typename mesh_type, typename T>
+dynamic_matrix<T> _stab(const mesh_type &msh, const typename mesh_type::cell &cl,
+                        const NonLinearParameters<T> &rp,
+                        const MeshDegreeInfo<mesh_type> &degree_infos,
+                        const std::vector<dynamic_matrix<T>> &stab_precomputed) {
+    if (rp.m_precomputation) {
+        const auto cell_i = msh.lookup(cl);
+        return stab_precomputed.at(cell_i);
+    } else {
+        switch (rp.m_stab_type) {
+        case StabilizationType::HHO_SYM: {
+            const auto recons = make_vector_hho_symmetric_laplacian(msh, cl, degree_infos);
+            return make_vector_hho_stabilization(msh, cl, recons.first, degree_infos);
+            break;
+        }
+        case StabilizationType::HHO: {
+            const auto recons_scalar = make_scalar_hho_laplacian(msh, cl, degree_infos);
+            return make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first, degree_infos);
+            break;
+        }
+        case StabilizationType::HDG: {
+            return make_vector_hdg_stabilization(msh, cl, degree_infos);
+            break;
+        }
+        case StabilizationType::DG: {
+            return make_vector_dg_stabilization(msh, cl, degree_infos);
+            break;
+        }
+        case StabilizationType::NO: {
+            break;
+        }
+        default:
+            throw std::invalid_argument("Unknown stabilization");
+        }
+    }
+
+    return dynamic_matrix<T>();
+}
+
 template<typename MeshType>
 class mechanical_computation
 {

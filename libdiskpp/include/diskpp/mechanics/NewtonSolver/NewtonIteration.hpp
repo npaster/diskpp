@@ -99,80 +99,6 @@ class NewtonIteration
 
     bool m_verbose;
 
-    matrix_type
-    _gradrec(const mesh_type &msh,
-             const cell_type &cl,
-             const param_type &rp,
-             const MeshDegreeInfo<mesh_type> &degree_infos,
-             const bool &small_def,
-             const std::vector<matrix_type> &gradient_precomputed) const
-    {
-        if (rp.m_precomputation)
-        {
-            const auto cell_i = msh.lookup(cl);
-            return gradient_precomputed[cell_i];
-        }
-
-        if (small_def)
-        {
-            const auto gradrec_sym_full = make_matrix_hho_symmetric_gradrec(msh, cl, degree_infos);
-            return gradrec_sym_full.first;
-        }
-        else
-        {
-            const auto gradrec_full = make_matrix_hho_gradrec(msh, cl, degree_infos);
-            return gradrec_full.first;
-        }
-
-        return matrix_type();
-    }
-
-    matrix_type
-    _stab(const mesh_type &msh,
-          const cell_type &cl,
-          const param_type &rp,
-          const MeshDegreeInfo<mesh_type> &degree_infos,
-          const std::vector<matrix_type> &stab_precomputed) const
-    {
-        if (rp.m_precomputation)
-        {
-            const auto cell_i = msh.lookup(cl);
-            return stab_precomputed.at(cell_i);
-        }
-        else
-        {
-            switch (rp.m_stab_type)
-            {
-            case StabilizationType::HHO_SYM: {
-                const auto recons = make_vector_hho_symmetric_laplacian(msh, cl, degree_infos);
-                return make_vector_hho_stabilization(msh, cl, recons.first,
-                                                     degree_infos);
-                break;
-            }
-            case StabilizationType::HHO: {
-                const auto recons_scalar = make_scalar_hho_laplacian(msh, cl, degree_infos);
-                return make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first, degree_infos);
-                break;
-            }
-            case StabilizationType::HDG: {
-                return make_vector_hdg_stabilization(msh, cl, degree_infos);
-                break;
-            }
-            case StabilizationType::DG: {
-                return make_vector_dg_stabilization(msh, cl, degree_infos);
-                break;
-            }
-            case StabilizationType::NO: {
-                break;
-            }
-            default:
-                throw std::invalid_argument("Unknown stabilization");
-            }
-        }
-
-        return matrix_type();
-    }
-
 public:
     NewtonIteration(const mesh_type &msh,
                     const bnd_type &bnd,
@@ -237,11 +163,7 @@ public:
             resi_cells.reserve(msh.cells_size());
         }
 
-        m_sol_norm = 0.0;
-        for (auto &uF : depl_faces)
-        {
-            m_sol_norm += uF.squaredNorm();
-        }
+        m_sol_norm = norm(depl_faces);
 
         auto rlf = [&lf, &current_time](const point<scalar_type, mesh_type::dimension> &p) -> auto {
             return lf(p, current_time);
@@ -442,7 +364,7 @@ public:
     convergence(const param_type &rp, const size_t iter)
     {
         // norm of the solution
-        auto error_un = std::sqrt(m_sol_norm);
+        auto error_un = m_sol_norm;
 
         if (error_un <= scalar_type(10E-15))
         {
@@ -499,12 +421,9 @@ public:
         if (!isfinite(error))
             throw std::runtime_error("Norm of residual is not finite");
 
-        if (error <= rp.m_epsilon)
-        {
+        if (error <= rp.getConvergenceCriteria()) {
             return true;
-        }
-        else
-        {
+        } else {
             return false;
         }
     }

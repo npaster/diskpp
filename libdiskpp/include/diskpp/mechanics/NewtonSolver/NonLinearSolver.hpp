@@ -208,13 +208,13 @@ template <typename Mesh> class NonLinearSolver {
           m_stab_manager(msh, rp.m_beta), m_fields(getNumberOfStepToSave(rp)) {
         if (m_verbose) {
             std::cout << "------------------------------------------------------------------------"
-                         "----------------------"
+                         "-------------"
                       << std::endl;
-            std::cout << "|********************** Nonlinear Newton's Solver for solid mechanics "
+            std::cout << "|********************** Nonlinear Solver for solid mechanics "
                          "***********************|"
                       << std::endl;
             std::cout << "------------------------------------------------------------------------"
-                         "----------------------"
+                         "-------------"
                       << std::endl;
         }
         int face_degree = rp.m_face_degree;

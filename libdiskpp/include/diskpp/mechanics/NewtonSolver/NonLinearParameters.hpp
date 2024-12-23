@@ -197,6 +197,14 @@ std::string NonLinearSolverName(const NonLinearSolverType &type) {
     return "Unknown name";
 }
 
+std::string BoolName(const bool &type) {
+    if (type) {
+        return "TRUE";
+    }
+
+    return "FALSE";
+}
+
 template <typename T> class NonLinearParameters {
   public:
     int m_face_degree; // face degree
@@ -244,21 +252,22 @@ template <typename T> class NonLinearParameters {
     }
 
     void infos() {
-        std::cout << "Newton Solver's parameters:" << std::endl;
+        std::cout << "Nonlinear Solver's parameters:" << std::endl;
         std::cout << " - Face degree: " << m_face_degree << std::endl;
         std::cout << " - Cell degree: " << m_cell_degree << std::endl;
         std::cout << " - Grad degree: " << m_grad_degree << std::endl;
-        std::cout << " - Stabilization ?: " << StabilizationName(m_stab_type) << std::endl;
-        std::cout << " - AdaptativeStabilization ?: " << m_adapt_stab << std::endl;
-        std::cout << " - Type: " << m_stab_type << std::endl;
+        std::cout << " - Stabilization ?: " << BoolName(!(m_stab_type == StabilizationType::NO))
+                  << std::endl;
+        std::cout << " - AdaptativeStabilization ?: " << BoolName(m_adapt_stab) << std::endl;
+        std::cout << " - Type: " << StabilizationName(m_stab_type) << std::endl;
         std::cout << " - Beta: " << m_beta << std::endl;
-        std::cout << " - Verbose: " << m_verbose << std::endl;
+        std::cout << " - Verbose: " << BoolName(m_verbose) << std::endl;
         std::cout << " - Sublevel: " << m_sublevel << std::endl;
         std::cout << " - IterMax: " << m_iter_max << std::endl;
         std::cout << " - Epsilon: " << m_epsilon << std::endl;
         std::cout << " - LinearSolver: " << LinearSolverName(m_lin_solv) << std::endl;
         std::cout << " - NonLinearSolver: " << NonLinearSolverName(m_nlin_solv) << std::endl;
-        std::cout << " - Precomputation: " << m_precomputation << std::endl;
+        std::cout << " - Precomputation: " << BoolName(m_precomputation) << std::endl;
         std::cout << " - Dynamic scheme: " << DynaSchemeName(m_dyna_type) << std::endl;
         std::cout << " - Friction ?: " << FrictionName(m_frot_type) << std::endl;
         std::cout << " - Threshold: " << m_threshold << std::endl;
@@ -473,6 +482,9 @@ template <typename T> class NonLinearParameters {
 
     void setMaximumNumberNLIteration(const int &n_iter) { m_iter_max = n_iter; }
     int getMaximumNumberNLIteration() const { return m_iter_max; }
+
+    void setConvergenceCriteria(const T &eps) { m_epsilon = eps; }
+    T getConvergenceCriteria() const { return m_epsilon; }
 };
 
 } // namespace mechanics

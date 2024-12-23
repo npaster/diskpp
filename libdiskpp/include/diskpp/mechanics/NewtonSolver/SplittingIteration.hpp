@@ -82,78 +82,73 @@ template <typename MeshType> class SplittingIteration {
 
     typedef Eigen::PardisoLDLT<Eigen::SparseMatrix<scalar_type>> solver_type;
 
-    vector_type m_system_displ, m_system_displ_prev;
+    vector_type m_system_displ, m_system_displ_prev, m_residual;
 
     assembler_type m_assembler;
 
     std::vector<vector_type> m_stab_uT;
-    std::vector<matrix_type> m_lhs;
+    std::vector<matrix_type> m_lhs, m_stab_zFF;
 
     TimeStep<scalar_type> m_time_step;
 
     dyna_type m_dyna;
 
-    scalar_type m_F_int, m_sol_norm;
-
     bool m_verbose;
 
     solver_type m_solver;
 
-    matrix_type _gradrec(const mesh_type &msh, const cell_type &cl, const param_type &rp,
-                         const MeshDegreeInfo<mesh_type> &degree_infos, const bool &small_def,
-                         const std::vector<matrix_type> &gradient_precomputed) const {
-        if (rp.m_precomputation) {
-            const auto cell_i = msh.lookup(cl);
-            return gradient_precomputed[cell_i];
-        }
+    matrix_type _mass_term(const mesh_type &msh, const cell_type &cl,
+                           const MeshDegreeInfo<mesh_type> &degree_infos) const {
 
-        if (small_def) {
-            const auto gradrec_sym_full = make_matrix_hho_symmetric_gradrec(msh, cl, degree_infos);
-            return gradrec_sym_full.first;
-        } else {
-            const auto gradrec_full = make_matrix_hho_gradrec(msh, cl, degree_infos);
-            return gradrec_full.first;
-        }
+        const auto cell_infos = degree_infos.cellDegreeInfo(msh, cl);
+        const auto faces_infos = cell_infos.facesDegreeInfo();
+        const auto num_faces_dofs = vector_faces_dofs(msh, faces_infos);
 
-        return matrix_type();
-    }
+        matrix_type mm = matrix_type::Zero(num_faces_dofs, num_faces_dofs);
 
-    matrix_type _stab(const mesh_type &msh, const cell_type &cl, const param_type &rp,
-                      const MeshDegreeInfo<mesh_type> &degree_infos,
-                      const std::vector<matrix_type> &stab_precomputed) const {
-        if (rp.m_precomputation) {
-            const auto cell_i = msh.lookup(cl);
-            return stab_precomputed.at(cell_i);
-        } else {
-            switch (rp.m_stab_type) {
-            case StabilizationType::HHO_SYM: {
-                const auto recons = make_vector_hho_symmetric_laplacian(msh, cl, degree_infos);
-                return make_vector_hho_stabilization(msh, cl, recons.first, degree_infos);
-                break;
+        const auto fcs = faces(msh, cl);
+
+        auto to_vector = [](const matrix_type &scalar_matrix) {
+            const int scal_total_dofs = scalar_matrix.rows();
+            const int vect_total_tofs = scal_total_dofs * mesh_type::dimension;
+
+            matrix_type mm = matrix_type::Zero(vect_total_tofs, vect_total_tofs);
+
+            for (int i = 0; i < scal_total_dofs; i++) {
+                const auto row = i * mesh_type::dimension;
+                for (int j = 0; j < scal_total_dofs; j++) {
+                    const auto col = j * mesh_type::dimension;
+                    for (int k = 0; k < mesh_type::dimension; k++) {
+                        mm(row + k, col + k) = scalar_matrix(i, j);
+                    }
+                }
             }
-            case StabilizationType::HHO: {
-                const auto recons_scalar = make_scalar_hho_laplacian(msh, cl, degree_infos);
-                return make_vector_hho_stabilization_optim(msh, cl, recons_scalar.first,
-                                                           degree_infos);
-                break;
-            }
-            case StabilizationType::HDG: {
-                return make_vector_hdg_stabilization(msh, cl, degree_infos);
-                break;
-            }
-            case StabilizationType::DG: {
-                return make_vector_dg_stabilization(msh, cl, degree_infos);
-                break;
-            }
-            case StabilizationType::NO: {
-                break;
-            }
-            default:
-                throw std::invalid_argument("Unknown stabilization");
+
+            return mm;
+        };
+
+        int offset = 0;
+        for (size_t i = 0; i < fcs.size(); i++) {
+            const auto fdi = faces_infos[i];
+
+            if (fdi.hasUnknowns()) {
+                const auto fc = fcs[i];
+                const auto facdeg = fdi.degree();
+                const auto hF = diameter(msh, fc);
+                const auto fb = make_scalar_monomial_basis(msh, fc, facdeg);
+                const auto fbs =
+                    vector_basis_size(facdeg, mesh_type::dimension - 1, mesh_type::dimension);
+
+                const matrix_type mass_F = make_mass_matrix(msh, fc, fb);
+
+                mm.block(offset, offset, fbs, fbs) += (1.0 / hF) * to_vector(mass_F);
+
+                offset += fbs;
             }
         }
+        assert(offset == num_faces_dofs);
 
-        return matrix_type();
+        return mm;
     }
 
   public:
@@ -180,6 +175,10 @@ template <typename MeshType> class SplittingIteration {
 
         const bool mixed_order = rp.m_cell_degree > rp.m_face_degree;
 
+        if (!mixed_order) {
+            m_stab_zFF.reserve(msh.cells_size());
+        }
+
         m_lhs.reserve(msh.cells_size());
         m_stab_uT.reserve(msh.cells_size());
         auto depl = fields.getCurrentField(FieldName::DEPL_CELLS);
@@ -202,10 +201,14 @@ template <typename MeshType> class SplittingIteration {
             m_stab_uT.push_back(Sft_uT);
 
             matrix_type lhs;
+
             if (mixed_order) {
                 lhs = stab.bottomRightCorner(num_faces_dofs, num_faces_dofs);
             } else {
-                throw std::runtime_error("Not implemented");
+                lhs = beta_s * _mass_term(msh, cl, degree_infos);
+                const matrix_type zFF =
+                    stab.bottomRightCorner(num_faces_dofs, num_faces_dofs) - lhs;
+                m_stab_zFF.push_back(zFF);
             }
             m_lhs.push_back(lhs);
 
@@ -238,7 +241,6 @@ template <typename MeshType> class SplittingIteration {
 
         // set RHS to zero
         m_assembler.initialize();
-        m_F_int = 0.0;
 
         const bool small_def = (behavior.getDeformation() == SMALL_DEF);
 
@@ -247,12 +249,9 @@ template <typename MeshType> class SplittingIteration {
         // Like if it is an implicit scheme
         auto current_time = m_time_step.end_time();
         auto depl = fields.getCurrentField(FieldName::DEPL);
-        auto depl_faces = fields.getCurrentField(FieldName::DEPL_FACES);
 
-        m_sol_norm = 0.0;
-        for (auto &uF : depl_faces) {
-            m_sol_norm += uF.squaredNorm();
-        }
+        std::vector<vector_type> resi_cells;
+        resi_cells.reserve(msh.cells_size());
 
         auto rlf = [&lf, &current_time](const point<scalar_type, mesh_type::dimension> &p) -> auto {
             return lf(p, current_time);
@@ -287,24 +286,22 @@ template <typename MeshType> class SplittingIteration {
             elem.compute(msh, cl, bnd, rp, degree_infos, rlf, GT, huT, m_time_step, behavior,
                          stab_manager, small_def, false);
 
-            vector_type rhs = elem.RTF.tail(num_faces_dofs) - m_stab_uT.at(cell_i);
-            m_F_int += elem.F_int.squaredNorm();
+            vector_type rhs = elem.RTF.tail(num_faces_dofs);
+            resi_cells.push_back(elem.RTF.head(num_cell_dofs));
+
+            rhs -= m_stab_uT.at(cell_i);
+            if (!mixed_order) {
+                rhs -= m_stab_zFF[cell_i] * huT.tail(num_faces_dofs);
+            }
 
             tc.toc();
             ai.m_time_elem += tc.elapsed();
             ai.m_time_law += elem.time_law;
 
-            // std::cout << "R: " << rhs.norm() << std::endl;
-            // std::cout << rhs.transpose() << std::endl;
-
-            // Static Condensation
-            // std::cout << "StatCond" << std::endl;
-
             m_assembler.assemble_rhs(msh, cl, bnd, m_lhs.at(cell_i), rhs);
         }
 
-        m_F_int = sqrt(m_F_int);
-        // std::cout << "F_int: " << m_F_int << std::endl;
+        fields.setCurrentField(FieldName::RESI_CELLS, resi_cells);
 
         m_assembler.impose_neumann_boundary_conditions(msh, bnd);
         m_assembler.finalize();
@@ -318,14 +315,15 @@ template <typename MeshType> class SplittingIteration {
     SolveInfo solve(const solvers::LinearSolverType &type) {
         timecounter tc;
 
-        // std::cout << "LHS" << m_assembler.LHS << std::endl;
-        // std::cout << "RHS" << m_assembler.RHS << std::endl;
+        // std::cout << "RHS" << m_assembler.RHS.transpose() << std::endl;
 
         m_system_displ_prev = m_system_displ;
 
         tc.tic();
         m_system_displ = m_solver.solve(m_assembler.RHS);
         tc.toc();
+
+        // std::cout << "SOL" << m_system_displ.transpose() << std::endl;
 
         return SolveInfo(m_assembler.LHS.rows(), m_assembler.LHS.nonZeros(), tc.elapsed());
     }
@@ -354,11 +352,11 @@ template <typename MeshType> class SplittingIteration {
         // Update  unknowns
         // Update face Uf^{i+1} = Uf^i + delta Uf^i
 
-        auto depl_faces = fields.getCurrentField(FieldName::DEPL_FACES);
-        int face_i = 0;
+        std::vector<vector_type> depl_faces;
+        depl_faces.reserve(msh.faces_size());
         for (auto itor = msh.faces_begin(); itor != msh.faces_end(); itor++) {
             const auto fc = *itor;
-            depl_faces.at(face_i++) = m_assembler.take_local_solution(msh, fc, bnd, m_system_displ);
+            depl_faces.push_back(m_assembler.take_local_solution(msh, fc, bnd, m_system_displ));
         }
         fields.setCurrentField(FieldName::DEPL_FACES, depl_faces);
 
@@ -366,28 +364,30 @@ template <typename MeshType> class SplittingIteration {
         return tc.elapsed();
     }
 
-    bool convergence(const param_type &rp, const size_t iter) {
+    bool convergence(const param_type &rp, const size_t iter,
+                     const MultiTimeField<scalar_type> &fields) {
+
+        auto depl_faces = fields.getCurrentField(FieldName::DEPL_FACES);
+
         // norm of the solution
-        auto error_un = std::sqrt(m_sol_norm);
+        auto error_un = norm(depl_faces);
 
         if (error_un <= scalar_type(10E-15)) {
             error_un = scalar_type(10E16);
         }
 
         // norm of the rhs
-        const scalar_type residual = m_assembler.RHS.norm();
+        const vector_type incr = m_system_displ - m_system_displ_prev;
         scalar_type max_error = 0.0;
-        for (size_t i = 0; i < m_assembler.RHS.size(); i++)
-            max_error = std::max(max_error, std::abs(m_assembler.RHS(i)));
+        for (size_t i = 0; i < incr.size(); i++)
+            max_error = std::max(max_error, std::abs(incr(i)));
 
         // norm of the increment
-        const scalar_type error_incr = (m_system_displ - m_system_displ_prev).norm();
+        const scalar_type error_incr = incr.norm();
         scalar_type relative_displ = error_incr / error_un;
-        scalar_type relative_error = residual / m_F_int;
 
         if (iter == 0) {
             relative_displ = 1;
-            relative_error = 1;
         }
 
         if (m_verbose) {
@@ -395,26 +395,19 @@ template <typename MeshType> class SplittingIteration {
             s_iter.resize(9);
 
             if (iter == 0) {
-                std::cout
-                    << "----------------------------------------------------------------------"
-                       "------------------------"
-                    << std::endl;
-                std::cout << "| Iteration | Norme l2 incr | Relative incr |  Residual l2  | "
-                             "Relative error | Maximum error |"
+                std::cout << "--------------------------------------------------------------"
                           << std::endl;
-                std::cout
-                    << "----------------------------------------------------------------------"
-                       "------------------------"
-                    << std::endl;
+                std::cout << "| Iteration | Norme l2 incr | Relative incr  | Maximum error |"
+                          << std::endl;
+                std::cout << "--------------------------------------------------------------"
+                          << std::endl;
             }
             std::ios::fmtflags f(std::cout.flags());
             std::cout.precision(5);
             std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
             std::cout << "| " << s_iter << " |   " << error_incr << " |   " << relative_displ
-                      << " |   " << residual << " |   " << relative_error << "  |  " << max_error
-                      << "  |" << std::endl;
-            std::cout << "-------------------------------------------------------------------------"
-                         "---------------------"
+                      << "  |  " << max_error << "  |" << std::endl;
+            std::cout << "--------------------------------------------------------------"
                       << std::endl;
             std::cout.flags(f);
         }
@@ -424,11 +417,43 @@ template <typename MeshType> class SplittingIteration {
         if (!isfinite(error))
             throw std::runtime_error("Norm of residual is not finite");
 
-        if (error <= rp.m_epsilon) {
+        if (error <= rp.getConvergenceCriteria()) {
             return true;
         } else {
             return false;
         }
+    }
+
+    scalar_type post_convergence(const mesh_type &msh, const bnd_type &bnd, const param_type &rp,
+                                 const MeshDegreeInfo<mesh_type> &degree_infos,
+                                 const std::vector<matrix_type> &stab_precomputed,
+                                 const StabCoeffManager<scalar_type> &stab_manager,
+                                 MultiTimeField<scalar_type> &fields) {
+        timecounter tc;
+        tc.tic();
+
+        const auto depl = fields.getCurrentField(FieldName::DEPL);
+        auto resi_cells = fields.getCurrentField(FieldName::RESI_CELLS);
+
+        // Update cell
+        for (auto &cl : msh) {
+            const auto cell_i = msh.lookup(cl);
+
+            const auto cell_infos = degree_infos.cellDegreeInfo(msh, cl);
+            const auto num_cell_dofs = vector_cell_dofs(msh, cell_infos);
+
+            const auto beta_s = stab_manager.getValue(msh, cl);
+            const matrix_type stab = beta_s * _stab(msh, cl, rp, degree_infos, stab_precomputed);
+
+            // Update residual
+            resi_cells[cell_i] -= stab.topLeftCorner(num_cell_dofs, stab.cols()) * depl[cell_i];
+
+            // std::cout << depl.at(cell_i).transpose() << std::endl;
+        }
+        fields.setCurrentField(FieldName::RESI_CELLS, resi_cells);
+
+        tc.toc();
+        return tc.elapsed();
     }
 };
 } // namespace mechanics
