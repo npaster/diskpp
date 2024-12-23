@@ -28,10 +28,6 @@
 
 #pragma once
 
-#include <iostream>
-#include <sstream>
-#include <vector>
-
 #include "diskpp/adaptivity/adaptivity.hpp"
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/timecounter.hpp"
@@ -42,11 +38,13 @@
 #include "diskpp/mechanics/behaviors/laws/behaviorlaws.hpp"
 #include "diskpp/methods/hho"
 
-namespace disk
-{
+#include <iostream>
+#include <sstream>
+#include <vector>
 
-namespace mechanics
-{
+namespace disk {
+
+namespace mechanics {
 
 /**
  * @brief Newton-Raphson step for nonlinear solid mechanics
@@ -58,47 +56,36 @@ namespace mechanics
  *
  * @tparam MeshType type of the mesh
  */
-template<typename MeshType>
-class NewtonStep
-{
-    typedef MeshType                            mesh_type;
+template < typename MeshType >
+class NewtonStep {
+    typedef MeshType mesh_type;
     typedef typename mesh_type::coordinate_type scalar_type;
 
-    typedef dynamic_matrix<scalar_type> matrix_type;
-    typedef dynamic_vector<scalar_type> vector_type;
+    typedef dynamic_matrix< scalar_type > matrix_type;
+    typedef dynamic_vector< scalar_type > vector_type;
 
-    typedef NonLinearParameters<scalar_type> param_type;
-    typedef vector_boundary_conditions<mesh_type> bnd_type;
-    typedef Behavior<mesh_type>                   behavior_type;
+    typedef NonLinearParameters< scalar_type > param_type;
+    typedef vector_boundary_conditions< mesh_type > bnd_type;
+    typedef Behavior< mesh_type > behavior_type;
 
     bool m_verbose;
     bool m_convergence;
 
   public:
-    NewtonStep(const param_type& rp) : m_verbose(rp.m_verbose), m_convergence(false)
-    {
-    }
+    NewtonStep( const param_type &rp ) : m_verbose( rp.m_verbose ), m_convergence( false ) {}
 
     /**
      * @brief return a boolean to know if the verbosity mode is activated
      *
      */
-    bool
-    verbose(void) const
-    {
-        return m_verbose;
-    }
+    bool verbose( void ) const { return m_verbose; }
 
     /**
      * @brief Set the verbosity mode
      *
      * @param v boolean to activate or desactivate the verbosity mode
      */
-    void
-    verbose(bool v)
-    {
-        m_verbose = v;
-    }
+    void verbose( bool v ) { m_verbose = v; }
 
     /**
      * @brief Compute the Newton's step until convergence or stopped criterion
@@ -106,45 +93,38 @@ class NewtonStep
      * @tparam LoadIncrement Type of the loading function
      * @param lf loading function
      * @param gradient_precomputed contains the precomputed gradient for HHO methods (can be empty)
-     * @param stab_precomputed contains the precomputed stabilization operators for HHO methods (can be empty)
+     * @param stab_precomputed contains the precomputed stabilization operators for HHO methods (can
+     * be empty)
      * @return NewtonSolverInfo Informations about the Newton's step during the computation
      */
-    template <typename LoadIncrement>
-    NewtonSolverInfo
-    compute(const mesh_type &msh,
-            const bnd_type &bnd,
-            const param_type &rp,
-            const MeshDegreeInfo<mesh_type> &degree_infos,
-            const LoadIncrement &lf,
-            const TimeStep<scalar_type> &current_step,
-            const std::vector<matrix_type> &gradient_precomputed,
-            const std::vector<matrix_type> &stab_precomputed,
-            behavior_type &behavior,
-            StabCoeffManager<scalar_type> &stab_manager,
-            MultiTimeField<scalar_type> &fields)
-    {
+    template < typename LoadIncrement >
+    NewtonSolverInfo compute( const mesh_type &msh, const bnd_type &bnd, const param_type &rp,
+                              const MeshDegreeInfo< mesh_type > &degree_infos,
+                              const LoadIncrement &lf, const TimeStep< scalar_type > &current_step,
+                              const std::vector< matrix_type > &gradient_precomputed,
+                              const std::vector< matrix_type > &stab_precomputed,
+                              behavior_type &behavior,
+                              StabCoeffManager< scalar_type > &stab_manager,
+                              MultiTimeField< scalar_type > &fields ) {
         NewtonSolverInfo ni;
-        timecounter      tc;
+        timecounter tc;
         tc.tic();
 
         // initialise the NewtonRaphson iteration
-        NewtonIteration<mesh_type> newton_iter(msh, bnd, rp, degree_infos, current_step);
+        NewtonIteration< mesh_type > newton_iter( msh, bnd, rp, degree_infos, current_step );
 
-        newton_iter.initialize(msh, degree_infos, fields);
+        newton_iter.initialize( msh, degree_infos, fields );
 
         m_convergence = false;
 
-        for (size_t iter = 0; iter < rp.m_iter_max; iter++)
-        {
+        for ( size_t iter = 0; iter < rp.m_iter_max; iter++ ) {
             // assemble lhs and rhs
             AssemblyInfo assembly_info;
-            try
-            {
-                assembly_info = newton_iter.assemble(
-                    msh, bnd, rp, degree_infos, lf, gradient_precomputed, stab_precomputed, behavior, stab_manager, fields);
-            }
-            catch (const std::invalid_argument& ia)
-            {
+            try {
+                assembly_info =
+                    newton_iter.assemble( msh, bnd, rp, degree_infos, lf, gradient_precomputed,
+                                          stab_precomputed, behavior, stab_manager, fields );
+            } catch ( const std::invalid_argument &ia ) {
                 std::cerr << "Invalid argument: " << ia.what() << std::endl;
                 m_convergence = false;
                 tc.toc();
@@ -152,14 +132,11 @@ class NewtonStep
                 return ni;
             }
 
-            ni.updateAssemblyInfo(assembly_info);
+            ni.updateAssemblyInfo( assembly_info );
             // test convergence
-            try
-            {
-                m_convergence = newton_iter.convergence(rp, iter);
-            }
-            catch (const std::runtime_error& ia)
-            {
+            try {
+                m_convergence = newton_iter.convergence( rp, iter );
+            } catch ( const std::runtime_error &ia ) {
                 std::cerr << "Runtime error: " << ia.what() << std::endl;
                 m_convergence = false;
                 tc.toc();
@@ -167,18 +144,18 @@ class NewtonStep
                 return ni;
             }
 
-            if (m_convergence)
-            {
+            if ( m_convergence ) {
                 tc.toc();
                 ni.m_time_newton = tc.elapsed();
                 return ni;
             }
 
             // solve the global system
-            SolveInfo solve_info = newton_iter.solve(rp.getLinearSolver());
-            ni.updateSolveInfo(solve_info);
+            SolveInfo solve_info = newton_iter.solve( rp.getLinearSolver() );
+            ni.updateSolveInfo( solve_info );
             // update unknowns
-            ni.m_assembly_info.m_time_postpro += newton_iter.postprocess(msh, bnd, rp, degree_infos, fields);
+            ni.m_assembly_info.m_time_postpro +=
+                newton_iter.postprocess( msh, bnd, rp, degree_infos, fields );
 
             ni.m_iter++;
         }
@@ -194,12 +171,8 @@ class NewtonStep
      * @return true if the norm of the residual is lower that a given criterion
      * @return false else
      */
-    bool
-    convergence() const
-    {
-        return m_convergence;
-    }
+    bool convergence() const { return m_convergence; }
 };
-}
+} // namespace mechanics
 
-} // end disk
+} // namespace disk
