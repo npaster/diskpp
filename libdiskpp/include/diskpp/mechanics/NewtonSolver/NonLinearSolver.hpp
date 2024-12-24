@@ -466,6 +466,14 @@ class NonLinearSolver {
         timecounter ttot;
         ttot.tic();
 
+        // check CFL condition
+        scalar_type h_min = minimum_diameter( m_msh );
+        scalar_type vp = 1.0;
+        if ( m_rp.isUnsteady() && m_rp.getUnsteadyScheme() == DynamicType::LEAP_FROG ) {
+            const auto &mater = m_behavior.getMaterialData();
+            vp = std::sqrt( ( mater.getLambda() + 2.0 * mater.getMu() ) / mater.getRho() );
+        }
+
         // list of time step
         ListOfTimeStep< scalar_type > list_time_step;
         if ( m_rp.m_has_user_end_time )
@@ -494,6 +502,13 @@ class NonLinearSolver {
             const auto current_step = list_time_step.getCurrentTimeStep();
             const auto current_time = current_step.end_time();
             m_fields.setCurrentTime( current_time );
+
+            if ( m_rp.getUnsteadyScheme() == DynamicType::LEAP_FROG ) {
+                const auto dt_crit = h_min / vp;
+                if ( current_step.increment_time() > dt_crit ) {
+                    throw std::runtime_error( "CFL is not respected" );
+                }
+            }
 
             if ( m_verbose ) {
                 list_time_step.printCurrentTimeStep();

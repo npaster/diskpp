@@ -80,6 +80,16 @@ average_diameter(const Mesh& msh)
     return h/msh.cells_size();
 }
 
+template < typename Mesh >
+typename Mesh::coordinate_type minimum_diameter( const Mesh &msh ) {
+    typename Mesh::coordinate_type h = 10e100;
+    for ( auto &cl : msh ) {
+        h = std::min( diameter( msh, cl ), h );
+    }
+
+    return h;
+}
+
 /**
   * \brief return the list of points of an element
   *
