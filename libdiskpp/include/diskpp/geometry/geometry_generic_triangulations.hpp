@@ -130,6 +130,16 @@ triangulate_convex_polygon(const generic_mesh<T,2>& msh,
 
     auto pts = points(msh, cl);
     assert(pts.size() > 2);
+
+    if ( pts.size() == 3 ) {
+        triangle< T, 2 > t;
+        t.p0 = pts[0];
+        t.p1 = pts[1];
+        t.p2 = pts[2];
+        ret.push_back( t );
+        return ret;
+    }
+
     auto center = std::accumulate(pts.begin(), pts.end(), point<T,2>(0,0));
     center = center/T(pts.size());
 

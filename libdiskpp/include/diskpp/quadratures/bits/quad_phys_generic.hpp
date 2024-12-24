@@ -47,10 +47,19 @@ integrate_convex(const disk::generic_mesh<T, 2>&                     msh,
 {
     auto pts = points(msh, cl);
     assert(pts.size() > 2);
+    std::vector< quadrature_point< T, 2 > > ret;
+
+    if ( pts.size() == 3 ) {
+        auto p0 = pts[0];
+        auto p1 = pts[1];
+        auto p2 = pts[2];
+        auto qps = triangle_gauss( degree, p0, p1, p2 );
+        ret.insert( ret.end(), qps.begin(), qps.end() );
+        return ret;
+    }
+
     auto center = std::accumulate(pts.begin(), pts.end(), point<T, 2>(0, 0));
     center      = center / T(pts.size());
-
-    std::vector<quadrature_point<T, 2>> ret;
 
     for (size_t i = 0; i < pts.size(); i++)
     {

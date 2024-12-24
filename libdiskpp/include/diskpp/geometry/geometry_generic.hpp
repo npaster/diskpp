@@ -326,7 +326,6 @@ bool is_inside( const generic_mesh< T, 2 > &msh, const typename generic_mesh< T,
     auto tris = triangulate_polygon( msh, cl );
 
     for ( auto &tri : tris ) {
-        const auto area_tri = measure( tri );
 
         if ( is_inside( tri, pt ) ) {
             return true;
