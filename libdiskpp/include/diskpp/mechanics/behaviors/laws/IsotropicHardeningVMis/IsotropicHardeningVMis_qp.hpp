@@ -142,6 +142,7 @@ class IsotropicHardeningVMis_qp : public law_qp_bones< T, DIM > {
             this->m_estrain_prev + incr_strain; // elastic strain trial
 
         if ( nb_point == 0 ) {
+            throw std::runtime_error( "The traction curved is not defined." );
             // We don't have points for the traction curve
             // we suppose that we are in linear elasticity
             // elastic evolution

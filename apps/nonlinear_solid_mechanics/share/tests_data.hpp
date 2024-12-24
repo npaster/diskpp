@@ -92,11 +92,6 @@ auto getMaterialData( const STUDY &study ) {
         material_data.setMu( E, nu );
         material_data.setLambda( E, nu );
 
-        material_data.setK( 0.0 );
-        material_data.setH( 0.1292 );
-
-        material_data.setSigma_y0( 0.45 );
-
         material_data.addCurvePoint( 0.0, 0.45 );
         material_data.addCurvePoint( 0.003065, 0.463511 );
         material_data.addCurvePoint( 0.0061270000000000005, 0.476372 );
@@ -485,7 +480,7 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
     }
     case STUDY::COOK_LARGE: {
         nl.addBehavior( disk::mechanics::DeformationMeasure::LOGARITHMIC_DEF,
-                        disk::mechanics::LawType::LINEAR_HARDENING );
+                        disk::mechanics::LawType::NONLINEAR_HARDENING );
 
         nl.addPointPlot( { 47.999, 59.999 }, "pointA.csv" );
         break;
