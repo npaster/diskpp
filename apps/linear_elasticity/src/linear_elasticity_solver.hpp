@@ -41,6 +41,8 @@
 #include "diskpp/output/postMesh.hpp"
 #include "diskpp/common/timecounter.hpp"
 
+#include "mumps.hpp"
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 
@@ -244,6 +246,8 @@ class linear_elasticity_solver
 
         disk::solvers::pardiso_params<scalar_type> pparams;
         mkl_pardiso(pparams, m_assembler.LHS, m_assembler.RHS, m_system_solution);
+        
+        //m_system_solution = mumps_lu(m_assembler.LHS, m_assembler.RHS);
 
         tc.toc();
         si.time_solver = tc.elapsed();
