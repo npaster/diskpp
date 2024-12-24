@@ -105,7 +105,7 @@ int main( int argc, char **argv ) {
     mesh_filename = argv[0];
 
     /* Define study parameters to use */
-    const STUDY study = STUDY::COOK_LARGE;
+    const STUDY study = STUDY::SQUARE_DYNA;
 
     addAdditionalParameters( study, rp );
 

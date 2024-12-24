@@ -33,6 +33,7 @@ enum STUDY {
     COOK_DYNA,
     SPHERE_LARGE,
     TAYLOR_ROD,
+    SQUARE_DYNA,
 };
 
 /* Bibliographie */
@@ -84,7 +85,7 @@ auto getMaterialData( const STUDY &study ) {
         break;
     }
     case STUDY::COOK_LARGE: {
-        // (mm, MPa, kN)
+        // (mm, GPa, kN)
 
         const T E = 206.9;
         const T nu = 0.29;
@@ -149,14 +150,15 @@ auto getMaterialData( const STUDY &study ) {
         break;
     }
     case STUDY::COOK_DYNA: {
-        // Cook Parameters HPP (mm, MPa, kN, kg)
+        // Cook Parameters  (mm, GPa, kN, kg, ms)
+        // https://www.dynasupport.com/howtos/general/consistent-units
 
-        const T E = 200000;
+        const T E = 200;
         const T nu = 0.3;
 
         material_data.setMu( E, nu );
         material_data.setLambda( E, nu );
-        material_data.setRho( 7800 * 10.e-6 );
+        material_data.setRho( 7800 * 10e-9 );
 
         material_data.setK( 0.0 );
         material_data.setH( 0.13 );
@@ -168,10 +170,25 @@ auto getMaterialData( const STUDY &study ) {
         material_data.addMfrontParameter( "HardeningSlope", material_data.getH() );
         material_data.addMfrontParameter( "YieldStrength", material_data.getSigma_y0() );
 
-        std::map< std::string, T > dyna_para;
-        dyna_para["beta"] = 1. / 4.;
-        dyna_para["gamma"] = 0.5;
-        dyna_para["theta"] = 1.0;
+        break;
+    }
+    case STUDY::SQUARE_DYNA: {
+        // Cook Parameters  (m, Pa, N, kg, s)
+        // https://www.dynasupport.com/howtos/general/consistent-units
+
+        material_data.setMu( 1 );
+        material_data.setLambda( 1 );
+        material_data.setRho( 1 );
+
+        material_data.setK( 0.0 );
+        material_data.setH( 0.25 );
+
+        material_data.setSigma_y0( 0.25 );
+
+        material_data.addMfrontParameter( "YoungModulus", material_data.getE() );
+        material_data.addMfrontParameter( "PoissonRatio", material_data.getNu() );
+        material_data.addMfrontParameter( "HardeningSlope", material_data.getH() );
+        material_data.addMfrontParameter( "YieldStrength", material_data.getSigma_y0() );
 
         break;
     }
@@ -234,16 +251,17 @@ void addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearPara
     case STUDY::SPHERE_LARGE: {
         break;
     }
-    case STUDY::COOK_DYNA: {
+    case STUDY::COOK_DYNA:
+    case STUDY::SQUARE_DYNA: {
         std::map< std::string, T > dyna_para;
         dyna_para["beta"] = 1. / 4.;
         dyna_para["gamma"] = 0.5;
         dyna_para["theta"] = 1.0;
 
+        // rp.setUnsteadyScheme( disk::mechanics::DynamicType::STATIC );
         rp.setUnsteadyParameters( dyna_para );
         rp.setLinearSolver( disk::solvers::LinearSolverType::PARDISO_LDLT );
         rp.setNonLinearSolver( disk::mechanics::NonLinearSolverType::NEWTON );
-        rp.setMaximumNumberNLIteration( 1000 );
 
         break;
     }
@@ -319,9 +337,10 @@ auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
         auto trac = [material_data]( const disk::point< T, 2 > &p, const T &time ) -> result_type {
             T L = 16.;
             T F = 7.0;
+            T tref = 0.25;
             const auto force = result_type { 0.0, F / L };
-            if ( time <= 0.5 ) {
-                return time * force;
+            if ( time <= tref ) {
+                return ( time / tref ) * force;
             }
 
             return force;
@@ -329,6 +348,23 @@ auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
 
         bnd.addDirichletBC( disk::CLAMPED, 3, zero );
         bnd.addNeumannBC( disk::NEUMANN, 8, trac );
+        break;
+    }
+    case STUDY::SQUARE_DYNA: {
+        auto trac = [material_data]( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            T L = 1.;
+            T F = 0.2;
+            T tref = 1.0;
+            const auto force = result_type { 0.0, F / L };
+            if ( time <= tref ) {
+                return ( time / tref ) * force;
+            }
+
+            return force;
+        };
+
+        bnd.addDirichletBC( disk::CLAMPED, 1, zero );
+        bnd.addNeumannBC( disk::NEUMANN, 4, trac );
         break;
     }
     default: {
@@ -408,7 +444,8 @@ auto getExternalLoad( const Mesh< T, 2, Storage > &msh,
     case STUDY::COOK_ELAS:
     case STUDY::COOK_HPP:
     case STUDY::COOK_LARGE:
-    case STUDY::COOK_DYNA: {
+    case STUDY::COOK_DYNA:
+    case STUDY::SQUARE_DYNA: {
         return zero;
         break;
     }
@@ -486,10 +523,17 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
         break;
     }
     case STUDY::COOK_DYNA: {
-        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+        nl.addBehavior( disk::mechanics::DeformationMeasure::LOGARITHMIC_DEF,
                         disk::mechanics::LawType::LINEAR_HARDENING );
 
         nl.addPointPlot( { 47.999, 59.999 }, "pointA.csv" );
+        break;
+    }
+    case STUDY::SQUARE_DYNA: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+
+        nl.addPointPlot( { 0.999, 0.999 }, "pointA.csv" );
         break;
     }
     default: {
