@@ -39,6 +39,10 @@ enum STUDY {
     IMPACT_2D,
     FREE_VIBR_2D,
     GV_3D,
+    STATIC_STICK_SLIP_SEPARATION,
+    AIMI_CREDICO_GIMPERLEIN_64,
+    DYNAMIC_STICK_SLIP_SEPARATION,
+    DYNAMIC_DISC_IMPACT,
 };
 
 /* Bibliographie */
@@ -57,7 +61,8 @@ enum STUDY {
  */
 
 template < typename T >
-auto getMaterialData( const STUDY &study ) {
+auto
+getMaterialData( const STUDY &study ) {
     disk::mechanics::MaterialData< T > material_data;
 
     const T GPa = 1e9;
@@ -305,6 +310,34 @@ auto getMaterialData( const STUDY &study ) {
         material_data.addMfrontParameter( "PoissonRatio", material_data.getNu() );
         break;
     }
+    case STUDY::STATIC_STICK_SLIP_SEPARATION: {
+        // stick/slip/separation benchmark
+        const T E = 1.0e4;
+        const T nu = 0.2;
+        material_data.setMu( E, nu );
+        material_data.setLambda( E, nu );
+        break;
+    }
+    case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
+
+        material_data.setMu( 1.0 );
+        material_data.setLambda( 2.0 );
+        material_data.setRho( 1.0 );
+        break;
+    }
+    case STUDY::DYNAMIC_STICK_SLIP_SEPARATION: {
+        const T E = 1.0e4, nu = 0.2;
+        material_data.setMu( E, nu );
+        material_data.setLambda( E, nu );
+        material_data.setRho( 1.0 );
+        break;
+    }
+    case STUDY::DYNAMIC_DISC_IMPACT: {
+        material_data.setMu( 30.0 );
+        material_data.setLambda( 30.0 );
+        material_data.setRho( 1.0 );
+        break;
+    }
     default: {
         throw std::invalid_argument( "getMaterialData: Unexpected study" );
         break;
@@ -315,14 +348,16 @@ auto getMaterialData( const STUDY &study ) {
 }
 
 template < typename T >
-void addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearParameters< T > &rp ) {
+void
+addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearParameters< T > &rp ) {
 
     switch ( study ) {
     case STUDY::COOK_ELAS:
     case STUDY::COOK_HPP:
     case STUDY::COOK_LARGE:
     case STUDY::SPHERE_LARGE:
-    case STUDY::GV_3D: {
+    case STUDY::GV_3D:
+    case STUDY::STATIC_STICK_SLIP_SEPARATION: {
         break;
     }
     case STUDY::COOK_DYNA:
@@ -331,10 +366,13 @@ void addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearPara
     case STUDY::SQUARE_MATER:
     case STUDY::TAYLOR_ROD:
     case STUDY::IMPACT_2D:
-    case STUDY::FREE_VIBR_2D: {
+    case STUDY::FREE_VIBR_2D:
+    case STUDY::DYNAMIC_DISC_IMPACT:
+    case STUDY::DYNAMIC_STICK_SLIP_SEPARATION:
+    case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
         std::map< std::string, T > dyna_para;
-        dyna_para["beta"] = 0.25;
-        dyna_para["gamma"] = 0.5;
+        dyna_para["beta"] = 0.36; // 0.25;//
+        dyna_para["gamma"] = 0.7; // 0.5;//
         dyna_para["theta"] = 1.0;
 
         rp.setUnsteadyParameters( dyna_para );
@@ -350,9 +388,11 @@ void addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearPara
 }
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
-                            const disk::mechanics::MaterialData< T > &material_data,
-                            const STUDY &study ) {
+auto
+getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
+                       const disk::mechanics::MaterialData< T > &material_data,
+                       const disk::mechanics::NonLinearParameters< T > &rp,
+                       const STUDY &study ) {
     typedef Mesh< T, 2, Storage > mesh_type;
     typedef disk::static_vector< T, 2 > result_type;
 
@@ -476,7 +516,7 @@ auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
     }
     case STUDY::IMPACT_2D: {
 
-        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.0; };
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 1.0; };
 
         /* Encast */
         bnd.addDirichletBC( disk::CLAMPED, 3, zero );
@@ -505,6 +545,123 @@ auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
         bnd.addDirichletBC( disk::DX, 1, zero );
         break;
     }
+    case STUDY::STATIC_STICK_SLIP_SEPARATION: {
+
+        // Coulomb friction coefficient F = 0.5
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.5; };
+
+        auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
+            // compute the distance to the plane y = 0
+
+            if ( std::abs( n( 1 ) ) < T( 1e-12 ) )
+                return T( 1e13 );
+            const auto dist = std::abs( pt.y() / n( 1 ) );
+            return pt.y() < T( 0 ) ? -dist : dist;
+        };
+
+        // Traction oriented inwards:
+        //   left side {0}x(0.5,1):  inwards = +x
+        //   top (0.5,1)x{1}:        inwards = -y
+        auto trac_left = []( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            if ( p.y() > T( 0.5 ) )
+                return time * result_type { 1.0, 0.0 };
+            return result_type { 0.0, 0.0 };
+        };
+        auto trac_top = []( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            if ( p.x() > T( 0.5 ) )
+                return time * result_type { 0.0, -1.0 };
+            return result_type { 0.0, 0.0 };
+        };
+
+        /* BOTTOM */
+        bnd.addContactBC( disk::SIGNORINI_FACE, 0, s, gap );
+        /* Symmetry at x=1: u_x = 0, sigma_t = 0 (RIGHT)*/
+        bnd.addDirichletBC( disk::DX, 1, zero );
+        /* TOP */
+        bnd.addNeumannBC( disk::NEUMANN, 2, trac_top );
+        /* LEFT */
+        bnd.addNeumannBC( disk::NEUMANN, 3, trac_left );
+
+        break;
+    }
+
+    case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 2.0; }; // F_c = 2
+
+        // fixed rigid plane at y = -0.2 (tangent to the undeformed disk)
+        auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
+            if ( std::abs( n( 1 ) ) < T( 1e-12 ) )
+                return T( 1e13 );
+            const T d = pt.y() - T( -0.2 );
+            const T dist = std::abs( d / n( 1 ) );
+            return d < T( 0 ) ? -dist : dist;
+        };
+
+        bnd.addContactBC( disk::SIGNORINI_FACE, 0, s, gap );
+        break;
+    }
+    case STUDY::DYNAMIC_STICK_SLIP_SEPARATION: {
+
+        // Coulomb friction coefficient, from the "Threshold" keyword.
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.0; };
+
+        auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
+            // compute the distance to the plane y = 0
+
+            if ( std::abs( n( 1 ) ) < T( 1e-12 ) )
+                return T( 1e13 );
+            const auto dist = std::abs( pt.y() / n( 1 ) );
+            return pt.y() < T( 0 ) ? -dist : dist;
+        };
+
+        // Traction oriented inwards:
+        //   left side {0}x(0.5,1):  inwards = +x
+        //   top (0.5,1)x{1}:        inwards = -y
+        auto ramp = []( const T &t ) -> T {
+            const T tref = T( 1.0 );
+            return std::min( T( 1.0 ), t / tref );
+        };
+        auto trac_left = [ramp]( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            if ( p.y() > T( 0.5 ) )
+                return ramp( time ) * result_type { 1.0, 0.0 };
+            return result_type { 0.0, 0.0 };
+        };
+        auto trac_top = [ramp]( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            if ( p.x() > T( 0.5 ) )
+                return ramp( time ) * result_type { 0.0, -1.0 };
+            return result_type { 0.0, 0.0 };
+        };
+
+        /* BOTTOM */
+        bnd.addContactBC(
+            rp.useSignoriniCell() ? disk::SIGNORINI_CELL : disk::SIGNORINI_FACE, 0, s, gap );
+        /* Symmetry at x=1: u_x = 0, sigma_t = 0 (RIGHT)*/
+        bnd.addDirichletBC( disk::DX, 1, zero );
+        /* TOP */
+        bnd.addNeumannBC( disk::NEUMANN, 2, trac_top );
+        /* LEFT */
+        bnd.addNeumannBC( disk::NEUMANN, 3, trac_left );
+
+        break;
+    }
+    case STUDY::DYNAMIC_DISC_IMPACT: {
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.0; };
+
+        auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
+            // distance to the rigid support  y = 0
+            if ( std::abs( n( 1 ) ) < T( 1e-12 ) )
+                return T( 1e13 );
+            const auto dist = std::abs( pt.y() / n( 1 ) );
+            return pt.y() < T( 0 ) ? -dist : dist;
+        };
+
+        /* LOWER HALF: Signorini + Coulomb friction */
+        bnd.addContactBC(
+            rp.useSignoriniCell() ? disk::SIGNORINI_CELL : disk::SIGNORINI_FACE, 0, s, gap );
+        /* UPPER HALF: homogeneous Neumann, g = 0 */
+        bnd.addNeumannBC( disk::NEUMANN, 1, zero );
+        break;
+    }
     default: {
         throw std::invalid_argument( "getBoundaryConditions: Unexpected study" );
         break;
@@ -515,9 +672,11 @@ auto getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
 }
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-auto getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
-                            const disk::mechanics::MaterialData< T > &material_data,
-                            const STUDY &study ) {
+auto
+getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
+                       const disk::mechanics::MaterialData< T > &material_data,
+                       const disk::mechanics::NonLinearParameters< T > &rp,
+                       const STUDY &study ) {
     typedef Mesh< T, 3, Storage > mesh_type;
     typedef disk::static_vector< T, 3 > result_type;
 
@@ -597,8 +756,8 @@ auto getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
             //    std::cout << "n : " << n.transpose() << std::endl;
             //    std::cout << "p1 : " << p_1.transpose() << std::endl;
             //    std::cout << "p2 : " << p_2.transpose() << std::endl;
-            //    std::cout << sqrt(p_0(1)*p_0(1) + p_0(2)*p_0(2)) << " " << sqrt(p_1(1)*p_1(1) +
-            //    p_1(2)*p_1(2)) << " " << sqrt(p_2(1)*p_2(1) + p_2(2)*p_2(2)) << std::endl;
+            //    std::cout << sqrt(p_0(1)*p_0(1) + p_0(2)*p_0(2)) << " " << sqrt(p_1(1)*p_1(1)
+            //    + p_1(2)*p_1(2)) << " " << sqrt(p_2(1)*p_2(1) + p_2(2)*p_2(2)) << std::endl;
             //    std::cout << (p_1 - p_0).norm() << " " << (p_2 - p_0).norm()
             //    << std::endl; std::cout << gap_1 << " " << gap_2 << std::endl;
 
@@ -772,7 +931,8 @@ auto getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
         bnd.addContactBC( disk::SIGNORINI_FACE, 4, s_indenter, gap_indenter );
 
         // // With neumann
-        // auto neum = [material_data]( const disk::point< T, 3 > &p, const T &time ) -> result_type
+        // auto neum = [material_data]( const disk::point< T, 3 > &p, const T &time ) ->
+        // result_type
         // {
         //     const result_type vec = result_type { 0.0, p.y(), p.z() };
         //     const result_type normal = -vec / vec.norm();
@@ -803,9 +963,11 @@ auto getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
 }
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-void addExternalLoad( const Mesh< T, 2, Storage > &msh,
-                      const disk::mechanics::MaterialData< T > &material_data, const STUDY &study,
-                      disk::mechanics::NonLinearSolver< Mesh< T, 2, Storage > > &nl ) {
+void
+addExternalLoad( const Mesh< T, 2, Storage > &msh,
+                 const disk::mechanics::MaterialData< T > &material_data,
+                 const STUDY &study,
+                 disk::mechanics::NonLinearSolver< Mesh< T, 2, Storage > > &nl ) {
     typedef Mesh< T, 2, Storage > mesh_type;
     typedef disk::static_vector< T, 2 > result_type;
 
@@ -822,7 +984,10 @@ void addExternalLoad( const Mesh< T, 2, Storage > &msh,
     case STUDY::SQUARE_DYNA:
     case STUDY::SQUARE_MATER:
     case STUDY::IMPACT_2D:
-    case STUDY::FREE_VIBR_2D: {
+    case STUDY::FREE_VIBR_2D:
+    case STUDY::AIMI_CREDICO_GIMPERLEIN_64:
+    case STUDY::DYNAMIC_STICK_SLIP_SEPARATION:
+    case STUDY::STATIC_STICK_SLIP_SEPARATION: {
         break;
     }
     case STUDY::WAVE_ELAS: {
@@ -846,6 +1011,13 @@ void addExternalLoad( const Mesh< T, 2, Storage > &msh,
 
         break;
     }
+    case STUDY::DYNAMIC_DISC_IMPACT: {
+        auto load = []( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            return result_type { 0.0, -0.05 };
+        };
+        nl.addExternalLoad( load );
+        break;
+    }
     default: {
         throw std::invalid_argument( "addExternalLoad: Unexpected study" );
         break;
@@ -854,9 +1026,11 @@ void addExternalLoad( const Mesh< T, 2, Storage > &msh,
 }
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-void addExternalLoad( const Mesh< T, 3, Storage > &msh,
-                      const disk::mechanics::MaterialData< T > &material_data, const STUDY &study,
-                      disk::mechanics::NonLinearSolver< Mesh< T, 3, Storage > > &nl ) {
+void
+addExternalLoad( const Mesh< T, 3, Storage > &msh,
+                 const disk::mechanics::MaterialData< T > &material_data,
+                 const STUDY &study,
+                 disk::mechanics::NonLinearSolver< Mesh< T, 3, Storage > > &nl ) {
     typedef Mesh< T, 3, Storage > mesh_type;
     typedef disk::static_vector< T, 3 > result_type;
 
@@ -876,13 +1050,14 @@ void addExternalLoad( const Mesh< T, 3, Storage > &msh,
         break;
     }
     }
-}
+};
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
-                          const disk::mechanics::MaterialData< T > &material_data,
-                          const STUDY &study,
-                          disk::mechanics::NonLinearSolver< Mesh< T, 2, Storage > > &nl ) {
+void
+addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
+                     const disk::mechanics::MaterialData< T > &material_data,
+                     const STUDY &study,
+                     disk::mechanics::NonLinearSolver< Mesh< T, 2, Storage > > &nl ) {
     typedef Mesh< T, 2, Storage > mesh_type;
     typedef disk::static_vector< T, 2 > result_type;
 
@@ -917,7 +1092,8 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
     }
     case STUDY::COOK_DYNA: {
 #ifdef HAVE_MGIS
-        /* To compile: mfront --obuild --interface=generic LogarithmicStrainPlasticity.mfront */
+        /* To compile: mfront --obuild --interface=generic
+         * LogarithmicStrainPlasticity.mfront */
         // To use a law developped with Mfront
         const auto hypo = mgis::behaviour::Hypothesis::PLANESTRAIN;
         const std::string filename = "src/libBehaviour.so";
@@ -933,7 +1109,8 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
     case STUDY::SQUARE_DYNA:
     case STUDY::SQUARE_MATER: {
 #ifdef HAVE_MGIS
-        /* To compile: mfront --obuild --interface=generic LogarithmicStrainPlasticity.mfront */
+        /* To compile: mfront --obuild --interface=generic
+         * LogarithmicStrainPlasticity.mfront */
         // To use a law developped with Mfront
         const auto hypo = mgis::behaviour::Hypothesis::PLANESTRAIN;
         const std::string filename = "src/libBehaviour.so";
@@ -998,6 +1175,56 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
 
         break;
     }
+
+    case STUDY::STATIC_STICK_SLIP_SEPARATION: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+
+        nl.addPointPlot( { 0.13, 0.0 },
+                         "pointC_sep.csv" ); // separation ( expected 0 < x < 0.26)
+        nl.addPointPlot( { 0.35, 0.0 },
+                         "pointC_slip.csv" );                 // slip (expected 0.26 < x < 0.47)
+        nl.addPointPlot( { 0.70, 0.0 }, "pointC_stick.csv" ); // stick (expected x > 0.47)
+        break;
+    }
+
+    case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+
+        // downward impact velocity
+        nl.initial_field( disk::mechanics::FieldName::VITE_CELLS,
+                          []( const disk::point< T, 2 > &p ) -> result_type {
+                              return result_type { 0.0, -0.5 };
+                          } );
+
+        // nl.addPointPlot( { 0.0, -0.18 }, "disk_bottom.csv" );
+        break;
+    }
+
+    case STUDY::DYNAMIC_STICK_SLIP_SEPARATION: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+        nl.addPointPlot( { 0.13, 0.0 }, "pointC_sep.csv" );
+        nl.addPointPlot( { 0.35, 0.0 }, "pointC_slip.csv" );
+        nl.addPointPlot( { 0.70, 0.0 }, "pointC_stick.csv" );
+        break;
+    }
+
+    case STUDY::DYNAMIC_DISC_IMPACT: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+
+        auto u0 = []( const disk::point< T, 2 > &p ) -> result_type {
+            return result_type { 0.0, 1.0 };
+        };
+
+        nl.initial_guess( u0 );
+
+        nl.addPointPlot( { 0.0, 0.0 }, "lowest_point.csv" ); //
+        break;
+    }
+
     default: {
         throw std::invalid_argument( "addNonLinearOptions: Unexpected study" );
         break;
@@ -1009,10 +1236,11 @@ void addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
 }
 
 template < template < typename, size_t, typename > class Mesh, typename T, typename Storage >
-void addNonLinearOptions( const Mesh< T, 3, Storage > &msh,
-                          const disk::mechanics::MaterialData< T > &material_data,
-                          const STUDY &study,
-                          disk::mechanics::NonLinearSolver< Mesh< T, 3, Storage > > &nl ) {
+void
+addNonLinearOptions( const Mesh< T, 3, Storage > &msh,
+                     const disk::mechanics::MaterialData< T > &material_data,
+                     const STUDY &study,
+                     disk::mechanics::NonLinearSolver< Mesh< T, 3, Storage > > &nl ) {
     typedef Mesh< T, 3, Storage > mesh_type;
     typedef disk::static_vector< T, 3 > result_type;
 
@@ -1037,7 +1265,8 @@ void addNonLinearOptions( const Mesh< T, 3, Storage > &msh,
     }
     case STUDY::TAYLOR_ROD: {
 #ifdef HAVE_MGIS
-        /* To compile: mfront --obuild --interface=generic LogarithmicStrainPlasticity.mfront */
+        /* To compile: mfront --obuild --interface=generic
+         * LogarithmicStrainPlasticity.mfront */
         // To use a law developped with Mfront
         const auto hypo = mgis::behaviour::Hypothesis::TRIDIMENSIONAL;
         const std::string filename = "src/libBehaviour.so";

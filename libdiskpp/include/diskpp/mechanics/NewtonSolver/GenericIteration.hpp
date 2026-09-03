@@ -212,6 +212,14 @@ class GenericIteration {
 
         // norm of the rhs
         const scalar_type residual = m_assembler.RHS.norm();
+
+        // The reference residual of the step is recorded before any of the robustness
+        // checks below, so that the relative stopping criterion is always anchored on the
+        // residual this step actually started from.
+        if ( iter == 0 ) {
+            this->m_resi_init = residual;
+        }
+
         scalar_type max_error = 0.0;
         for ( size_t i = 0; i < m_assembler.RHS.size(); i++ ) {
             max_error = std::max( max_error, std::abs( m_assembler.RHS( i ) ) );
@@ -270,15 +278,11 @@ class GenericIteration {
             throw std::runtime_error( "Norm of residual is too large." );
         }
 
-        if ( iter == 0 ) {
-            this->m_resi_init = residual;
-        }
-
         if ( residual > 1e10 * this->m_resi_init ) {
             throw std::runtime_error( "Norm of residual diverges." );
         }
 
-        if ( error <= rp.getConvergenceCriteria() ) {
+        if ( error <= rp.getConvergenceCriteria() || this->m_resi_init < scalar_type( 1.e-10 ) ) {
             return true;
         } else {
             return false;

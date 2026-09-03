@@ -300,16 +300,28 @@ class NonLinearParameters {
     std::map< std::string, T > m_dyna_para; // list of parameters
     T m_cfl_factor;                         // CFL factor
 
+    // Impose the contact condition on the cell trace (SIGNORINI_CELL) instead of the
+    // face unknowns (SIGNORINI_FACE).
+    bool m_signorini_cell;
+
     int m_n_time_save;          // number of saving
     std::list< T > m_time_save; // list of time where we save result;
 
-    T m_theta;                // theta-parameter for contact
-    T m_gamma_0;              // parameter for Nitsche
+    T m_theta;   // theta-parameter for contact
+    T m_gamma_0; // parameter for Nitsche
+    // Tangential Nitsche penalty. Negative means 'not set': gamma_0_t() then falls
+    // back to m_gamma_0. The velocity-based friction law needs a much smaller value
+    // than the normal condition, so the two are separate.
+    T m_gamma_0_t = T( -1 );
+    // Regularisation of the sliding direction in the friction projection: x/|x| becomes
+    // x/sqrt(|x|^2 + eps^2). The exact direction flips sign whenever the sliding reverses.
+    // 0 = exact, non-smooth law.
+    T m_dproj_regu = T( 0 );
     FrictionType m_frot_type; // Friction type ?
 
-    solvers::direct_solver m_lin_solv;    // linear solver
-    NonLinearSolverType m_nlin_solv;      // non-linear solver
-    LineSearchType m_lsearch;             // line-search
+    solvers::direct_solver m_lin_solv; // linear solver
+    NonLinearSolverType m_nlin_solv;   // non-linear solver
+    LineSearchType m_lsearch;          // line-search
 
     NonLinearParameters()
         : m_face_degree( 1 ),
@@ -331,6 +343,7 @@ class NonLinearParameters {
           m_gamma_0( 1 ),
           m_frot_type( FrictionType::NO_FRICTION ),
           m_dyna_type( DynamicType::STATIC ),
+          m_signorini_cell( false ),
           m_lin_solv( solvers::direct_solver::autosel ),
           m_nlin_solv( NonLinearSolverType::NEWTON ),
           m_lsearch( LineSearchType::NO_LS ),
@@ -339,13 +352,13 @@ class NonLinearParameters {
     }
 
     void
-    error_keyword(int line, std::string keyword, std::string value)
-    {
-        throw std::runtime_error("Error during parsing in line: " + std::to_string(line) + "." +
-                                 "  Keyword: " + keyword + " has an unexpeced value: " + value);
+    error_keyword( int line, std::string keyword, std::string value ) {
+        throw std::runtime_error( "Error during parsing in line: " + std::to_string( line ) + "." +
+                                  "  Keyword: " + keyword + " has an unexpeced value: " + value );
     }
 
-    void infos() {
+    void
+    infos() {
         std::cout << "Nonlinear Solver's parameters:" << std::endl;
         std::cout << " - Face degree: " << m_face_degree << std::endl;
         std::cout << " - Cell degree: " << m_cell_degree << std::endl;
@@ -365,8 +378,12 @@ class NonLinearParameters {
         std::cout << " - Precomputation: " << BoolName( m_precomputation ) << std::endl;
         std::cout << " - Dynamic scheme: " << DynaSchemeName( m_dyna_type ) << std::endl;
         std::cout << " - CFL factor: " << m_cfl_factor << std::endl;
+        std::cout << " - Contact type: "
+                  << ( m_signorini_cell ? "SIGNORINI_CELL" : "SIGNORINI_FACE" ) << std::endl;
         std::cout << " - Friction ?: " << FrictionName( m_frot_type ) << std::endl;
         std::cout << " - Gamma_0: " << m_gamma_0 << std::endl;
+        std::cout << " - Gamma_0_t: " << gamma_0_t() << std::endl;
+        std::cout << " - SlipRegularization: " << m_dproj_regu << std::endl;
         std::cout << " - Theta: " << m_theta << std::endl;
     }
 
@@ -433,6 +450,17 @@ class NonLinearParameters {
                     m_time_save.push_back( time );
                     line++;
                 }
+            } else if ( keyword == "ContactType" ) {
+                std::string type;
+                ifs >> type;
+                line++;
+                if ( type == "FACE" ) {
+                    m_signorini_cell = false;
+                } else if ( type == "CELL" ) {
+                    m_signorini_cell = true;
+                } else {
+                    error_keyword( line, keyword, type );
+                }
             } else if ( keyword == "AdaptativeStabilization" ) {
                 std::string logical;
                 ifs >> logical;
@@ -486,6 +514,12 @@ class NonLinearParameters {
                 line++;
             } else if ( keyword == "Gamma0" ) {
                 ifs >> m_gamma_0;
+                line++;
+            } else if ( keyword == "Gamma0T" ) {
+                ifs >> m_gamma_0_t;
+                line++;
+            } else if ( keyword == "SlipRegularization" ) {
+                ifs >> m_dproj_regu;
                 line++;
             } else if ( keyword == "Friction" ) {
                 std::string type;
@@ -616,6 +650,15 @@ class NonLinearParameters {
     void setUnsteadyScheme( const DynamicType &scheme ) { m_dyna_type = scheme; }
 
     auto getUnsteadyParameters() const { return m_dyna_para; }
+
+    // dv/du of the time integrator: every scheme writes v_{n+1} affinely in u_{n+1}.
+    // Tangential penalty; defaults to the normal one when Gamma0T is absent.
+    T gamma_0_t() const { return m_gamma_0_t > T( 0 ) ? m_gamma_0_t : m_gamma_0; }
+
+    bool
+    useSignoriniCell() const {
+        return m_signorini_cell;
+    }
 
     auto getCFLFactor() const { return m_cfl_factor; }
 

@@ -89,6 +89,28 @@ void reformulation_dynamic( NonLinearParameters< T > &rp ) {
     }
 }
 
+template < typename T >
+T
+velocity_slope( const NonLinearParameters< T > &rp, const T dt ) {
+    const auto dyna_para = rp.getUnsteadyParameters();
+    switch ( rp.getUnsteadyScheme() ) {
+    case DynamicType::STATIC:
+        return T( 1 );
+    case DynamicType::NEWMARK:
+        // v = gamma*dt * a  and  a = u/(beta*dt^2)  ==>  gamma/(beta*dt)
+        return dyna_para.at( "gamma" ) / ( dyna_para.at( "beta" ) * dt );
+    case DynamicType::THETA:
+        // v = theta*dt * a  and  a = u/(theta^2*dt^2)  ==>  1/(theta*dt)
+        return T( 1 ) / ( dyna_para.at( "theta" ) * dt );
+    case DynamicType::LEAP_FROG:
+        // BACKWARD_EULER / CRANK_NICOLSON are rewritten as THETA before use, so this
+        // is the LEAP_FROG case.
+        return T( 1 ) / dt;
+    default:
+        throw std::runtime_error( "Unexpected time scheme" );
+    }
+};
+
 template < typename MeshType >
 class dynamic_computation {
     typedef MeshType mesh_type;

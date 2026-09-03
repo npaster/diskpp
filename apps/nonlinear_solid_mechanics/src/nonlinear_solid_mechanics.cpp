@@ -36,18 +36,21 @@
 
 #include <unistd.h>
 
-template < template < typename, size_t, typename > class Mesh, typename T, size_t N,
+template < template < typename, size_t, typename > class Mesh,
+           typename T,
+           size_t N,
            typename Storage >
-void run_nl_solid_mechanics_solver( const Mesh< T, N, Storage > &msh,
-                                    const disk::mechanics::NonLinearParameters< T > &rp,
-                                    const STUDY &study ) {
+void
+run_nl_solid_mechanics_solver( const Mesh< T, N, Storage > &msh,
+                               const disk::mechanics::NonLinearParameters< T > &rp,
+                               const STUDY &study ) {
     typedef Mesh< T, N, Storage > mesh_type;
 
     /* Get material parameters */
     const auto material_data = getMaterialData< T >( study );
 
     /* Get boundary conditions */
-    const auto bnd = getBoundaryConditions( msh, material_data, study );
+    const auto bnd = getBoundaryConditions( msh, material_data, rp, study );
 
     /* Create nonlinear solver */
     disk::mechanics::NonLinearSolver< mesh_type > nl( msh, bnd, rp );
@@ -73,7 +76,8 @@ void run_nl_solid_mechanics_solver( const Mesh< T, N, Storage > &msh,
     }
 }
 
-int main( int argc, char **argv ) {
+int
+main( int argc, char **argv ) {
     using RealType = double;
 
     char *mesh_filename = nullptr;

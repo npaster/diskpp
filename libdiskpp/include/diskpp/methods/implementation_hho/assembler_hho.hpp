@@ -3165,7 +3165,7 @@ class vector_primal_hho_assembler
     {
         const auto face_id = msh.lookup(fc);
 
-        const auto n_face_dofs = num_faces_dofs(face_id);
+        const auto n_face_dofs = num_face_dofs( face_id );
 
         vector_type ret = vector_type::Zero(n_face_dofs);
 
