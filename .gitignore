@@ -3,3 +3,4 @@ config.h
 
 build/
 build_release/
+backup_*/
