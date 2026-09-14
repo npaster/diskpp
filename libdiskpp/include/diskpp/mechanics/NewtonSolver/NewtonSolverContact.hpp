@@ -467,12 +467,6 @@ class contact_contribution {
             return x;
         }
 
-        // slip: the direction x/|x| flips sign whenever the sliding reverses, which it does
-        // repeatedly during contact. eps smooths it; 0 recovers the exact law.
-        const scalar_type eps = m_rp.m_dproj_regu;
-        if ( eps > scalar_type( 0 ) )
-            return alpha * x / std::sqrt( x_norm * x_norm + eps * eps );
-
         return alpha * x / x_norm;
     }
 

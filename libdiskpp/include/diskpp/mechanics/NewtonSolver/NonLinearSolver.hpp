@@ -1027,85 +1027,84 @@ class NonLinearSolver {
     // projected on the tangent of the face's own discrete normal, never on a fixed axis.
     void
     output_contact_boundary( const std::string &filename ) const {
-        // not compiling - TO FIX
-        // if constexpr ( mesh_type::dimension != 2 ) {
-        //     std::cout << "output_contact_boundary: 2D only, skipped" << std::endl;
-        //     return;
-        // } else {
-        //     typedef typename contact_contribution< mesh_type >::trace_point trace_point;
+        if constexpr ( mesh_type::dimension != 2 ) {
+            std::cout << "output_contact_boundary: 2D only, skipped" << std::endl;
+            return;
+        } else {
+            typedef typename contact_contribution< mesh_type >::trace_point trace_point;
 
-        //     const auto depl = m_fields.getCurrentField( FieldName::DEPL );
-        //     const auto &mat = m_behavior.getMaterialData();
+            const auto depl = m_fields.getCurrentField( FieldName::DEPL );
+            const auto &mat = m_behavior.getMaterialData();
 
-        //     std::vector< trace_point > rows;
+            std::vector< trace_point > rows;
 
-        //     int cell_i = 0;
-        //     for ( auto &cl : m_msh ) {
-        //         if ( m_bnd.cell_has_contact_faces( cl ) ) {
-        //             const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
-        //             const vector_type uTF = depl.at( cell_i );
+            int cell_i = 0;
+            for ( auto &cl : m_msh ) {
+                if ( m_bnd.cell_has_contact_faces( cl ) ) {
+                    const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
+                    const vector_type uTF = depl.at( cell_i );
 
-        //             matrix_type gr;
-        //             if ( m_rp.m_precomputation )
-        //                 gr = m_data.m_gradient_precomputed.at( cell_i );
-        //             else
-        //                 gr = make_matrix_hho_symmetric_gradrec( m_msh, cl, m_degree_infos ).first;
+                    matrix_type gr;
+                    if ( m_rp.m_precomputation )
+                        gr = m_data.m_gradient_precomputed.at( cell_i );
+                    else
+                        gr = make_matrix_hho_symmetric_gradrec( m_msh, cl, m_degree_infos ).first;
 
-        //             auto cc = contact_contribution< mesh_type >( m_msh, mat, m_rp, m_bnd );
-        //             const auto tr = cc.contact_boundary_trace( cl, di, gr, uTF );
-        //             rows.insert( rows.end(), tr.begin(), tr.end() );
-        //         }
-        //         cell_i++;
-        //     }
+                    auto cc = contact_contribution< mesh_type >( m_msh, mat, m_rp, m_bnd );
+                    const auto tr = cc.contact_boundary_trace( cl, di, gr, uTF );
+                    rows.insert( rows.end(), tr.begin(), tr.end() );
+                }
+                cell_i++;
+            }
 
-        //     // order along the boundary
-        //     std::sort( rows.begin(), rows.end(), []( const trace_point &a, const trace_point &b ) {
-        //         if ( a.pt.x() != b.pt.x() )
-        //             return a.pt.x() < b.pt.x();
-        //         return a.pt.y() < b.pt.y();
-        //     } );
+            // order along the boundary
+            std::sort( rows.begin(), rows.end(), []( const trace_point &a, const trace_point &b ) {
+                if ( a.pt.x() != b.pt.x() )
+                    return a.pt.x() < b.pt.x();
+                return a.pt.y() < b.pt.y();
+            } );
 
-        //     const scalar_type nan = std::numeric_limits< scalar_type >::quiet_NaN();
+            const scalar_type nan = std::numeric_limits< scalar_type >::quiet_NaN();
 
-        //     std::ofstream ofs( filename );
-        //     ofs << std::setprecision( 12 );
-        //     ofs << "x,y,x_def,y_def,nx,ny,tx,ty,w,gap0,gap,u_n,u_t,ux,uy,"
-        //         << "sigma_nn,sigma_nt,abs_sigma_nt,Fc,coulomb_limit,stress_ratio,"
-        //         << "phi_n,phi_t,fric_bound,nitsche_ratio,state\n";
+            std::ofstream ofs( filename );
+            ofs << std::setprecision( 12 );
+            ofs << "x,y,x_def,y_def,nx,ny,tx,ty,w,gap0,gap,u_n,u_t,ux,uy,"
+                << "sigma_nn,sigma_nt,abs_sigma_nt,Fc,coulomb_limit,stress_ratio,"
+                << "phi_n,phi_t,fric_bound,nitsche_ratio,state\n";
 
-        //     for ( const auto &r : rows ) {
-        //         const scalar_type tx = -r.n( 1 );
-        //         const scalar_type ty = r.n( 0 );
-        //         const scalar_type gap = r.gap0 - r.u_n;
+            for ( const auto &r : rows ) {
+                const scalar_type tx = -r.n( 1 );
+                const scalar_type ty = r.n( 0 );
+                const scalar_type gap = r.gap0 - r.u_n;
 
-        //         const scalar_type coulomb_limit = r.Fc * std::max( scalar_type( 0 ), -r.sigma_nn );
-        //         const scalar_type stress_ratio =
-        //             coulomb_limit > scalar_type( 0 ) ? std::abs( r.sigma_nt ) / coulomb_limit : nan;
-        //         const scalar_type nitsche_ratio =
-        //             r.fric_bound > scalar_type( 0 ) ? std::abs( r.phi_t ) / r.fric_bound : nan;
+                const scalar_type coulomb_limit = r.Fc * std::max( scalar_type( 0 ), -r.sigma_nn );
+                const scalar_type stress_ratio =
+                    coulomb_limit > scalar_type( 0 ) ? std::abs( r.sigma_nt ) / coulomb_limit : nan;
+                const scalar_type nitsche_ratio =
+                    r.fric_bound > scalar_type( 0 ) ? std::abs( r.phi_t ) / r.fric_bound : nan;
 
-        //         std::string state;
-        //         if ( r.phi_n >= scalar_type( 0 ) )
-        //             state = "SEP";
-        //         else if ( std::abs( r.phi_t ) > r.fric_bound )
-        //             state = "SLIP";
-        //         else
-        //             state = "STICK";
+                std::string state;
+                if ( r.phi_n >= scalar_type( 0 ) )
+                    state = "SEP";
+                else if ( std::abs( r.phi_t ) > r.fric_bound )
+                    state = "SLIP";
+                else
+                    state = "STICK";
 
-        //         ofs << r.pt.x() << "," << r.pt.y() << "," << r.pt.x() + r.u( 0 ) << ","
-        //             << r.pt.y() + r.u( 1 ) << "," << r.n( 0 ) << "," << r.n( 1 ) << "," << tx << ","
-        //             << ty << "," << r.weight << "," << r.gap0 << "," << gap << "," << r.u_n << ","
-        //             << r.u_t << "," << r.u( 0 ) << "," << r.u( 1 ) << "," << r.sigma_nn << ","
-        //             << r.sigma_nt << "," << std::abs( r.sigma_nt ) << "," << r.Fc << ","
-        //             << coulomb_limit << "," << stress_ratio << "," << r.phi_n << "," << r.phi_t
-        //             << "," << r.fric_bound << "," << nitsche_ratio << "," << state << "\n";
-        //     }
-        //     ofs.close();
+                ofs << r.pt.x() << "," << r.pt.y() << "," << r.pt.x() + r.u( 0 ) << ","
+                    << r.pt.y() + r.u( 1 ) << "," << r.n( 0 ) << "," << r.n( 1 ) << "," << tx << ","
+                    << ty << "," << r.weight << "," << r.gap0 << "," << gap << "," << r.u_n << ","
+                    << r.u_t << "," << r.u( 0 ) << "," << r.u( 1 ) << "," << r.sigma_nn << ","
+                    << r.sigma_nt << "," << std::abs( r.sigma_nt ) << "," << r.Fc << ","
+                    << coulomb_limit << "," << stress_ratio << "," << r.phi_n << "," << r.phi_t
+                    << "," << r.fric_bound << "," << nitsche_ratio << "," << state << "\n";
+            }
+            ofs.close();
 
-        //     if ( m_verbose )
-        //         std::cout << "** contact boundary trace: " << rows.size() << " points -> "
-        //                   << filename << std::endl;
-        // }
+            if ( m_verbose )
+                std::cout << "** contact boundary trace: " << rows.size() << " points -> "
+                          << filename << std::endl;
+        }
     }
 
     void
