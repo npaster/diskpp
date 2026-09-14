@@ -385,6 +385,8 @@ class contact_contribution {
         return sigma_n - disk::priv::inner_product( sigma_nn, n );
     }
 
+    // Cell-version contribution
+
     vector_type make_hho_phi_n_uT( const vector_type &sigma_nn, const vector_type &uT_n,
                                    scalar_type theta, scalar_type gamma_F ) const {
         vector_type phi_n = theta * sigma_nn;
@@ -485,14 +487,8 @@ class contact_contribution {
             return matrix_static::Identity();
         }
 
-        // slip. With eps > 0 this is the exact derivative of the smoothed projection above;
-        // note (I - x^x^) is rank-deficient along x^, so eps is what restores stiffness in
-        // the sliding direction itself.
-        const scalar_type eps = m_rp.m_dproj_regu;
-        const scalar_type d2 = x_norm * x_norm + eps * eps;
-        const scalar_type d = std::sqrt( d2 );
-
-        return alpha / d * ( matrix_static::Identity() - disk::Kronecker( x, x ) / d2 );
+        return alpha / x_norm *
+               ( matrix_static::Identity() - disk::Kronecker( x, x ) / ( x_norm * x_norm ) );
     }
 
     // compute theta/gamma *(sigma_n, sigma_n)_Fc
@@ -1055,9 +1051,9 @@ class contact_contribution {
 
                         lhs += disk::priv::outer_product( qp_phi_t_theta, d_proj_u_phi_t_1 );
 
-                        // Derivative of the friction radius s(u) = -F [phi_n_1(u)]_- in the
-                        // slip regime, as in the face branch below.
-                        if ( phi_n_1_u < scalar_type( 0 ) && phi_t_1_u.norm() > fric_bound ) {
+                        // d/du of the friction radius s(u) = -F [phi_n_1(u)]_-, slip regime
+                        if ( m_rp.consistentFrictionTangent() && phi_n_1_u < scalar_type( 0 ) &&
+                             phi_t_1_u.norm() > fric_bound ) {
                             const vector_static q_hat = phi_t_1_u / phi_t_1_u.norm();
 
                             const vector_type uT_n = make_hho_u_n( n, cb, qp.point() );
@@ -1068,8 +1064,7 @@ class contact_contribution {
 
                             const vector_type phi_t_theta_qhat = phi_t_theta * q_hat;
 
-                            // slip: proj = s * q_hat with s = -F [phi_n]_-, so this carries
-                            // ds/du = -F * phi_n_1.
+                            // slip: proj = s * q_hat, so ds/du = -F * phi_n_1
                             lhs -= ( qp.weight() / gamma_F * s_func( qp.point() ) ) *
                                    disk::priv::outer_product( phi_t_theta_qhat, phi_n_1 );
                         }
@@ -1098,10 +1093,9 @@ class contact_contribution {
 
                         lhs += disk::priv::outer_product( qp_phi_t_theta, d_proj_u_phi_t_1 );
 
-                        // Jacobian with respect to the friction radius s(u) = -F [phi_n_1(u)]_-.
-                        // In the slip regime the projection sits on the boundary of the ball, so
-                        // moving the radius moves the projected traction along q_hat.
-                        if ( phi_n_1_u < scalar_type( 0 ) && phi_t_1_u.norm() > fric_bound ) {
+                        // d/du of the friction radius s(u) = -F [phi_n_1(u)]_-, slip regime
+                        if ( m_rp.consistentFrictionTangent() && phi_n_1_u < scalar_type( 0 ) &&
+                             phi_t_1_u.norm() > fric_bound ) {
                             const vector_static q_hat = phi_t_1_u / phi_t_1_u.norm();
 
                             const vector_type uF_n = make_hho_u_n( n, fb, qp.point() );
@@ -1112,8 +1106,7 @@ class contact_contribution {
 
                             const vector_type phi_t_theta_qhat = phi_t_theta * q_hat;
 
-                            // slip: proj = s * q_hat with s = -F [phi_n]_-, so this carries
-                            // ds/du = -F * phi_n_1.
+                            // slip: proj = s * q_hat, so ds/du = -F * phi_n_1
                             lhs -= ( qp.weight() / gamma_F * s_func( qp.point() ) ) *
                                    disk::priv::outer_product( phi_t_theta_qhat, phi_n_1 );
                         }
@@ -1135,8 +1128,112 @@ class contact_contribution {
                           const param_type &rp, const bnd_type &bnd )
         : m_msh( msh ), m_material_data( material_data ), m_rp( rp ), m_bnd( bnd ) {}
 
-    // vTF carries the tangential kinematics (the velocity when unsteady); the stress
-    // always comes from uTF.
+    // One quadrature point of a contact face, with every quantity projected on that
+    // face's own discrete normal n = normal( m_msh, cl, fc ).
+    struct trace_point {
+        point_type pt;           // reference position
+        vector_static n;         // discrete facet normal (outward)
+        vector_static u;         // displacement trace
+        scalar_type gap0;        // initial gap g0( pt, n )
+        scalar_type u_n;         // u . n
+        scalar_type u_t;         // u . t, t = tangent (2D only)
+        scalar_type sigma_nn;    // (sigma n) . n
+        scalar_type sigma_nt;    // (sigma n) . t (2D only)
+        scalar_type phi_n;       // Nitsche normal indicator, < 0 <=> active contact
+        scalar_type phi_t;       // Nitsche tangential trial stress projected on t
+        scalar_type fric_bound;  // Fc * [-phi_n]_+
+        scalar_type Fc;          // Coulomb coefficient at pt
+        scalar_type weight;      // quadrature weight
+    };
+
+    // 2D tangent associated with the outward normal n.
+    static vector_static tangent_of( const vector_static &n ) {
+        vector_static t = vector_static::Zero();
+        static_assert( dimension == 2, "contact trace output is 2D only" );
+        t( 0 ) = -n( 1 );
+        t( 1 ) = n( 0 );
+        return t;
+    }
+
+    // Per-quadrature-point trace of the contact boundary of one cell. Mirrors the
+    // quadrature, gamma_F and friction bound used by nitsche_friction_energy so the
+    // reported state matches the state the solver actually enforced.
+    std::vector< trace_point >
+    contact_boundary_trace( const cell_type &cl, const CellDegreeInfo< MeshType > &cell_infos,
+                            const matrix_type &ET, const vector_type &uTF ) const {
+        std::vector< trace_point > out;
+
+        const auto cb = make_vector_monomial_basis( m_msh, cl, cell_infos.cell_degree() );
+        const auto gb = make_sym_matrix_monomial_basis( m_msh, cl, cell_infos.grad_degree() );
+
+        const auto fcs = faces( m_msh, cl );
+        size_t offset = cb.size();
+        const auto fcs_di = cell_infos.facesDegreeInfo();
+        size_t face_i = 0;
+
+        const vector_type ET_uTF = ET * uTF;
+
+        for ( auto &fc : fcs ) {
+            const auto fdi = fcs_di[face_i++];
+            const auto fb = make_vector_monomial_basis( m_msh, fc, fdi.degree() );
+            const auto fbs = fb.size();
+
+            if ( m_bnd.is_contact_face( fc ) ) {
+                const auto contact_type = m_bnd.contact_boundary_type( fc );
+                const auto n = normal( m_msh, cl, fc );
+                const auto t = tangent_of( n );
+                const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
+                const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
+                const auto hF = diameter( m_msh, fc );
+                const auto gamma_n_F = m_rp.m_gamma_0 / hF;
+                const auto gamma_t_F = m_rp.gamma_0_t() / hF;
+                const auto gap_func = m_bnd.contact_boundary_gap( fc );
+
+                const vector_type uF = uTF.segment( offset, fbs );
+
+                for ( auto &qp : qps ) {
+                    trace_point tp;
+                    tp.pt = qp.point();
+                    tp.n = n;
+                    tp.weight = qp.weight();
+                    tp.gap0 = gap_func( qp.point(), n );
+
+                    // displacement trace: cell trace for SIGNORINI_CELL, face trace otherwise
+                    if ( contact_type == disk::SIGNORINI_CELL ) {
+                        const auto t_phi = cb.eval_functions( qp.point() );
+                        tp.u = t_phi.transpose() * uTF.head( cb.size() );
+                    } else {
+                        const auto t_phi = fb.eval_functions( qp.point() );
+                        tp.u = t_phi.transpose() * uF;
+                    }
+
+                    tp.u_n = tp.u.dot( n );
+                    tp.u_t = tp.u.dot( t );
+
+                    const vector_static sig_n_vec = eval_stress( ET_uTF, gb, qp.point() ) * n;
+                    tp.sigma_nn = sig_n_vec.dot( n );
+                    tp.sigma_nt = sig_n_vec.dot( t );
+
+                    // Nitsche indicators, each on its own penalty
+                    tp.phi_n = tp.sigma_nn + gamma_n_F * ( tp.gap0 - tp.u_n );
+
+                    const vector_static u_tang = tp.u - tp.u_n * n;
+                    const vector_static sigma_tang = sig_n_vec - tp.sigma_nn * n;
+                    const vector_static phi_t_vec = sigma_tang - gamma_t_F * u_tang;
+                    tp.phi_t = phi_t_vec.dot( t );
+
+                    tp.Fc = m_bnd.contact_boundary_func( fc )( qp.point() );
+                    tp.fric_bound = -tp.Fc * std::min( scalar_type( 0 ), tp.phi_n );
+
+                    out.push_back( tp );
+                }
+            }
+            offset += fbs;
+        }
+        return out;
+    }
+
+    // wTF carries the tangential kinematics, uTF always the stress
     void
     compute( const cell_type &cl,
              const CellDegreeInfo< mesh_type > &cell_infos,
@@ -1523,9 +1620,7 @@ class contact_contribution {
         return make_proj_alpha( phi_t_1_u, fric_bound );
     }
 
-    // Cell-trace counterpart of eval_proj_coulomb_phi_t_uF: same Coulomb projection, but
-    // both the tangential traction and the friction radius are built on the trace of the
-    // cell unknown instead of the face unknown, so no offset is involved.
+    // cell-trace counterpart of eval_proj_coulomb_phi_t_uF, hence no offset
     template < typename GradBasis, typename CellBasis >
     vector_static
     eval_proj_coulomb_phi_t_uT( const face_type &fc,
