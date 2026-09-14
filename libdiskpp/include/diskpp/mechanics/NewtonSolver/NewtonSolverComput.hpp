@@ -345,17 +345,9 @@ class mechanical_computation {
             const auto &material_data = behavior.getMaterialData();
             auto cc = contact_contribution( msh, material_data, rp, bnd );
 
-            scalar_type c_N = scalar_type( 1 );
-
-            // DISABLED. Velocity-based friction, Q_gamma^t(u,v) = sigma_nt(u) - gamma_F * v_t,
-            // with c_N = dv/du from the integrator. This is the correct dynamic law and both
-            // residual and tangent are verified (contact_jacobian_check gives ~1e-14 at
-            // c_N = 1.944 and 38.889), but Newton enters an active-set limit cycle at contact
-            // onset: the residual alternates between two fixed values with |du| frozen, for
-            // 198 iterations. Insensitive to gamma_0_t (0.3..1000), gamma_0_n (30..1000),
-            // dt (0.05, 0.01) and every LineSearch. Re-enable once the active set is held
-            // fixed within an iteration (semi-smooth Newton).
-            // c_N = velocity_slope( time_step.increment_time() );
+            // The velocity form Q_gamma^t(u,v) = sigma_nt(u) - gamma_F * v_t is the correct
+            // dynamic law and its residual and tangent are verified, but Newton cycles...
+            scalar_type c_N = velocity_slope( rp, time_step.increment_time() );
 
             cc.setTime( time_step.end_time() );
             cc.compute( cl, cell_infos, RkT, uTF, vTF, tangent_matix, c_N );
