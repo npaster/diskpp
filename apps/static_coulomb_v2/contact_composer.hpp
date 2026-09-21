@@ -1,35 +1,12 @@
 /*
  * contact_composer.hpp -- ContactTerms: a composable list of boundary terms.
- *
- * Every term the drivers used lives here, wrapped from contact_terms.hpp,
- * and is classified by WHERE its work belongs:
- *
- *   term        consistency (into A, once)   linear jac (into A, once)   nonlinear (per Newton it.)
- *   ---------   --------------------------   -------------------------   --------------------------
- *   contact,    full n+t Nitsche             --                          [.]_- jacobian + rhs
- *   unilateral
- *   contact,    full n+t Nitsche             bilateral normal penalty    --
- *   bilateral                                (constant: no [.]_-)
- *   tresca      --                           --                          ball projection jac + rhs
- *   coulomb     --                           --                          jac + rhs, needs frozen p
- *   symmetry    normal-only Nitsche          bilateral normal penalty    --
- *
- * The classification is the efficiency point: bilateral contact and
- * symmetry are LINEAR (their jacobian is u-independent -- see
- * make_vector_hho_symmetry_jacobian, which calls the contact jacobian with
- * u = 0), and their residual is exactly J.u.  Folding J into the cached
- * system matrix A makes R = A.u - L include them for free, and removes
- * their re-assembly from every Newton iteration. 
- *
- * A Coulomb term flips needs_picard(): NewtonSolver reads it to decide
- * whether to wrap the Newton loop in the outer fixed-point iteration.
- * Symmetry is NOT tied to Coulomb: any experiment adds it -- or not --
- * with its own boundary view.
  */
 
 #pragma once
 
 #include <vector>
+#include <string>
+#include <stdexcept>
 
 #include "contact_terms.hpp"
 #include "spatial_operator.hpp"
@@ -47,7 +24,7 @@ public:
     using bc_type     = disk::vector_boundary_conditions<Mesh>;
 
 private:
-    enum class kind { contact_unilateral, contact_bilateral, tresca, coulomb, symmetry };
+    enum class kind { contact_unilateral, contact_symmetry_condition, tresca, coulomb, symmetry };
 
     struct term
     {
@@ -66,9 +43,9 @@ public:
 
     // ---- composition ----------------------------------------------------
     void add_contact(const bc_type& bnd, T gn0, T gt0, T theta,
-                     bool bilateral = false)
+                     bool symmetry_condition = false)
     {
-        terms_.push_back({bilateral ? kind::contact_bilateral
+        terms_.push_back({symmetry_condition ? kind::contact_symmetry_condition
                                     : kind::contact_unilateral,
                           &bnd, gn0, gt0, theta, T(0)});
     }
@@ -103,15 +80,24 @@ public:
             switch (t.knd)
             {
             case kind::contact_unilateral:
-            case kind::contact_bilateral:
+            case kind::contact_symmetry_condition:
                 C += disk::make_vector_hho_nitsche(op.msh, cl, op.di, G,
-                        t.gn0, t.gt0, t.theta, op.mu, op.lam, *t.bnd);
+                        t.gn0, t.gt0, t.theta, op.mu, op.lam, *t.bnd,
+                        /* include_normal = */ true,
+                        /* include_tangential = */ false);
+                break;
+            case kind::tresca:
+            case kind::coulomb:
+                C += disk::make_vector_hho_nitsche(op.msh, cl, op.di, G,
+                        t.gn0, t.gt0, t.theta, op.mu, op.lam, *t.bnd,
+                        /* include_normal = */ false,
+                        /* include_tangential = */ true);
                 break;
             case kind::symmetry:
                 C += disk::make_vector_hho_symmetry_nitsche(op.msh, cl, op.di, G,
                         t.gn0, t.theta, op.mu, op.lam, *t.bnd);
                 break;
-            default: break;      // tresca / coulomb carry no consistency of their own
+            default: break;
             }
         }
         return C;
@@ -129,15 +115,13 @@ public:
         {
             switch (t.knd)
             {
-            case kind::contact_bilateral:
+            case kind::contact_symmetry_condition:
             {
                 const vector_type u0 = vector_type::Zero(G.cols());
                 J += disk::make_vector_hho_contact_jacobian(op.msh, cl, op.di, G,
                         t.gn0, t.theta, op.mu, op.lam, *t.bnd, u0,
-                        /* bilateral = */ true,
-                        /* symmetry is Dirichlet-type: face version is the
-                         * proven-optimal one there, and its faces keep their
-                         * unknowns with a full reconstruction              */
+                        /* symmetry_condition = */ true,
+                        /* symmetry is Dirichlet-type */
                         hho_contact::trace_variant::face);
                 break;
             }
@@ -169,10 +153,10 @@ public:
             case kind::contact_unilateral:
                 J += disk::make_vector_hho_contact_jacobian(op.msh, cl, op.di, G,
                         t.gn0, t.theta, op.mu, op.lam, *t.bnd, u,
-                        /* bilateral = */ false, op.variant);
+                        /* symmetry_condition = */ false, op.variant);
                 R += disk::make_vector_hho_contact_rhs(op.msh, cl, op.di, G,
                         t.gn0, t.theta, op.mu, op.lam, *t.bnd, u,
-                        /* bilateral = */ false, op.variant);
+                        /* symmetry_condition = */ false, op.variant);
                 break;
             case kind::tresca:
                 J += disk::make_vector_hho_tresca_jacobian(op.msh, cl, op.di, G,

@@ -12,6 +12,22 @@ namespace disk
 
 
 /* ==========================================================================
+ * The Nitsche penalty.
+ *
+ *     gamma_h = gamma_0 * (2 mu) / h_F
+ * ========================================================================*/
+template<typename Mesh>
+typename Mesh::coordinate_type
+nitsche_gamma(const Mesh&                          msh,
+              const typename Mesh::face_type&      fc,
+              const typename Mesh::coordinate_type gamma_0,
+              const typename Mesh::coordinate_type mu)
+{
+    /* gamma_0 is dimensionless */
+    return gamma_0 * (2.0 * mu) / diameter(msh, fc);
+}
+
+/* ==========================================================================
  * Primitives
  * ========================================================================*/
 
@@ -72,13 +88,7 @@ eval_trace_operator(const Mesh&                      msh,
 }
 
 /* Trace operator at a quadrature point on face F using the CELL basis:
- * row j = phi^T_j(pt), written into the CELL block (offset 0).
- *
- * Cell-version (Cascavita-Chouly-Ern) counterpart of eval_trace_operator:
- * in P_n(u) = sigma_n(u) - gamma u_n the displacement is the trace of the
- * CELL unknown u_T|_F instead of the face unknown u_F.  Meaningful only
- * together with the removal of the face unknowns on the contact boundary
- * (see spatial_operator, which marks them hasUnknowns(false) in cell mode).
+ * row j = phi^T_j(pt), written into the CELL block.
  */
 template<typename Mesh>
 Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>
@@ -129,7 +139,7 @@ eval_displacement_trace_operator(const Mesh&                      msh,
 
 /* Bilinear Nitsche consistency:
  *   (theta/gamma_n) \int sigma_n(u) sigma_n(v)
- * + (theta/gamma_t) \int sigma_t(u).sigma_t(v)  */
+ * + (theta/gamma_t) \int sigma_t(u) sigma_t(v)  */
 template<typename Mesh>
 Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>
 make_vector_hho_nitsche(const Mesh&                     msh,
@@ -142,7 +152,9 @@ make_vector_hho_nitsche(const Mesh&                     msh,
                         const typename Mesh::coordinate_type theta,
                         const typename Mesh::coordinate_type mu,
                         const typename Mesh::coordinate_type lam,
-                        const vector_boundary_conditions<Mesh>& bnd)
+                        const vector_boundary_conditions<Mesh>& bnd,
+                        const bool include_normal     = true,
+                        const bool include_tangential = true)
 {
     using T           = typename Mesh::coordinate_type;
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -170,9 +182,8 @@ make_vector_hho_nitsche(const Mesh&                     msh,
         const auto n   = normal(msh, cl, fc);
         const auto qps = integrate(msh, fc, quad_deg);
 
-        const T h_F       = diameter(msh, fc);
-        const T gamma_n_h = gamma_n_0 / h_F;
-        const T gamma_t_h = gamma_t_0 / h_F;
+        const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
+        const T gamma_t_h = nitsche_gamma(msh, fc, gamma_t_0, mu);
 
         for (auto& qp : qps)
         {
@@ -180,12 +191,17 @@ make_vector_hho_nitsche(const Mesh&                     msh,
                                                              qp.point(), n, mu, lam);
 
             vector_type sigma_n_op = traction_op * n;                 // (ndofs)
-            matrix_type sigma_t_op = traction_op
-                                     - sigma_n_op * n.transpose();    // (ndofs x N)
+            matrix_type sigma_t_op = traction_op - sigma_n_op * n.transpose();    // (ndofs x N)
 
-            nitsche_matrix += qp.weight() * theta *
-                ( (1.0/gamma_n_h) * sigma_n_op * sigma_n_op.transpose()
-                + (1.0/gamma_t_h) * sigma_t_op * sigma_t_op.transpose() );
+            if (include_normal)
+                nitsche_matrix += qp.weight() * theta
+                                  * (1.0/gamma_n_h)
+                                  * sigma_n_op * sigma_n_op.transpose();
+
+            if (include_tangential)
+                nitsche_matrix += qp.weight() * theta
+                                  * (1.0/gamma_t_h)
+                                  * sigma_t_op * sigma_t_op.transpose();
         }
     }
 
@@ -197,26 +213,22 @@ make_vector_hho_nitsche(const Mesh&                     msh,
  * with  P_n(u)       = sigma_n(u)       - gamma_n u_dT.n
  *       P_n^theta(v) = theta sigma_n(v) - gamma_n v_dT.n
  *
- * bilateral = true enforces u_n = 0: the negative part is dropped, the
- * term is always active and becomes linear (standard Nitsche-Dirichlet on
- * the normal component).                                                  */
+ * symmetry_condition = true enforces u_n = 0: the negative part is dropped, the
+ * term is always active                                               */
 template<typename Mesh>
 Matrix<typename Mesh::coordinate_type, Dynamic, 1>
 make_vector_hho_contact_rhs(const Mesh&                     msh,
                             const typename Mesh::cell_type& cl,
                             const MeshDegreeInfo<Mesh>&     degree_infos,
-                            const Matrix<typename Mesh::coordinate_type,
-                                         Dynamic, Dynamic>& grad_op,
+                            const Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>& grad_op,
                             const typename Mesh::coordinate_type gamma_n_0,
                             const typename Mesh::coordinate_type theta,
                             const typename Mesh::coordinate_type mu,
                             const typename Mesh::coordinate_type lam,
                             const vector_boundary_conditions<Mesh>& bnd,
-                            const Matrix<typename Mesh::coordinate_type,
-                                         Dynamic, 1>& u_prev,
-                            const bool bilateral = false,
-                            const hho_contact::trace_variant variant
-                                = hho_contact::trace_variant::face)
+                            const Matrix<typename Mesh::coordinate_type,Dynamic, 1>& u_prev,
+                            const bool symmetry_condition = false,
+                            const hho_contact::trace_variant variant = hho_contact::trace_variant::face)
 {
     using T           = typename Mesh::coordinate_type;
     using matrix_type = Matrix<T, Dynamic, Dynamic>;
@@ -248,7 +260,7 @@ make_vector_hho_contact_rhs(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T gamma_n_h = gamma_n_0 / diameter(msh, fc);
+            const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
 
             for (auto& qp : qps)
             {
@@ -267,7 +279,7 @@ make_vector_hho_contact_rhs(const Mesh&                     msh,
                 vector_type P_v_op = theta*sigma_n_op - gamma_n_h * trace_n_op;
 
                 const T P_u_value = P_u_op.dot(u_prev);
-                const T P_u_eff   = bilateral ? P_u_value
+                const T P_u_eff   = symmetry_condition ? P_u_value
                                               : std::min(P_u_value, T(0));
 
                 contact_rhs += (qp.weight() / gamma_n_h) * P_u_eff * P_v_op;
@@ -280,7 +292,7 @@ make_vector_hho_contact_rhs(const Mesh&                     msh,
     return contact_rhs;
 }
 
-/* Tresca friction term, evaluated at u_prev with a GIVEN constant
+/* Tresca friction term, evaluated at u_prev with a given constant
  * threshold s:
  *   (1/gamma_t) \int [P_t(u_prev)]_s . P_t^theta(v)
  * with  P_t(u) = sigma_t(u) - gamma_t u_dT,t   (tangential, vector)
@@ -335,7 +347,7 @@ make_vector_hho_tresca_rhs(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T gamma_t_h = gamma_t_0 / diameter(msh, fc);
+            const T gamma_t_h = nitsche_gamma(msh, fc, gamma_t_0, mu);
 
             for (auto& qp : qps)
             {
@@ -376,7 +388,7 @@ make_vector_hho_tresca_rhs(const Mesh&                     msh,
 /* Normal contact Jacobian, linearised at u_lin:
  *   (1/gamma_n) \int H(P_n(u)) P_n(du) P_n^theta(v)
  * with H(x) = 1 if x <= 0 (active contact), 0 otherwise.
- * bilateral = true: always active.                                        */
+ * symmetry_condition = true: always active.                                        */
 template<typename Mesh>
 Matrix<typename Mesh::coordinate_type, Dynamic, Dynamic>
 make_vector_hho_contact_jacobian(const Mesh&                     msh,
@@ -391,7 +403,7 @@ make_vector_hho_contact_jacobian(const Mesh&                     msh,
                                  const vector_boundary_conditions<Mesh>& bnd,
                                  const Matrix<typename Mesh::coordinate_type,
                                               Dynamic, 1>& u_lin,
-                                 const bool bilateral = false,
+                                 const bool symmetry_condition = false,
                                  const hho_contact::trace_variant variant
                                      = hho_contact::trace_variant::face)
 {
@@ -426,7 +438,7 @@ make_vector_hho_contact_jacobian(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T gamma_n_h = gamma_n_0 / diameter(msh, fc);
+            const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
 
             for (auto& qp : qps)
             {
@@ -446,7 +458,7 @@ make_vector_hho_contact_jacobian(const Mesh&                     msh,
 
                 const T P_u_value = P_u_op.dot(u_lin);
 
-                if (bilateral || P_u_value <= T(0))
+                if (symmetry_condition || P_u_value <= T(0))
                     contact_jacobian += (qp.weight() / gamma_n_h)
                                         * (P_v_op * P_u_op.transpose());
             }
@@ -515,7 +527,7 @@ make_vector_hho_tresca_jacobian(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T gamma_t_h = gamma_t_0 / diameter(msh, fc);
+            const T gamma_t_h = nitsche_gamma(msh, fc, gamma_t_0, mu);
 
             for (auto& qp : qps)
             {
@@ -561,8 +573,10 @@ make_vector_hho_tresca_jacobian(const Mesh&                     msh,
 /* ==========================================================================
  * Coulomb friction
  *
- *     s(u) = - F [ P_n(u) ]_-  ,   P_n(u) = sigma_n(u) - gamma_n u_dT.n
- *
+ *     s(u) = - F [ P_n(u) ]_-  ,   
+ * where
+ *      P_n(u) = sigma_n(u) - gamma_n u_dT.n (disk::trace_variant::face)
+ *      P_n(u) = sigma_n(u) - gamma_n u_T|_{dT}.n (disk::trace_variant::cell)
  * Since [.]_- <= 0, s >= 0 automatically.  The threshold is FROZEN at the
  * outer Picard iterate u_picard
  *
@@ -622,9 +636,8 @@ make_vector_hho_coulomb_rhs(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T h_F       = diameter(msh, fc);
-            const T gamma_n_h = gamma_n_0 / h_F;
-            const T gamma_t_h = gamma_t_0 / h_F;
+            const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
+            const T gamma_t_h = nitsche_gamma(msh, fc, gamma_t_0, mu);
 
             for (auto& qp : qps)
             {
@@ -730,9 +743,8 @@ make_vector_hho_coulomb_jacobian(const Mesh&                     msh,
             const auto n   = normal(msh, cl, fc);
             const auto qps = integrate(msh, fc, quad_deg);
 
-            const T h_F       = diameter(msh, fc);
-            const T gamma_n_h = gamma_n_0 / h_F;
-            const T gamma_t_h = gamma_t_0 / h_F;
+            const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
+            const T gamma_t_h = nitsche_gamma(msh, fc, gamma_t_0, mu);
 
             for (auto& qp : qps)
             {
@@ -753,7 +765,7 @@ make_vector_hho_coulomb_jacobian(const Mesh&                     msh,
                 const T s_threshold = friction_coeff
                                       * std::max(-1.0*P_n_picard, T(0));   // >= 0
 
-                // ---- from here on: identical to Tresca ----
+               
                 matrix_type sigma_t_op = traction_op - sigma_n_op * n.transpose();
                 matrix_type trace_t_op = trace_op    - trace_n_op * n.transpose();
 
@@ -837,7 +849,7 @@ make_vector_hho_symmetry_nitsche(const Mesh&                     msh,
         const auto n   = normal(msh, cl, fc);
         const auto qps = integrate(msh, fc, quad_deg);
 
-        const T gamma_n_h = gamma_n_0 / diameter(msh, fc);
+        const T gamma_n_h = nitsche_gamma(msh, fc, gamma_n_0, mu);
 
         for (auto& qp : qps)
         {
@@ -854,7 +866,7 @@ make_vector_hho_symmetry_nitsche(const Mesh&                     msh,
 }
 
 /* Residual of the weak symmetry condition, always active (no [.]_-):
- * this is the bilateral normal term specialised to its own name.          */
+ * this is the symmetry_condition normal term specialised to its own name.          */
 template<typename Mesh>
 Matrix<typename Mesh::coordinate_type, Dynamic, 1>
 make_vector_hho_symmetry_rhs(const Mesh&                     msh,
@@ -874,7 +886,7 @@ make_vector_hho_symmetry_rhs(const Mesh&                     msh,
 {
     return make_vector_hho_contact_rhs(msh, cl, degree_infos, grad_op,
                                        gamma_n_0, theta, mu, lam, bnd, u_prev,
-                                       /* bilateral = */ true, variant);
+                                       /* symmetry_condition = */ true, variant);
 }
 
 /* Jacobian of the weak symmetry condition: linear, hence u-independent.   */
@@ -898,7 +910,7 @@ make_vector_hho_symmetry_jacobian(const Mesh&                     msh,
 
     return make_vector_hho_contact_jacobian(msh, cl, degree_infos, grad_op,
                                             gamma_n_0, theta, mu, lam, bnd, u_dummy,
-                                            /* bilateral = */ true, variant);
+                                            /* symmetry_condition = */ true, variant);
 }
 
 } // namespace disk

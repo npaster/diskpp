@@ -98,9 +98,11 @@ public:
 
                 if (bnd_C.is_contact_face(fc))
                 {
-                    const T h_F       = disk::diameter(op.msh, fc);
-                    const T gamma_n_h = gn0 / h_F;
-                    const T gamma_t_h = gt0 / h_F;
+                    /* same penalty the solve uses, from the single
+                     * definition in contact_terms.hpp -- otherwise the
+                     * reported P_n is not the P_n being solved for */
+                    const T gamma_n_h = disk::nitsche_gamma(op.msh, fc, gn0, op.mu);
+                    const T gamma_t_h = disk::nitsche_gamma(op.msh, fc, gt0, op.mu);
 
                     const auto n          = disk::normal(op.msh, cl, fc);
                     const auto barycentre = disk::barycenter(op.msh, fc);
@@ -110,9 +112,14 @@ public:
                     auto traction_op = disk::eval_traction_operator(
                             op.msh, grad_basis, op.G[ci],
                             barycentre, n, op.mu, op.lam);
-                    auto trace_op    = disk::eval_trace_operator(
-                            op.msh, face_basis, barycentre,
-                            traction_op.rows(), face_offset);
+                    /* The augmented tractions below must read the SAME
+                     * displacement trace the solve used, or the report
+                     * measures a different quantity than the one solved
+                     * for: cell trace u_T|_F in the cell variant, face
+                     * trace u_F otherwise.                              */
+                    auto trace_op    = disk::eval_displacement_trace_operator(
+                            op.msh, cl, face_basis, op.cell_deg, barycentre,
+                            traction_op.rows(), face_offset, op.variant);
 
                     vector_type sigma_n_op = traction_op * n;
                     vector_type trace_n_op = trace_op    * n;
@@ -191,7 +198,7 @@ public:
                     zone = (slip_ratio > T(1)) ? 1 : 2;                        // slip : stick
                 }
             }
-            else   // Tresca: constant threshold, bilateral (no separation)
+            else   // Tresca: constant threshold, symmetry_condition (no separation)
             {
                 s = coeff;
                 slip_ratio = (s > T(1e-30)) ? f.P_t_norm / s : T(0);

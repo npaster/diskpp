@@ -25,42 +25,6 @@
 
 namespace hho_contact {
 
-/* Diagnostic: centroid of each native boundary id.  y ~ 0 is bottom,
- * x ~ 0 is left, and so on.  NOTE: adjust the boundary-id accessor if the
- * diskpp revision at hand names it differently.                           */
-template<typename Mesh>
-void report_native_tags(const Mesh& msh)
-{
-    using T = typename Mesh::coordinate_type;
-    constexpr size_t DIM = Mesh::dimension;
-
-    std::map<size_t, std::pair<std::array<T,3>, size_t>> acc;
-
-    for (auto itor = msh.boundary_faces_begin();
-         itor != msh.boundary_faces_end(); itor++)
-    {
-        const auto& fc = *itor;
-        const auto  bi = msh.boundary_id(fc);          // native tag
-        const auto  b  = disk::barycenter(msh, fc);
-
-        auto& [sum, cnt] = acc[bi];
-        sum[0] += b.x();
-        sum[1] += b.y();
-        if constexpr (DIM == 3) sum[2] += b.z();
-        cnt++;
-    }
-
-    std::cout << "native boundary tags:\n";
-    for (auto& [id, sc] : acc)
-    {
-        const auto& [sum, cnt] = sc;
-        std::cout << "  tag " << id << " (" << cnt << " faces)  centroid ( "
-                  << sum[0]/cnt << " , " << sum[1]/cnt;
-        if constexpr (DIM == 3) std::cout << " , " << sum[2]/cnt;
-        std::cout << " )\n";
-    }
-}
-
 template<typename Mesh>
 class Experiment
 {
@@ -73,14 +37,17 @@ public:
 
     virtual ~Experiment() = default;
 
+    size_t signorini_tag() const
+    {
+        return prm.variant == trace_variant::cell ? disk::SIGNORINI_CELL
+                                                  : disk::SIGNORINI_FACE;
+    }
+
     // ---- the four hooks a benchmark implements --------------------------
     virtual std::string name() const = 0;
 
     virtual void build_mesh() = 0;
 
-    /* Fill the boundary views and return the wiring the solver needs.
-     * Views are OWNED by the concrete experiment (members), because their
-     * number varies: Bostan-Han uses 2, SINUM 6.2 uses 4.                */
     struct bc_wiring
     {
         const bc_type* state;     // assembler + state gather (real loads)
@@ -154,23 +121,15 @@ public:
     int run()
     {
         build_mesh();
-        report_native_tags(msh);
 
         prm.derive_lame();
         const auto wiring = setup_bc();
 
-        std::cout << name() << "\n"
-                  << "  " << msh.cells_size() << " cells   k=" << prm.k
-                  << "  friction=" << prm.friction
-                  << "  theta=" << prm.theta
-                  << "  gamma_0=" << prm.gamma_0 << "\n"
-                  << "  mu = " << prm.mu << "   lambda = " << prm.lam << "\n";
-
-        if (prm.variant == trace_variant::cell)
-            std::cout << "  Nitsche variant: CELL "
-                         "(u_T|_F, contact-blind reconstruction)\n";
-        else
-            std::cout << "  Nitsche variant: FACE (u_F)\n";
+        std::cout << name()
+                  << "  (" << msh.cells_size() << " cells, k=" << prm.k
+                  << ", "
+                  << (prm.variant == trace_variant::cell ? "cell" : "face")
+                  << ")\n";
 
         /* The contact view already knows which faces are Signorini; in cell
          * mode the operator uses it to strip their unknowns.               */
@@ -192,13 +151,19 @@ public:
         solve_stats stats;
         const bool ok = solver.solve(st, prm.opts, stats);
 
-        // one machine-parseable line for gamma_0 / convergence sweeps
+
+        std::ios::fmtflags sf(std::cout.flags());
+        const auto sprec = std::cout.precision();
+        std::cout << std::scientific << std::setprecision(3);
+
         std::cout << "SUMMARY"
                   << " name=" << name()
                   << " level=" << prm.mesh_level
                   << " k=" << prm.k
                   << " theta=" << prm.theta
                   << " gamma_0=" << prm.gamma_0
+                  << " gamma_n_0=" << prm.gn0()
+                  << " gamma_t_0=" << prm.gt0()
                   << " friction=" << prm.friction
                   << " converged=" << (stats.converged ? 1 : 0)
                   << " picard=" << stats.picard_iters
@@ -209,8 +174,11 @@ public:
                       << (i + 1 < stats.newton_per_picard.size() ? "," : "");
         std::cout << "\n";
 
+        std::cout.flags(sf);
+        std::cout.precision(sprec);
+
         ContactReport<Mesh> rep(solver, op, *wiring.contact,
-                                prm.gamma_0, prm.gamma_0);
+                                prm.gn0(), prm.gt0());
         report(rep, st, ct.needs_picard());
 
         return ok ? 0 : 1;

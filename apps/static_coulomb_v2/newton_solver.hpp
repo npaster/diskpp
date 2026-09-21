@@ -5,7 +5,8 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
-#include <algorithm>
+#include <chrono>
+#include <string>
 
 #include "diskpp/methods/hho"
 #include "diskpp/solvers/direct_solvers.hpp"
@@ -23,8 +24,7 @@ struct hho_state
     disk::dynamic_vector<T>              faces;
 };
 
-/* Per-solve iteration record, filled by solve().  For a Newton-only
- * problem picard_iters = 1 and newton_per_picard has a single entry.     */
+/* Per-solve iteration record, filled by solve()    */
 struct solve_stats
 {
     bool                converged   = false;
@@ -115,6 +115,7 @@ public:
         return st;
     }
 
+    // ---- assemble the local DOF solution (uT,uF) ------------------------
     vector_type gather(const cell_type& cl, size_t ci,
                        const hho_state<T>& st) const
     {
@@ -135,82 +136,143 @@ public:
     bool solve(hho_state<T>& st, const solver_opts& o, solve_stats& stats)
     {
         stats = solve_stats{};
+        const auto t_start = std::chrono::steady_clock::now();
 
         if (!ct.needs_picard())
         {
             size_t nit = 0;
-            const bool ok = newton_loop(st, nullptr, o, nit, o.verbose);
+            const bool ok = newton_loop(st, nullptr, o, nit);
             stats.converged    = ok;
             stats.picard_iters = 1;
             stats.newton_total = nit;
             stats.newton_per_picard = { nit };
-            if (o.verbose)
-            {
-                if (!ok) std::cout << "  *** NEWTON DID NOT CONVERGE ***\n";
-                std::cout << "  Newton iterations: " << nit << "\n";
-            }
+
+            report_summary(stats, ok, T(0), o, t_start, /* picard = */ false);
             return ok;
         }
 
         // ---- Picard on the frozen Coulomb threshold ----------------------
         hho_state<T> frozen = st;
         size_t total_newton = 0;
+        size_t newton_failed = 0;
         bool   picard_ok    = false;
+        T      last_pdiff   = T(0);
 
         for (size_t pit = 0; pit < o.max_picard; pit++)
         {
+            std::cout << "\n*** Picard pass " << pit << " ***\n";
             size_t nit = 0;
-            const bool newton_ok = newton_loop(st, &frozen, o, nit, false);
+            const bool newton_ok = newton_loop(st, &frozen, o, nit);
             total_newton += nit;
             stats.newton_per_picard.push_back(nit);
 
             T diff2 = (st.faces - frozen.faces).squaredNorm();
+            T norm2 = st.faces.squaredNorm();
             for (size_t ci = 0; ci < st.cells.size(); ci++)
+            {
                 diff2 += (st.cells[ci] - frozen.cells[ci]).squaredNorm();
-            const T pdiff = std::sqrt(diff2);
+                norm2 += st.cells[ci].squaredNorm();
+            }
+            const T abs_err = std::sqrt(diff2);
+            const T rel_err = abs_err / (std::sqrt(norm2) + 1e-14);
 
-            if (o.verbose)
-                std::cout << "  picard " << std::setw(2) << pit
-                          << "   newton " << std::setw(2) << nit
-                          << (newton_ok ? " " : "*")
-                          << "   |u - u_picard| = " << std::scientific
-                          << std::setprecision(3) << pdiff << "\n";
+            if (!newton_ok) newton_failed++;
+            last_pdiff = abs_err;
+
+            {
+                std::ios::fmtflags pf(std::cout.flags());
+                const auto pprec = std::cout.precision();
+                std::cout << "Picard " << pit
+                          << ": |u - u_picard| = " << std::scientific
+                          << std::setprecision(5) << abs_err
+                          << "   relative = " << rel_err
+                          << "   (inner Newton: " << nit << " iters, "
+                          << (newton_ok ? "converged" : "NOT converged") << ")\n";
+                std::cout.flags(pf);
+                std::cout.precision(pprec);
+            }
 
             frozen = st;
 
-            if (pdiff < o.tol_picard) { picard_ok = true; break; }
+            if (abs_err < o.tol_picard && newton_ok) { picard_ok = true; break; }
         }
 
         stats.converged    = picard_ok;
         stats.picard_iters = stats.newton_per_picard.size();
         stats.newton_total = total_newton;
 
-        if (o.verbose)
-        {
-            if (!picard_ok) std::cout << "  *** PICARD DID NOT CONVERGE ***\n";
-            std::cout << "  total inner Newton iterations: "
-                      << total_newton << "\n";
-        }
+        report_summary(stats, picard_ok, last_pdiff, o, t_start,
+                       /* picard = */ true, newton_failed);
         return picard_ok;
     }
 
 private:
-    /* One condensed Newton step; returns (|du_faces|, |u_faces|).
-     * Rhist is the sliding window of accepted-iterate residual norms used
-     * by the non-monotone line search below; it lives in the caller
-     * (newton_loop), reset at the start of each Newton loop.             */
-    std::pair<T,T> step(hho_state<T>& st, const hho_state<T>* frozen,
-                        std::vector<T>& Rhist)
+    /* Closing block, in the style of
+     * libdiskpp mechanics/NewtonSolver :: SolverInfo::printInfo().       */
+    void report_summary(const solve_stats& stats, bool ok, T last_pdiff,
+                        const solver_opts& o,
+                        std::chrono::steady_clock::time_point t_start,
+                        bool picard, size_t newton_failed = 0) const
+    {
+        const double secs = std::chrono::duration<double>(
+                                std::chrono::steady_clock::now() - t_start).count();
+
+        std::ios::fmtflags f(std::cout.flags());
+        const auto prec = std::cout.precision();
+
+        std::cout << "\n";
+        std::cout << "------------------------------------------------------- \n";
+        std::cout << "Summaring: \n";
+
+        if (picard)
+        {
+            std::cout << "Total Newton's iterations: " << stats.newton_total
+                      << " in " << stats.picard_iters << " Picard passes\n";
+            std::cout << "Picard: " << (ok ? "converged" : "NOT converged")
+                      << "   |u - u_picard| = " << std::scientific
+                      << std::setprecision(5) << last_pdiff
+                      << "   (tol " << o.tol_picard << ")\n";
+            std::cout << "Newton: "
+                      << (stats.picard_iters - newton_failed) << " of "
+                      << stats.picard_iters << " passes converged";
+            if (newton_failed > 0)
+                std::cout << "   <-- " << newton_failed
+                          << " pass(es) hit max_newton = " << o.max_newton;
+            std::cout << "\n";
+        }
+        else
+        {
+            std::cout << "Total Newton's iterations: " << stats.newton_total
+                      << "\n";
+            std::cout << "Newton: " << (ok ? "converged" : "NOT converged")
+                      << "   (tol " << std::scientific << std::setprecision(5)
+                      << o.tol_newton << ", max_newton = " << o.max_newton
+                      << ")\n";
+        }
+
+        std::cout << "Total time to solve the problem: " << std::fixed
+                  << std::setprecision(3) << secs << " sec\n";
+        std::cout << "------------------------------------------------------- \n";
+        std::cout << " \n";
+
+        std::cout.flags(f);
+        std::cout.precision(prec);
+    }
+
+public:
+
+private:
+    /* What one Newton step reports back: the increment it applied, the
+     * state norm it applied it to, and the residual norm it was formed
+     * from (i.e. the residual AT the incoming iterate).                  */
+    struct step_info { T du; T u; T residual; };
+
+    /* One condensed Newton step. */
+    step_info step(hho_state<T>& st, const hho_state<T>* frozen)
     {
         const bool nonlin = ct.has_nonlinear();
 
-        // ---- pass 1: uncondensed local tangent Jbase[ci] and residual
-        // R_loc[ci] at the CURRENT state. These don't change while we try
-        // different damping/step-size combinations below -- only the
-        // condensation (which sees Jbase + mu*I) and the global solve do.
-        std::vector<matrix_type> Jbase(op.num_cells());
-        std::vector<vector_type> Rloc(op.num_cells());
-        T R0sq = 0;
+        assembler.initialize();
 
         size_t ci = 0;
         for (auto& cl : op.msh)
@@ -228,223 +290,109 @@ private:
                 {
                     vector_type p_loc = gather(cl, ci, *frozen);
                     ct.accumulate_nonlinear(cl, ci, u_loc, p_loc, J, R);
-
-// --- FD check: ¿J es la derivada de R? (1a celda de contacto, 1a vez) ---
-{
-    static bool fd_done = false;
-    if (!fd_done && (J - A[ci]).norm() > 1e-12)   // celda con termino de contacto
-    {
-        fd_done = true;
-        const double eps = 1e-6;
-        vector_type d = vector_type::Random(u_loc.size());
-        d /= d.norm();
-        vector_type u2 = u_loc + eps*d;            // materializar
-        matrix_type J2 = A[ci];
-        vector_type R2 = A[ci]*u2 - L[ci];
-        ct.accumulate_nonlinear(cl, ci, u2, p_loc, J2, R2);   // orden correcto
-        vector_type fd = (R2 - R)/eps;
-        vector_type an = J*d;
-        std::cout << "  [dbg-fd] |fd - J*d|/|J*d| = "
-                  << (fd-an).norm()/std::max(an.norm(),1e-30) << "\n";
-    }
-}
-
-
                 }
                 else
                     ct.accumulate_nonlinear(cl, ci, u_loc, u_loc, J, R);
             }
 
-            // --- diagnostico temporal: definitud local, solo primera pasada ---
-            {
-                static int probe_budget = 280;   // = nº de celdas -> solo 1ª iteración
-                if (probe_budget > 0) {
-                    probe_budget--;
-                    Eigen::SelfAdjointEigenSolver<matrix_type> es(0.5*(J + J.transpose()));
-                    const double mn = es.eigenvalues().minCoeff();
-                    const double mx = es.eigenvalues().maxCoeff();
-                    if (mn < -1e-10 * std::abs(mx))
-                        std::cout << "  [dbg-eig] ci=" << ci << "  min=" << mn
-                                << "  max=" << mx << "\n";
-                }
-            }
+            vector_type negR = -R;
+            auto scT = disk::make_vector_static_condensation_withMatrix(
+                           op.msh, cl, op.di, J, negR);
+            auto sc  = std::get<0>(scT);
+            AL[ci]   = std::get<1>(scT);
+            bL[ci]   = std::get<2>(scT);
 
-            R0sq += R.squaredNorm();
-            Jbase[ci] = J;
-            Rloc[ci]  = R;
+            assembler.assemble(op.msh, cl, bnd_incr, sc.first, sc.second);
             ci++;
         }
+        assembler.finalize();
 
-        const T R0 = std::sqrt(R0sq);
-        const size_t window = 5;
-        const T Rmax = Rhist.empty()
-                     ? R0 : *std::max_element(Rhist.begin(), Rhist.end());
-        Rhist.push_back(R0);
-        if (Rhist.size() > window) Rhist.erase(Rhist.begin());
+        /* Residual of the system actually being solved: the assembled rhs
+         * is the CONDENSED -R, with the Dirichlet rows already eliminated.
+         * The raw per-cell R is not usable here -- it still carries the
+         * Dirichlet reactions, which are large and never vanish.         */
+        const T res_norm = assembler.RHS.norm();
 
-        // ---- pass 2: damped semismooth Newton.
-        //
-        // A plain backtracking line search can only rescale the Newton
-        // direction d = J^-1(-R) by a scalar alpha; it cannot fix a d that
-        // simply is not a descent direction for the residual at all, which
-        // is what happens once the contact active set (cell variant) has
-        // settled somewhere the linearised model stops predicting the true
-        // nonlinear residual well. Levenberg-Marquardt-style damping --
-        // solving (Jbase + mu*diag_scale*I) d = -R instead -- rotates the
-        // direction towards steepest descent as mu grows, which for large
-        // enough mu is *guaranteed* to be a descent direction, unlike any
-        // rescaling of the undamped direction. mu escalates only when the
-        // (cheap) backtracking line search fails outright at the current mu.
-        hho_state<T> best        = st;
-        T            best_R      = R0;
-        bool         accepted    = false;
-        T            accepted_alpha = T(1);
-        T            accepted_mu    = T(0);
-
-        T mu = T(0);
-        const size_t max_mu_tries = 6;
-
-        for (size_t mu_try = 0; mu_try <= max_mu_tries && !accepted; mu_try++)
-        {
-            assembler.initialize();
-
-            ci = 0;
-            for (auto& cl : op.msh)
-            {
-                matrix_type Jreg = Jbase[ci];
-                if (mu > 0)
-                {
-                    const T dscale = std::max(Jbase[ci].diagonal().cwiseAbs().maxCoeff(),
-                                              T(1e-30));
-                    Jreg += (mu*dscale) * matrix_type::Identity(Jreg.rows(), Jreg.cols());
-                }
-
-                vector_type negR = -Rloc[ci];
-                auto scT = disk::make_vector_static_condensation_withMatrix(
-                               op.msh, cl, op.di, Jreg, negR);
-                auto sc  = std::get<0>(scT);
-                AL[ci]   = std::get<1>(scT);
-                bL[ci]   = std::get<2>(scT);
-
-                assembler.assemble(op.msh, cl, bnd_incr, sc.first, sc.second);
-                ci++;
-            }
-            assembler.finalize();
-
-            vector_type du_faces = vector_type::Zero(assembler.LHS.rows());
+        vector_type du_faces = vector_type::Zero(assembler.LHS.rows());
 #ifdef HAVE_PARDISO
-            disk::solvers::sparse_lu(assembler.LHS, assembler.RHS, du_faces,
-                                     disk::solvers::direct_solver::pardiso);
+        disk::solvers::sparse_lu(assembler.LHS, assembler.RHS, du_faces,
+                                 disk::solvers::direct_solver::pardiso);
 #else
-            disk::solvers::sparse_lu(assembler.LHS, assembler.RHS, du_faces,
-                                     disk::solvers::direct_solver::sparselu);
+        disk::solvers::sparse_lu(assembler.LHS, assembler.RHS, du_faces,
+                                 disk::solvers::direct_solver::sparselu);
 #endif
 
-            std::vector<vector_type> dcells(op.num_cells());
-            ci = 0;
-            for (auto& cl : op.msh)
-            {
-                vector_type duF = assembler.take_local_solution(op.msh, cl,
-                                                                 bnd_incr, du_faces);
-                dcells[ci] = bL[ci] - AL[ci]*duF;
-                ci++;
-            }
-
-            // cheap backtracking on this (fixed-mu) direction
-            const size_t max_ls = 5;
-            T alpha = T(1);
-            for (size_t ls = 0; ls <= max_ls; ls++)
-            {
-                hho_state<T> trial = st;
-                trial.faces += alpha * du_faces;
-                for (size_t c = 0; c < op.num_cells(); c++)
-                    trial.cells[c] += alpha * dcells[c];
-
-                const T Rtrial = residual_norm(trial, frozen);
-
-                if (Rtrial < best_R) { best = trial; best_R = Rtrial; }
-
-                if (Rtrial <= Rmax)
-                {
-                    accepted       = true;
-                    accepted_alpha = alpha;
-                    accepted_mu    = mu;
-                    break;
-                }
-                if (ls == max_ls) break;
-                alpha *= T(0.5);
-            }
-
-            mu = (mu == T(0)) ? T(1e-4) : mu*T(10);
-        }
-
-        // Fall back to the best trial found across every (mu, alpha) tried,
-        // even if it never satisfied the non-monotone criterion: guarantees
-        // the state keeps moving instead of freezing at st.
-        const hho_state<T> old_faces_state = st;
-        st = best;
-
-        if (!accepted || accepted_mu > 0 || accepted_alpha < T(1))
-            std::cout << "    damped newton: mu = " << accepted_mu
-                      << "   alpha = " << accepted_alpha
-                      << "   accepted = " << accepted
-                      << "   |R0| = " << R0 << "   |Rmax| = " << Rmax
-                      << "   |R| = " << best_R << "\n";
-
-        vector_type dfaces = st.faces - old_faces_state.faces;
-        return { dfaces.norm(), st.faces.norm() };
-    }
-
-    /* Global residual norm (uncondensed, summed over cells) at a trial
-     * state -- the merit function the line search backtracks on.        */
-    T residual_norm(const hho_state<T>& st, const hho_state<T>* frozen) const
-    {
-        T s = 0;
-        size_t ci = 0;
+        ci = 0;
         for (auto& cl : op.msh)
         {
-            vector_type u_loc = gather(cl, ci, st);
-
-            matrix_type J = A[ci];
-            vector_type R = A[ci]*u_loc - L[ci];
-
-            if (ct.has_nonlinear())
-            {
-                if (frozen)
-                {
-                    vector_type p_loc = gather(cl, ci, *frozen);
-                    ct.accumulate_nonlinear(cl, ci, u_loc, p_loc, J, R);
-                }
-                else
-                    ct.accumulate_nonlinear(cl, ci, u_loc, u_loc, J, R);
-            }
-
-            s += R.squaredNorm();
+            vector_type duF = assembler.take_local_solution(op.msh, cl,
+                                                             bnd_incr, du_faces);
+            st.cells[ci] += bL[ci] - AL[ci]*duF;
             ci++;
         }
-        return std::sqrt(s);
+        st.faces += du_faces;
+
+        return { du_faces.norm(), st.faces.norm(), res_norm };
+    }
+
+    // ---- reporting, after libdiskpp mechanics/NewtonSolver -------------
+    static void table_rule()
+    {
+        std::cout << "------------------------------------------------------"
+                     "---------------------\n";
+    }
+
+    static void table_header()
+    {
+        table_rule();
+        std::cout << "| Iteration | Norme l2 incr | Relative incr |  "
+                     "Residual l2  | Relative res  |\n";
+        table_rule();
+    }
+
+    static void table_row(size_t iter, T incr, T rel_incr, T res, T rel_res)
+    {
+        std::ios::fmtflags f(std::cout.flags());
+        const auto prec = std::cout.precision();
+        std::cout.precision(5);
+        std::cout.setf(std::iostream::scientific, std::iostream::floatfield);
+
+        std::string s_iter = "   " + std::to_string(iter) + "            ";
+        s_iter.resize(9);
+
+        std::cout << "| " << s_iter << " |   " << incr
+                  << " |   " << rel_incr
+                  << " |   " << res
+                  << " |   " << rel_res << " |\n";
+        std::cout.flags(f);
+        std::cout.precision(prec);
     }
 
     bool newton_loop(hho_state<T>& st, const hho_state<T>* frozen,
-                     const solver_opts& o, size_t& nit, bool trace)
+                     const solver_opts& o, size_t& nit)
     {
-        std::vector<T> Rhist;   // non-monotone line search window, fresh per loop
+        T res0 = 0;
+        table_header();
 
         for (nit = 0; nit < o.max_newton; nit++)
         {
-            auto [du, u] = step(st, frozen, Rhist);
+            const auto si = step(st, frozen);
 
-            if (trace)
-                std::cout << "  newton " << std::setw(2) << nit
-                          << "   |du| = " << std::scientific
-                          << std::setprecision(3) << du << "\n";
+            const T abs_err = si.du;
+            const T rel_err = si.du / (si.u + 1e-14);
+
+            if (nit == 0) res0 = si.residual;
+            const T rel_res = (res0 > 1e-30) ? si.residual / res0 : T(1);
+
+            table_row(nit, abs_err, rel_err, si.residual, rel_res);
 
             // absolute OR relative: whichever is looser at the current scale
-            if (du < o.tol_newton || du < o.tol_newton_rel*(u + 1e-14))
-            { nit++; return true; }
+            if (abs_err < o.tol_newton || rel_err < o.tol_newton_rel)
+            { nit++; table_rule(); return true; }
         }
+        table_rule();
         return false;
     }
 };
 
-} // namespace hho_contact
+} // end namespace hho_contact

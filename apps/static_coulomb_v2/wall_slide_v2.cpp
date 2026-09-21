@@ -66,17 +66,17 @@ struct WallSlide : Experiment<mesh_type>
         bnd_C    = std::make_unique<bc_type>(msh);
 
         bnd->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);   // clamped
-        bnd->addContactBC  (disk::SIGNORINI_FACE, RIGHT);          // the wall
+        bnd->addContactBC  (signorini_tag(),     RIGHT);          // the wall
         bnd->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
         bnd_incr->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);
-        bnd_incr->addContactBC  (disk::SIGNORINI_FACE, RIGHT);
+        bnd_incr->addContactBC  (signorini_tag(),     RIGHT);
         bnd_incr->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd_incr->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
         bnd_C->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);
-        bnd_C->addContactBC  (disk::SIGNORINI_FACE, RIGHT);
+        bnd_C->addContactBC  (signorini_tag(),     RIGHT);
         bnd_C->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd_C->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
@@ -85,9 +85,9 @@ struct WallSlide : Experiment<mesh_type>
 
     void setup_terms(ContactTerms<mesh_type>& ct) override
     {
-        const double g0 = prm.gamma_0, th = prm.theta;
-        ct.add_contact(*bnd_C, g0, g0, th);                 // unilateral
-        ct.add_coulomb(*bnd_C, g0, g0, th, prm.friction);   // F = 0.2 -> Picard
+        const double gn0 = prm.gn0(), gt0 = prm.gt0(), th = prm.theta;
+        ct.add_contact(*bnd_C, gn0, gt0, th);                 // unilateral
+        ct.add_coulomb(*bnd_C, gn0, gt0, th, prm.friction);   // F = 0.2 -> Picard
     }
 };
 

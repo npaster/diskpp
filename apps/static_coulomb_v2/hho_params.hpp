@@ -12,14 +12,10 @@ namespace hho_contact {
 /* Which Nitsche version to use on the contact boundary.
  *
  *   face : the displacement in P_n(u) = sigma_n(u) - gamma u_n is the FACE
- *          unknown u_F.  Contact faces keep their unknowns.  This is the
- *          historical behaviour of this code and the default.
+ *          unknown u_F.  Contact faces keep their unknowns. Is the default.
  *
  *   cell : the displacement is the trace of the CELL unknown u_T|_F, and the
- *          face unknowns on the contact boundary are REMOVED (marked
- *          hasUnknowns(false), which diskpp's assembler, reconstructions and
- *          stabilization all honour).  This is the Cascavita-Chouly-Ern cell
- *          version, the one with proven optimal rates for Signorini.
+ *          face unknowns on the contact boundary are removed.
  *
  * Both run on the same mixed-order discretization (cell k+1, face k), so the
  * only difference between them is the trace source plus that DOF removal.  */
@@ -40,8 +36,21 @@ struct Params
     // discretization
     size_t k       = 1;
     trace_variant variant = trace_variant::face;   // 'variant = cell' in the .dat
-    double gamma_0 = 10.0;           // gamma_n = gamma_t = gamma_0 / h_F
-    double theta   = -1.0;
+
+    /* Nitsche penalty.  gamma_0 is DIMENSIONLESS
+     *    the code turns it into gamma_n = gamma_n_0 * 2 mu / h_F,   gamma_t = gamma_t_0 * 2 mu / h_F
+     * (see disk::nitsche_gamma in contact_terms.hpp)
+     *
+     * gamma_0 sets both; gamma_n_0 / gamma_t_0 override the normal and the
+     * tangential one individually, in either order in the .dat file.  A
+     * value <= 0 means "not set, take gamma_0".                            */
+    double gamma_0   = 10.0;
+    double gamma_n_0 = 0.0;          // 0 -> gamma_0
+    double gamma_t_0 = 0.0;          // 0 -> gamma_0
+    double theta     = -1.0;
+
+    double gn0() const { return gamma_n_0 > 0.0 ? gamma_n_0 : gamma_0; }
+    double gt0() const { return gamma_t_0 > 0.0 ? gamma_t_0 : gamma_0; }
 
     // material: (E, nu) or (mu, lam) directly
     double E   = 0.0;
@@ -63,7 +72,7 @@ struct Params
         if (mu == 0.0 && lam == 0.0 && E > 0.0)
         {
             mu  = E / (2.0*(1.0 + nu));
-            lam = E*nu / ((1.0 + nu)*(1.0 - 2.0*nu));   // plane strain / 3D
+            lam = E*nu / ((1.0 + nu)*(1.0 - 2.0*nu));   // plane strain 
         }
     }
 
@@ -106,6 +115,8 @@ struct Params
                                   "got '" << val << "', keeping face\n";
             }
             else if (key == "gamma_0")        p.gamma_0    = std::stod(val);
+            else if (key == "gamma_n_0")      p.gamma_n_0  = std::stod(val);
+            else if (key == "gamma_t_0")      p.gamma_t_0  = std::stod(val);
             else if (key == "theta")          p.theta      = std::stod(val);
             else if (key == "E")              p.E          = std::stod(val);
             else if (key == "nu")             p.nu         = std::stod(val);
