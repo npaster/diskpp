@@ -47,10 +47,12 @@ struct Params
     double gamma_0   = 10.0;
     double gamma_n_0 = 0.0;          // 0 -> gamma_0
     double gamma_t_0 = 0.0;          // 0 -> gamma_0
+    double gamma_s_0 = 10.0; 
     double theta     = -1.0;
 
     double gn0() const { return gamma_n_0 > 0.0 ? gamma_n_0 : gamma_0; }
     double gt0() const { return gamma_t_0 > 0.0 ? gamma_t_0 : gamma_0; }
+    double gs0() const { return gamma_s_0 > 0.0 ? gamma_s_0 : gamma_0; }
 
     // material: (E, nu) or (mu, lam) directly
     double E   = 0.0;
@@ -117,6 +119,7 @@ struct Params
             else if (key == "gamma_0")        p.gamma_0    = std::stod(val);
             else if (key == "gamma_n_0")      p.gamma_n_0  = std::stod(val);
             else if (key == "gamma_t_0")      p.gamma_t_0  = std::stod(val);
+            else if (key == "gamma_s_0")      p.gamma_s_0  = std::stod(val); // for symmetry cases only
             else if (key == "theta")          p.theta      = std::stod(val);
             else if (key == "E")              p.E          = std::stod(val);
             else if (key == "nu")             p.nu         = std::stod(val);

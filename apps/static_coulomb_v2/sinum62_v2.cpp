@@ -61,28 +61,32 @@ struct Sinum62 : Experiment<mesh_type>
             if (pt.y() > 0.5) g(0) = 1.0;
             return g; };
 
+        auto fric = [F = prm.friction](const auto&) { return F; };
+        auto no_fric = [](const auto&){ return 0.0; };
+        auto no_gap = [](const auto&, const auto&) { return 0.0; };   
+
         bnd      = std::make_unique<bc_type>(msh);
         bnd_incr = std::make_unique<bc_type>(msh);
         bnd_C    = std::make_unique<bc_type>(msh);
         bnd_S    = std::make_unique<bc_type>(msh);
 
         bnd->addNeumannBC(disk::NEUMANN,        TOP,    load_top);
-        bnd->addContactBC(disk::SIGNORINI_FACE, RIGHT);            // Gamma_S
-        bnd->addContactBC(signorini_tag(),     BOTTOM);           // Gamma_C
+        bnd->addContactBC(disk::SIGNORINI_FACE, RIGHT, no_fric, no_gap);            // Gamma_S
+        bnd->addContactBC(signorini_tag(),     BOTTOM, fric, no_gap);           // Gamma_C
         bnd->addNeumannBC(disk::NEUMANN,        LEFT,   load_left);
 
         bnd_incr->addNeumannBC(disk::NEUMANN,        TOP,    zero);
-        bnd_incr->addContactBC(disk::SIGNORINI_FACE, RIGHT);
-        bnd_incr->addContactBC(signorini_tag(),     BOTTOM);
+        bnd_incr->addContactBC(disk::SIGNORINI_FACE, RIGHT, no_fric, no_gap);
+        bnd_incr->addContactBC(signorini_tag(),     BOTTOM, fric, no_gap);
         bnd_incr->addNeumannBC(disk::NEUMANN,        LEFT,   zero);
 
         bnd_C->addNeumannBC(disk::NEUMANN,        TOP,    zero);
         bnd_C->addNeumannBC(disk::NEUMANN,        RIGHT,  zero);
-        bnd_C->addContactBC(signorini_tag(),     BOTTOM);
+        bnd_C->addContactBC(signorini_tag(),     BOTTOM, fric, no_gap);
         bnd_C->addNeumannBC(disk::NEUMANN,        LEFT,   zero);
 
         bnd_S->addNeumannBC(disk::NEUMANN,        TOP,    zero);
-        bnd_S->addContactBC(disk::SIGNORINI_FACE, RIGHT);
+        bnd_S->addContactBC(disk::SIGNORINI_FACE, RIGHT, no_fric, no_gap);
         bnd_S->addNeumannBC(disk::NEUMANN,        BOTTOM, zero);
         bnd_S->addNeumannBC(disk::NEUMANN,        LEFT,   zero);
 
@@ -92,7 +96,7 @@ struct Sinum62 : Experiment<mesh_type>
     void setup_terms(ContactTerms<mesh_type>& ct) override
     {
         const double gn0 = prm.gn0(), gt0 = prm.gt0(), th = prm.theta;
-        const double gs0 = 10.0;   // weak-symmetry edge penalty, tune here
+        const double gs0 = prm.gs0();   // weak-symmetry edge penalty
         ct.add_contact (*bnd_C, gn0, gt0, th);                 // unilateral
         ct.add_coulomb (*bnd_C, gn0, gt0, th, prm.friction);   // friction = F -> Picard
         ct.add_symmetry(*bnd_S, gs0, th);                     // this benchmark only

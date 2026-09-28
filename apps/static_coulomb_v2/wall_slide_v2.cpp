@@ -60,23 +60,25 @@ struct WallSlide : Experiment<mesh_type>
     {
         auto zero = [](const auto&) {
             Eigen::Matrix<double,2,1> z; z.setZero(); return z; };
+        auto fric = [F = prm.friction](const auto&){ return F; };
+        auto gap = [](const auto&, const auto&){return 0.0;};
 
         bnd      = std::make_unique<bc_type>(msh);
         bnd_incr = std::make_unique<bc_type>(msh);
         bnd_C    = std::make_unique<bc_type>(msh);
 
         bnd->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);   // clamped
-        bnd->addContactBC  (signorini_tag(),     RIGHT);          // the wall
+        bnd->addContactBC  (signorini_tag(),     RIGHT, fric, gap);          // the wall
         bnd->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
         bnd_incr->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);
-        bnd_incr->addContactBC  (signorini_tag(),     RIGHT);
+        bnd_incr->addContactBC  (signorini_tag(),     RIGHT, fric, gap);
         bnd_incr->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd_incr->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
         bnd_C->addDirichletBC(disk::DIRICHLET,      LEFT,   zero);
-        bnd_C->addContactBC  (signorini_tag(),     RIGHT);
+        bnd_C->addContactBC  (signorini_tag(),     RIGHT, fric, gap);
         bnd_C->addNeumannBC  (disk::NEUMANN,        BOTTOM, zero);
         bnd_C->addNeumannBC  (disk::NEUMANN,        TOP,    zero);
 
@@ -87,7 +89,7 @@ struct WallSlide : Experiment<mesh_type>
     {
         const double gn0 = prm.gn0(), gt0 = prm.gt0(), th = prm.theta;
         ct.add_contact(*bnd_C, gn0, gt0, th);                 // unilateral
-        ct.add_coulomb(*bnd_C, gn0, gt0, th, prm.friction);   // F = 0.2 -> Picard
+        ct.add_coulomb(*bnd_C, gn0, gt0, th, prm.friction);   // F = 0.2 
     }
 };
 

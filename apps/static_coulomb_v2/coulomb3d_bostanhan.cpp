@@ -65,6 +65,8 @@ struct Araya25 : Experiment<mesh_type>
             Eigen::Matrix<double,3,1> z; z.setZero(); return z; };
         auto load_x0 = [](const auto&) {
             Eigen::Matrix<double,3,1> g; g << 400.0, 0.0, 0.0; return g; };
+        auto fric = [F = prm.friction](const auto&) { return F; };
+        auto gap = [](const auto&, const auto&) { return 0.0; };
 
         bnd      = std::make_unique<bc_type>(msh);
         bnd_incr = std::make_unique<bc_type>(msh);
@@ -72,19 +74,19 @@ struct Araya25 : Experiment<mesh_type>
 
         
         bnd->addNeumannBC  (disk::NEUMANN,        FREE_N2,    zero);
-        bnd->addContactBC  (signorini_tag(),     CONTACT_Y0);
+        bnd->addContactBC  (signorini_tag(),     CONTACT_Y0, fric, gap);
         bnd->addNeumannBC  (disk::NEUMANN,        LOAD_X0,    load_x0);
         bnd->addDirichletBC(disk::DIRICHLET,      DIRICH_Y4,  zero);
 
         
         bnd_incr->addNeumannBC  (disk::NEUMANN,        FREE_N2,    zero);
-        bnd_incr->addContactBC  (signorini_tag(),     CONTACT_Y0);
+        bnd_incr->addContactBC  (signorini_tag(),     CONTACT_Y0, fric, gap);
         bnd_incr->addNeumannBC  (disk::NEUMANN,        LOAD_X0,    zero);
         bnd_incr->addDirichletBC(disk::DIRICHLET,      DIRICH_Y4,  zero);
 
         
         bnd_C->addNeumannBC  (disk::NEUMANN,        FREE_N2,    zero);
-        bnd_C->addContactBC  (signorini_tag(),     CONTACT_Y0);
+        bnd_C->addContactBC  (signorini_tag(),     CONTACT_Y0, fric, gap);
         bnd_C->addNeumannBC  (disk::NEUMANN,        LOAD_X0,    zero);
         bnd_C->addDirichletBC(disk::DIRICHLET,      DIRICH_Y4,  zero);
 
