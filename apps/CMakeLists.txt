@@ -141,7 +141,7 @@ if (BUILD_APP_LINEAR_ELASTO_ACOUSTIC)
     add_subdirectory(linear_elasto_acoustic)
 endif()
 
-option(BUILD_APP_STATIC_COULOMB "Build static_coulomb application" ON)
+option(BUILD_APP_STATIC_COULOMB "Build static_coulomb application" OFF)
 if (BUILD_APP_STATIC_COULOMB)
     add_subdirectory(static_coulomb)
 endif()
