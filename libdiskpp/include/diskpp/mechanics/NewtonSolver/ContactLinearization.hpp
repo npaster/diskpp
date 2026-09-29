@@ -154,6 +154,7 @@ linearize_gap_fb( const Basis &basis,
                   const disk::dynamic_vector< T > &coefficients,
                   const FunctionGap &gap_function,
                   const point< T, DIM > &point,
+                  const ContactKinematics cont_kine,
                   const static_vector< T, static_cast< int >( DIM ) > &kinematic_normal,
                   const T time ) {
     GapLinearization< T > result;
@@ -164,23 +165,30 @@ linearize_gap_fb( const Basis &basis,
     if ( !result.valid )
         return result;
 
-    const T relative_step = std::cbrt( std::numeric_limits< T >::epsilon() );
-    for ( Eigen::Index i = 0; i < size; ++i ) {
-        const T h = relative_step * std::max( T( 1 ), std::abs( coefficients( i ) ) );
-        auto plus = coefficients;
-        auto minus = coefficients;
-        plus( i ) += h;
-        minus( i ) -= h;
-        const T gp = compute_gap_fb( basis, plus, gap_function, point, kinematic_normal, time );
-        const T gm = compute_gap_fb( basis, minus, gap_function, point, kinematic_normal, time );
-        const bool vp = is_valid_gap( gp );
-        const bool vm = is_valid_gap( gm );
-        if ( vp && vm )
-            result.derivative( i ) = ( gp - gm ) / ( T( 2 ) * h );
-        else if ( vp )
-            result.derivative( i ) = ( gp - result.gap ) / h;
-        else if ( vm )
-            result.derivative( i ) = ( result.gap - gm ) / h;
+    if ( cont_kine == ContactKinematics::REFERENCE ) {
+        // -u.n
+        const auto t_phi = basis.eval_functions( point );
+        result.derivative = -disk::priv::inner_product( t_phi, kinematic_normal );
+    } else {
+        const T relative_step = std::cbrt( std::numeric_limits< T >::epsilon() );
+        for ( Eigen::Index i = 0; i < size; ++i ) {
+            const T h = relative_step * std::max( T( 1 ), std::abs( coefficients( i ) ) );
+            auto plus = coefficients;
+            auto minus = coefficients;
+            plus( i ) += h;
+            minus( i ) -= h;
+            const T gp = compute_gap_fb( basis, plus, gap_function, point, kinematic_normal, time );
+            const T gm =
+                compute_gap_fb( basis, minus, gap_function, point, kinematic_normal, time );
+            const bool vp = is_valid_gap( gp );
+            const bool vm = is_valid_gap( gm );
+            if ( vp && vm )
+                result.derivative( i ) = ( gp - gm ) / ( T( 2 ) * h );
+            else if ( vp )
+                result.derivative( i ) = ( gp - result.gap ) / h;
+            else if ( vm )
+                result.derivative( i ) = ( result.gap - gm ) / h;
+        }
     }
     return result;
 }

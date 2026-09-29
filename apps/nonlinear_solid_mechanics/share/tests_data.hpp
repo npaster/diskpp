@@ -43,6 +43,7 @@ enum STUDY {
     AIMI_CREDICO_GIMPERLEIN_64,
     DYNAMIC_STICK_SLIP_SEPARATION,
     DYNAMIC_DISC_IMPACT,
+    CONT_WALL_2D,
 };
 
 /* Bibliographie */
@@ -338,6 +339,13 @@ getMaterialData( const STUDY &study ) {
         material_data.setRho( 1.0 );
         break;
     }
+    case STUDY::CONT_WALL_2D: {
+        const T E = 1.0e6;
+        const T nu = 0.3;
+        material_data.setMu( E, nu );
+        material_data.setLambda( E, nu );
+        break;
+    }
     default: {
         throw std::invalid_argument( "getMaterialData: Unexpected study" );
         break;
@@ -357,6 +365,7 @@ addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearParameter
     case STUDY::COOK_LARGE:
     case STUDY::SPHERE_LARGE:
     case STUDY::GV_3D:
+    case STUDY::CONT_WALL_2D:
     case STUDY::STATIC_STICK_SLIP_SEPARATION: {
         break;
     }
@@ -662,6 +671,48 @@ getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
         bnd.addNeumannBC( disk::NEUMANN, 1, zero );
         break;
     }
+    case STUDY::CONT_WALL_2D: {
+
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.2; };
+
+        /* Encast */
+        bnd.addDirichletBC( disk::CLAMPED, 1, zero );
+        /* Contact */
+        auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
+            // compute the distance to the plane x = 1
+            constexpr T EPS = T( 1.e-12 );
+            constexpr T BIG = std::numeric_limits< T >::infinity();
+
+            /*
+             * Search line:
+             *
+             * q(t) = pt + t*n.
+             *
+             * Intersection with the wall x = 1:
+             *
+             * pt.x() + t*n(0) = 1,
+             *
+             * hence:
+             *
+             * t = (1 - pt.x()) / n(0).
+             */
+            if ( std::abs( n( 0 ) ) <= EPS )
+                return BIG;
+
+            const T root_parameter = ( T( 1 ) - pt.x() ) / n( 0 );
+
+            /*
+             * Signed distance along n.
+             *
+             * If n is unitary, the signed distance is exactly
+             * root_parameter.
+             */
+            return root_parameter * n.norm();
+        };
+
+        bnd.addContactBC( disk::SIGNORINI_FACE, 2, s, gap );
+        break;
+    }
     default: {
         throw std::invalid_argument( "getBoundaryConditions: Unexpected study" );
         break;
@@ -723,7 +774,7 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
         bnd.addDirichletBC( disk::DY, 2, zero );
         bnd.addDirichletBC( disk::DZ, 3, zero );
         /* Contact */
-        auto s_cyl = []( const disk::point< T, 3 > &pt ) -> T { return 3.000; };
+        auto s_cyl = []( const disk::point< T, 3 > &pt ) -> T { return 0.1; };
         auto gap_cyl = []( const disk::point< T, 3 > &pt,
                            const disk::static_vector< T, 3 > &n,
                            const T &time ) -> T {
@@ -739,7 +790,7 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
             const T delta = b * b - 4.0 * a * c;
 
             if ( abs( delta ) <= 1E-12 ) {
-                throw std::invalid_argument( "wrong prjoection for GV" );
+                throw std::invalid_argument( "wrong projection for GV" );
             }
 
             const T t1 = ( -b + sqrt( delta ) ) / ( 2.0 * a );
@@ -770,15 +821,15 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
 
         bnd.addContactBC( disk::SIGNORINI_FACE, 0, s_cyl, gap_cyl );
 
-        auto s_indenter = []( const disk::point< T, 3 > &pt ) -> T { return 3000.0; };
+        auto s_indenter = []( const disk::point< T, 3 > &pt ) -> T { return 0.1; };
         auto gap_indenter = []( const disk::point< T, 3 > &pt,
                                 const disk::static_vector< T, 3 > &n,
                                 const T &time ) -> T {
             constexpr T BIG = std::numeric_limits< T >::infinity();
-            constexpr T EPS = 1.e-12;
+            constexpr T EPS = T( 1.e-12 );
 
-            // Translation de l'indenteur suivant -Ox.
-            const T x1 = T( 59.8561 ) - time + 0.1;
+            // Indenter translation along -Ox.
+            const T x1 = T( 59.8561 ) - time + T( 0.1 );
             const T r1 = T( 6.795 );
 
             const T x2 = T( 45.4 ) - time;
@@ -787,38 +838,55 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
             const T x3 = T( 43.4 ) - time;
             const T r3 = T( 4.71 );
 
+            // Length of the circular transition measured along Ox.
+            // Since x2 < x1, the point x10 belongs to [x2, x1].
+            const T smooth_length = T( 0.25 );
+            const T x10 = x1 - smooth_length;
+
+            /*
+             * Original first cone P1-P2: r(x) = a1*x + b1.
+             */
+            const T a1 = ( r2 - r1 ) / ( x2 - x1 );
+            const T b1 = r1 - a1 * x1;
+            const T r10 = a1 * x10 + b1;
+
+            /*
+             * Circular fillet in the validated orientation:
+             *
+             * - tangent to the original cone at (x10, r10);
+             * - tangent to the vertical end plane x = x1;
+             * - circle centre below the conical profile.
+             */
+            const T metric = std::sqrt( T( 1 ) + a1 * a1 );
+            const T arc_radius = ( x1 - x10 ) / ( T( 1 ) + a1 / metric );
+            const T arc_center_x = x10 + a1 * arc_radius / metric;
+            const T arc_center_r = r10 - arc_radius / metric;
+
             T best_gap = BIG;
 
+            auto keep_candidate = [&]( const T root_parameter ) {
+                if ( !std::isfinite( root_parameter ) )
+                    return;
+
+                // If n is unitary, gap_candidate == root_parameter.
+                const T gap_candidate = root_parameter * n.squaredNorm();
+
+                if ( std::abs( gap_candidate ) < std::abs( best_gap ) )
+                    best_gap = gap_candidate;
+            };
+
             auto test_conical_segment = [&]( const T xa, const T ra, const T xb, const T rb ) {
-                /*
-                 * Profil du tronc de cône :
-                 *
-                 * r(x) = a*x + b
-                 */
+                // Meridian profile: r(x) = a*x + b.
                 const T a = ( rb - ra ) / ( xb - xa );
                 const T b = ra - a * xa;
 
-                /*
-                 * Droite de recherche :
-                 *
-                 * q(t) = pt + t*n
-                 *
-                 * Surface de révolution :
-                 *
-                 * y(t)^2 + z(t)^2 = (a*x(t) + b)^2
-                 *
-                 * Équation :
-                 *
-                 * A*t^2 + B*t + C = 0
-                 */
+                // Search line: q(t) = pt + t*n.
                 const T nr2 = n( 1 ) * n( 1 ) + n( 2 ) * n( 2 );
                 const T ar = a * pt.x() + b;
                 const T an = a * n( 0 );
 
                 const T A = nr2 - an * an;
-
-                const T B = T( 2 ) * ( pt.y() * n( 1 ) + pt.z() * n( 2 ) ) - T( 2 ) * ar * an;
-
+                const T B = T( 2 ) * ( pt.y() * n( 1 ) + pt.z() * n( 2 ) - ar * an );
                 const T C = pt.y() * pt.y() + pt.z() * pt.z() - ar * ar;
 
                 auto treat_root = [&]( const T root_parameter ) {
@@ -826,125 +894,185 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
                         return;
 
                     const T xp = pt.x() + root_parameter * n( 0 );
-
                     const T xmin = std::min( xa, xb );
                     const T xmax = std::max( xa, xb );
 
-                    /*
-                     * Rejet de l'intersection si elle appartient au
-                     * prolongement du cône, mais pas au véritable
-                     * segment générateur.
-                     */
                     if ( xp < xmin - EPS || xp > xmax + EPS )
                         return;
 
-                    /*
-                     * Vérification facultative mais robuste :
-                     * le rayon du profil doit être positif.
-                     */
                     const T rp = a * xp + b;
+                    if ( rp < -EPS )
+                        return;
 
-                    // if ( rp < -EPS )
-                    //     return;
-
-                    /*
-                     * Gap signé suivant n.
-                     *
-                     * Si n est unitaire :
-                     *
-                     * gap_candidate = root_parameter.
-                     */
-                    const disk::static_vector< T, 3 > p0 = pt.to_vector();
-                    const disk::static_vector< T, 3 > pp = p0 + root_parameter * n;
-
-                    const T gap_candidate = ( pp - p0 ).dot( n );
-
-                    /*
-                     * On conserve l'intersection admissible la plus
-                     * proche en valeur absolue, quel que soit son signe.
-                     */
-                    if ( std::abs( gap_candidate ) < std::abs( best_gap ) )
-                        best_gap = gap_candidate;
+                    keep_candidate( root_parameter );
                 };
 
-                /*
-                 * Cas quadratique.
-                 */
                 if ( std::abs( A ) >= EPS ) {
                     const T delta = B * B - T( 4 ) * A * C;
 
-                    /*
-                     * Aucun croisement avec ce cône prolongé.
-                     * Ce n'est pas une erreur : l'autre segment sera testé.
-                     */
                     if ( delta < -EPS )
                         return;
 
-                    /*
-                     * On absorbe une petite valeur négative provenant
-                     * des erreurs d'arrondi.
-                     */
                     const T sqrt_delta = std::sqrt( std::max( T( 0 ), delta ) );
-
                     const T denominator = T( 2 ) * A;
 
                     treat_root( ( -B + sqrt_delta ) / denominator );
                     treat_root( ( -B - sqrt_delta ) / denominator );
-
                     return;
                 }
 
-                /*
-                 * Cas dégénéré linéaire :
-                 *
-                 * B*t + C = 0.
-                 */
                 if ( std::abs( B ) >= EPS ) {
                     treat_root( -C / B );
                     return;
                 }
 
-                /*
-                 * Si A et B sont nuls :
-                 *
-                 * - C != 0 : aucune intersection ;
-                 * - C == 0 : la droite appartient localement à la surface,
-                 * le gap est nul.
-                 */
                 if ( std::abs( C ) < EPS )
                     treat_root( T( 0 ) );
             };
 
-            // Tronc de cône issu du segment P1-P2.
-            test_conical_segment( x1, r1, x2, r2 );
+            /*
+             * Test the surface of revolution generated by the upper branch of
+             * the meridian circle:
+             *
+             *   (x - xc)^2 + (sqrt(y^2 + z^2) - rc)^2 = R^2,
+             *   sqrt(y^2 + z^2) >= rc.
+             *
+             * This is the orientation validated by the 2D Python plot: the circle
+             * centre lies below the conical profile.
+             */
+            auto test_circular_arc =
+                [&]( const T xa, const T xb, const T xc, const T rc, const T radius ) {
+                    const T xmin = std::min( xa, xb );
+                    const T xmax = std::max( xa, xb );
 
-            // Tronc de cône issu du segment P2-P3.
+                    auto residual = [&]( const T parameter ) {
+                        const T x = pt.x() + parameter * n( 0 );
+                        const T y = pt.y() + parameter * n( 1 );
+                        const T z = pt.z() + parameter * n( 2 );
+                        const T rho = std::sqrt( y * y + z * z );
+                        const T dx = x - xc;
+                        const T dr = rho - rc;
+
+                        return dx * dx + dr * dr - radius * radius;
+                    };
+
+                    auto treat_root = [&]( const T root_parameter ) {
+                        if ( !std::isfinite( root_parameter ) )
+                            return;
+
+                        const T x = pt.x() + root_parameter * n( 0 );
+                        if ( x < xmin - EPS || x > xmax + EPS )
+                            return;
+
+                        const T y = pt.y() + root_parameter * n( 1 );
+                        const T z = pt.z() + root_parameter * n( 2 );
+                        const T rho = std::sqrt( y * y + z * z );
+
+                        // Keep only the upper branch r = rc + sqrt(...).
+                        if ( rho < rc - EPS )
+                            return;
+
+                        keep_candidate( root_parameter );
+                    };
+
+                    T parameter_min = T( 0 );
+                    T parameter_max = T( 0 );
+
+                    if ( std::abs( n( 0 ) ) > EPS ) {
+                        const T parameter_a = ( xmin - pt.x() ) / n( 0 );
+                        const T parameter_b = ( xmax - pt.x() ) / n( 0 );
+                        parameter_min = std::min( parameter_a, parameter_b );
+                        parameter_max = std::max( parameter_a, parameter_b );
+                    } else {
+                        // The ray is almost parallel to the end plane. If its x-coordinate
+                        // is outside the arc interval, no intersection is possible.
+                        if ( pt.x() < xmin - EPS || pt.x() > xmax + EPS )
+                            return;
+
+                        const T radial_distance = std::sqrt( pt.y() * pt.y() + pt.z() * pt.z() );
+                        const T search_length = std::max( T( 1 ), radial_distance + rc + radius );
+
+                        parameter_min = -search_length;
+                        parameter_max = search_length;
+                    }
+
+                    constexpr int NUMBER_OF_INTERVALS = 128;
+                    constexpr int BISECTION_ITERATIONS = 64;
+
+                    T left_parameter = parameter_min;
+                    T left_value = residual( left_parameter );
+
+                    if ( std::abs( left_value ) <= EPS )
+                        treat_root( left_parameter );
+
+                    for ( int interval = 1; interval <= NUMBER_OF_INTERVALS; ++interval ) {
+                        const T ratio = T( interval ) / T( NUMBER_OF_INTERVALS );
+                        const T right_parameter =
+                            parameter_min + ratio * ( parameter_max - parameter_min );
+                        const T right_value = residual( right_parameter );
+
+                        if ( std::abs( right_value ) <= EPS )
+                            treat_root( right_parameter );
+
+                        if ( std::isfinite( left_value ) && std::isfinite( right_value ) &&
+                             left_value * right_value < T( 0 ) ) {
+                            T a = left_parameter;
+                            T b = right_parameter;
+                            T fa = left_value;
+
+                            for ( int iteration = 0; iteration < BISECTION_ITERATIONS;
+                                  ++iteration ) {
+                                const T middle = T( 0.5 ) * ( a + b );
+                                const T fm = residual( middle );
+
+                                if ( std::abs( fm ) <= EPS ) {
+                                    a = middle;
+                                    b = middle;
+                                    break;
+                                }
+
+                                if ( fa * fm <= T( 0 ) ) {
+                                    b = middle;
+                                } else {
+                                    a = middle;
+                                    fa = fm;
+                                }
+                            }
+
+                            treat_root( T( 0.5 ) * ( a + b ) );
+                        }
+
+                        left_parameter = right_parameter;
+                        left_value = right_value;
+                    }
+                };
+
+            // Rounded part near x1.
+            test_circular_arc( x10, x1, arc_center_x, arc_center_r, arc_radius );
+
+            // Unchanged conical portion after the tangency point.
+            test_conical_segment( x10, r10, x2, r2 );
+
+            // Original second conical segment P2-P3.
             test_conical_segment( x2, r2, x3, r3 );
 
-            /*
-             * Si aucune racine admissible n'a été trouvée,
-             * best_gap reste égal à BIG.
-             */
             return best_gap;
         };
 
         bnd.addContactBC( disk::SIGNORINI_FACE, 4, s_indenter, gap_indenter );
 
-        // // With neumann
-        // auto neum = [material_data]( const disk::point< T, 3 > &p, const T &time ) ->
-        // result_type
+        // With neumann
+        // auto neum = [material_data]( const disk::point< T, 3 > &p, const T &time ) -> result_type
         // {
         //     const result_type vec = result_type { 0.0, p.y(), p.z() };
         //     const result_type normal = -vec / vec.norm();
         //     const result_type vx = result_type { 1.0, 0, 0 };
-        //     const T coeff = 12400;
+        //     const T coeff = 1240;
 
         //     if ( p.x() >= 22.0 && p.x() <= 36.0 ) {
         //         return time * 1.1 * coeff * ( -normal - 0.02 * vx );
         //     } else if ( p.x() <= 50.0 ) {
-        //         return time * coeff * ( -normal - 0.08 * vx );
-        //     } else if ( p.x() <= 60.0 ) {
-        //         return time * 0.4 * coeff * ( -normal - 0.08 * vx );
+        //         return time * 0.05 * coeff * ( -normal - 0.08 * vx );
         //     }
 
         //     return result_type::Zero();
@@ -1014,6 +1142,13 @@ addExternalLoad( const Mesh< T, 2, Storage > &msh,
     case STUDY::DYNAMIC_DISC_IMPACT: {
         auto load = []( const disk::point< T, 2 > &p, const T &time ) -> result_type {
             return result_type { 0.0, -0.05 };
+        };
+        nl.addExternalLoad( load );
+        break;
+    }
+    case STUDY::CONT_WALL_2D: {
+        auto load = []( const disk::point< T, 2 > &p, const T &time ) -> result_type {
+            return time * result_type { 0.0, -76518 };
         };
         nl.addExternalLoad( load );
         break;
@@ -1187,7 +1322,6 @@ addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
         nl.addPointPlot( { 0.70, 0.0 }, "pointC_stick.csv" ); // stick (expected x > 0.47)
         break;
     }
-
     case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
         nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
                         disk::mechanics::LawType::ELASTIC );
@@ -1201,7 +1335,6 @@ addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
         // nl.addPointPlot( { 0.0, -0.18 }, "disk_bottom.csv" );
         break;
     }
-
     case STUDY::DYNAMIC_STICK_SLIP_SEPARATION: {
         nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
                         disk::mechanics::LawType::ELASTIC );
@@ -1210,7 +1343,6 @@ addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
         nl.addPointPlot( { 0.70, 0.0 }, "pointC_stick.csv" );
         break;
     }
-
     case STUDY::DYNAMIC_DISC_IMPACT: {
         nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
                         disk::mechanics::LawType::ELASTIC );
@@ -1224,7 +1356,12 @@ addNonLinearOptions( const Mesh< T, 2, Storage > &msh,
         nl.addPointPlot( { 0.0, 0.0 }, "lowest_point.csv" ); //
         break;
     }
+    case STUDY::CONT_WALL_2D: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
 
+        break;
+    }
     default: {
         throw std::invalid_argument( "addNonLinearOptions: Unexpected study" );
         break;

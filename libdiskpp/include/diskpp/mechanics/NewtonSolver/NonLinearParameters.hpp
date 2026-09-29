@@ -328,11 +328,11 @@ class NonLinearParameters {
     std::list< T > m_time_save; // list of time where we save result;
 
     T m_theta;   // theta-parameter for contact
-    T m_gamma_0; // parameter for Nitsche
+    T m_gamma_n_0; // parameter for Nitsche
     // Tangential Nitsche penalty. Negative means 'not set': gamma_0_t() then falls
-    // back to m_gamma_0. The velocity-based friction law needs a much smaller value
+    // back to m_gamma_n_0. The velocity-based friction law needs a much smaller value
     // than the normal condition, so the two are separate.
-    T m_gamma_0_t = T( -1 );
+    T m_gamma_t_0;
 
     // Coulomb tangent: include d(friction bound)/du, the term coupling the tangential
     // projection to the normal pressure. Consistent, but it makes Newton cycle at contact
@@ -362,7 +362,8 @@ class NonLinearParameters {
           m_has_user_end_time( false ),
           m_adapt_stab( false ),
           m_theta( 1 ),
-          m_gamma_0( 1 ),
+          m_gamma_n_0( 1 ),
+          m_gamma_t_0( -1 ),
           m_frot_type( FrictionType::NO_FRICTION ),
           m_cont_kine( ContactKinematics::REFERENCE ),
           m_dyna_type( DynamicType::STATIC ),
@@ -414,7 +415,7 @@ class NonLinearParameters {
         std::cout << " - Contact type: "
                   << ( m_signorini_cell ? "SIGNORINI_CELL" : "SIGNORINI_FACE" ) << std::endl;
         std::cout << " - Friction ?: " << FrictionName( m_frot_type ) << std::endl;
-        std::cout << " - Gamma_0: " << m_gamma_0 << std::endl;
+        std::cout << " - Gamma_0: " << gamma_0_n() << std::endl;
         std::cout << " - Gamma_0_t: " << gamma_0_t() << std::endl;
         std::cout << " - Contact kinematics: " << ContactKinematicsName( m_cont_kine ) << std::endl;
         std::cout << " - FrictionTangent: "
@@ -550,10 +551,10 @@ class NonLinearParameters {
                 ifs >> m_theta;
                 line++;
             } else if ( keyword == "Gamma0" ) {
-                ifs >> m_gamma_0;
+                ifs >> m_gamma_n_0;
                 line++;
             } else if ( keyword == "Gamma0T" ) {
-                ifs >> m_gamma_0_t;
+                ifs >> m_gamma_t_0;
                 line++;
             } else if ( keyword == "Friction" ) {
                 std::string type;
@@ -707,8 +708,17 @@ class NonLinearParameters {
 
     auto getUnsteadyParameters() const { return m_dyna_para; }
 
+    // contact penalty, falling back on m_gamma_0 when Gamma0T is absent
+    T
+    gamma_0_n() const {
+        return m_gamma_n_0;
+    }
+
     // tangential penalty, falling back on m_gamma_0 when Gamma0T is absent
-    T gamma_0_t() const { return m_gamma_0_t > T( 0 ) ? m_gamma_0_t : m_gamma_0; }
+    T
+    gamma_0_t() const {
+        return m_gamma_t_0 > T( 0 ) ? m_gamma_t_0 : m_gamma_n_0;
+    }
 
     bool
     useSignoriniCell() const { return m_signorini_cell; }

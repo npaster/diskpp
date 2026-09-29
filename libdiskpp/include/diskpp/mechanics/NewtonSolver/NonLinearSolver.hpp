@@ -1148,7 +1148,7 @@ class NonLinearSolver {
         }
 
         // Create and init a nodedata view
-        gmsh::NodeData nodedata( 3, 0.0, "depl_node_disc", data, subdata );
+        gmsh::NodeData nodedata( 3, 0.0, "discontinuous_nodes", data, subdata );
 
         // Save the view
         nodedata.saveNodeData( filename, gmsh );
@@ -1205,7 +1205,7 @@ class NonLinearSolver {
         }
 
         // Create and init a nodedata view
-        gmsh::NodeData nodedata( 3, 0.0, "depl_node_cont", data, subdata );
+        gmsh::NodeData nodedata( 3, 0.0, "continuous_nodes", data, subdata );
         // Save the view
         nodedata.saveNodeData( filename, gmsh );
     }
