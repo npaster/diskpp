@@ -829,7 +829,7 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
             constexpr T EPS = T( 1.e-12 );
 
             // Indenter translation along -Ox.
-            const T x1 = T( 59.8561 ) - time + T( 0.1 );
+            const T x1 = T( 59.8561 ) - time;
             const T r1 = T( 6.795 );
 
             const T x2 = T( 45.4 ) - time;

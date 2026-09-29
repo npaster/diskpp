@@ -138,28 +138,35 @@ class PlotPointOverTime {
         _vale.push_back( std::make_pair( time, val ) );
     }
 
-    void write() const {
+    void
+    write( const std::filesystem::path &directory = "." ) const {
 
-        std::ofstream fio( _filename, std::ofstream::trunc );
+        /*
+         * Create the destination directory if it does not exist.
+         * create_directories() also creates missing parent directories.
+         */
+        std::filesystem::create_directories( directory );
 
-        if ( fio.is_open() ) {
+        const std::filesystem::path filepath = directory / _filename;
 
-            fio << "Time ";
-            for ( auto &cmp : _comp ) {
-                fio << "; " << cmp;
+        std::ofstream fio( filepath, std::ofstream::out | std::ofstream::trunc );
+
+        if ( !fio.is_open() ) {
+            throw std::runtime_error( "Error when opening the file: " + filepath.string() );
+        }
+
+        fio << "Time ";
+        for ( auto &cmp : _comp ) {
+            fio << "; " << cmp;
+        }
+        fio << std::endl;
+
+        for ( auto &[time, vals] : _vale ) {
+            fio << time;
+            for ( auto &val : vals ) {
+                fio << "; " << val;
             }
             fio << std::endl;
-
-            for ( auto &[time, vals] : _vale ) {
-                fio << time;
-                for ( auto &val : vals ) {
-                    fio << "; " << val;
-                }
-                fio << std::endl;
-            }
-
-        } else {
-            throw std::runtime_error( "Error when opening the file." );
         }
 
         fio.close();

@@ -35,10 +35,10 @@
 #include "diskpp/mechanics/behaviors/tensor_conversion.hpp"
 #include "diskpp/mechanics/stress_tensors.hpp"
 #include "diskpp/methods/hho"
+#include "diskpp/output/ensight/ensight_exporter.hpp"
 #include "diskpp/output/gmshConvertMesh.hpp"
 #include "diskpp/output/gmshDisk.hpp"
 #include "diskpp/output/plotOverTime.hpp"
-#include "diskpp/output/postMesh.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -91,6 +91,11 @@ class NonLinearSolver {
     PostMesh< mesh_type > m_post_mesh;
     MultiTimeField< scalar_type > m_fields;
     NonLinearData< scalar_type > m_data;
+
+    // ensight output
+    output::ensight::EnsightExporter< mesh_type > m_output;
+    std::int64_t m_gauss_point_part_id = -1;
+    bool m_ensight_initialized = false;
 
     std::shared_ptr< solvers::sparse_solver< scalar_type > > m_lin_solv;
 
@@ -298,6 +303,78 @@ class NonLinearSolver {
         }
     }
 
+    void
+    initialize_ensight_output() {
+        if ( m_ensight_initialized ) {
+            return;
+        }
+
+        /*
+         * Compute the total number of Gauss points.
+         *
+         * The number of quadrature points may depend on the cell.
+         */
+        std::size_t total_number_of_qp = 0;
+
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+
+            total_number_of_qp += m_behavior.numberOfQP( cell_id );
+        }
+
+        if ( total_number_of_qp == 0 ) {
+            throw std::runtime_error( "No quadrature points to export" );
+        }
+
+        /*
+         * reserve() allocates memory without creating entries.
+         * Each Gauss point is then appended with push_back().
+         */
+        std::vector< std::array< double, 3 > > gauss_points;
+
+        gauss_points.reserve( total_number_of_qp );
+
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+
+            const std::size_t number_of_qp = m_behavior.numberOfQP( cell_id );
+
+            for ( std::size_t qp_id = 0; qp_id < number_of_qp; ++qp_id ) {
+                const auto qp = m_behavior.quadrature_point( cell_id, qp_id );
+
+                std::array< double, 3 > coordinates { 0.0, 0.0, 0.0 };
+
+                coordinates[0] = qp.point().x();
+
+                if constexpr ( mesh_type::dimension >= 2 ) {
+                    coordinates[1] = qp.point().y();
+                }
+
+                if constexpr ( mesh_type::dimension == 3 ) {
+                    coordinates[2] = qp.point().z();
+                }
+
+                gauss_points.push_back( coordinates );
+            }
+        }
+
+        /*
+         * Internal consistency check.
+         */
+        if ( gauss_points.size() != total_number_of_qp ) {
+            throw std::runtime_error( "Unexpected number of Gauss points: got " +
+                                      std::to_string( gauss_points.size() ) + ", expected " +
+                                      std::to_string( total_number_of_qp ) );
+        }
+
+        m_gauss_point_part_id =
+            m_output.add_point_cloud( "Gauss points", std::move( gauss_points ) );
+
+        m_output.write_mesh();
+
+        m_ensight_initialized = true;
+    }
+
   public:
     NonLinearSolver( const mesh_type &msh, const bnd_type &bnd, const param_type &rp )
         : m_msh( msh ),
@@ -309,7 +386,8 @@ class NonLinearSolver {
           m_fields( getNumberOfStepToSave( rp ) ),
           m_load( nullptr ),
           m_lin_solv(
-              std::make_shared< solvers::sparse_solver< scalar_type > >( rp.getLinearSolver() ) ) {
+              std::make_shared< solvers::sparse_solver< scalar_type > >( rp.getLinearSolver() ) ),
+          m_output( msh ) {
         if ( m_verbose ) {
             std::cout << "------------------------------------------------------------------------"
                          "-------------"
@@ -698,41 +776,46 @@ class NonLinearSolver {
                 m_fields.update();
 
                 if ( time_saving && ( m_rp.m_time_save.front() < current_time + 1E-5 ) ) {
+                    initialize_ensight_output();
                     std::cout << "** Save results" << std::endl;
-                    std::string name = "result" + std::to_string( mesh_type::dimension ) + "D_t" +
-                                       std::to_string( current_time ) + "_";
+                    const auto gmsh_directory = m_output.output_directory() / "gmsh";
 
-                    this->output_discontinuous_field( name + "depl_disc.msh",
+                    std::filesystem::create_directories( gmsh_directory );
+
+                    std::ostringstream basename;
+                    basename << "result" << mesh_type::dimension << "D_t"
+                             << std::to_string( current_time ) << '_';
+
+                    const auto filepath = gmsh_directory / basename.str();
+
+                    m_output.begin_step( current_time );
+
+                    this->output_discontinuous_field( filepath.string() + "depl_disc.msh",
                                                       FieldName::DEPL_CELLS );
-                    this->output_continuous_field( name + "depl_cont.msh", FieldName::DEPL_CELLS );
-                    this->output_CauchyStress_GP( name + "CauchyStress_GP.msh" );
-                    this->output_CauchyStress_GP( name + "CauchyStress_GP_def.msh", true );
-                    this->output_discontinuous_deformed( name + "deformed_disc.msh" );
-                    this->output_is_plastic_GP( name + "plastic_GP.msh" );
-                    this->output_stabCoeff( name + "stabCoeff.msh" );
-                    this->output_equivalentPlasticStrain_GP( name +
-                                                             "equivalentPlasticStrain_GP.msh" );
 
-                    this->output_normal_stress_boundary_nodes( name + "normalStress_nodes.msh" );
+                    this->output_continuous_field( "displacement", FieldName::DEPL_CELLS );
+                    this->output_CauchyStress_GP();
+                    this->output_GaussDisplacement_GP();
+                    this->output_is_plastic_GP();
+                    this->output_stabCoeff();
+                    this->output_equivalentPlasticStrain_GP();
+
+                    this->output_normal_stress_boundary_nodes( false );
                     if ( m_bnd.nb_faces_contact() > 0 ) {
-                        this->output_normal_stress_boundary_nodes(
-                            name + "contactPressure_nodes.msh", true );
-                        this->output_contact_boundary( name + "contact.csv" );
+                        this->output_normal_stress_boundary_nodes( true );
                     }
                     if ( m_rp.isUnsteady() ) {
-                        this->output_discontinuous_field( name + "vite_disc.msh",
-                                                          FieldName::VITE_CELLS );
-                        this->output_continuous_field( name + "vite_cont.msh",
-                                                       FieldName::VITE_CELLS );
-                        this->output_discontinuous_field( name + "acce_disc.msh",
-                                                          FieldName::ACCE_CELLS );
-                        this->output_continuous_field( name + "acce_cont.msh",
-                                                       FieldName::ACCE_CELLS );
+                        this->output_continuous_field( "velocity", FieldName::VITE_CELLS );
+                        this->output_continuous_field( "acceleration", FieldName::ACCE_CELLS );
                     }
+
+                    this->output_discontinuous_deformed( filepath.string() + "deformed_disc.msh" );
 
                     m_rp.m_time_save.pop_front();
                     if ( m_rp.m_time_save.empty() )
                         time_saving = false;
+
+                    m_output.end_step();
                 }
 
                 // Compute observation
@@ -781,16 +864,24 @@ class NonLinearSolver {
             }
         }
 
+        // CSV files
+        const auto csv_directory = m_output.output_directory() / "csv_files";
         for ( auto &ppt : m_ppt ) {
-            ppt.write();
+            ppt.write( csv_directory );
         }
-        stat.write();
-        energy_ppt.write();
+        stat.write( csv_directory );
+        energy_ppt.write( csv_directory );
+        if ( m_bnd.nb_faces_contact() > 0 ) {
+            const auto contact_file = csv_directory / "contact.csv";
+            this->output_contact_boundary( contact_file.string() );
+        }
 
         si.m_time_step = list_time_step.numberOfTimeStep();
 
         ttot.toc();
         si.m_time_solver = ttot.elapsed();
+
+        m_output.validate_and_write_case();
 
         return si;
     }
@@ -1154,216 +1245,235 @@ class NonLinearSolver {
         nodedata.saveNodeData( filename, gmsh );
     }
 
-    void output_continuous_field( const std::string &filename, FieldName name ) const {
-        const auto dimension = mesh_type::dimension;
+    void
+    output_continuous_field( const std::string &quantity, const FieldName name ) {
+        constexpr std::size_t dimension = mesh_type::dimension;
 
-        gmsh::Gmesh gmsh = convertMesh( m_post_mesh );
-        auto storage = m_post_mesh.mesh().backend_storage();
+        using nodal_vector_type = static_vector< scalar_type, dimension >;
 
-        const static_vector< scalar_type, dimension > vzero =
-            static_vector< scalar_type, dimension >::Zero();
+        const nodal_vector_type zero = nodal_vector_type::Zero();
 
-        const auto depl_cells = m_fields.getCurrentField( FieldName::DEPL_CELLS );
-        const size_t nb_nodes( gmsh.getNumberofNodes() );
+        /*
+         * Avoid copying all cell fields if getCurrentField()
+         * returns a persistent container.
+         */
+        const auto &field_cells = m_fields.getCurrentField( name );
 
-        // first(number of data at this node), second(cumulated value)
-        std::vector< std::pair< size_t, static_vector< scalar_type, dimension > > > value(
-            nb_nodes, std::make_pair( 0, vzero ) );
+        const std::size_t nb_nodes = m_msh.points_size();
 
-        int cell_i = 0;
-        for ( auto &cl : m_msh ) {
-            const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
-            const auto cb = make_vector_monomial_basis( m_msh, cl, di.cell_degree() );
-            const vector_type x = depl_cells.at( cell_i );
-            auto cell_nodes = m_post_mesh.nodes_cell( cell_i );
+        /*
+         * Build a point table indexed by the DiSk++ point identifier.
+         *
+         * This follows the current DiSk++ assumption that point identifiers
+         * correspond to the zero-based order returned by points_begin().
+         */
+        std::vector< typename mesh_type::point_type > point_of_id;
 
-            // Loop on the nodes of the cell
-            for ( auto &point_id : cell_nodes ) {
-                const auto pt = storage->points[point_id];
+        point_of_id.reserve( nb_nodes );
 
-                const auto phi = cb.eval_functions( pt );
-                const auto depl = eval( x, phi );
+        for ( auto it = m_msh.points_begin(); it != m_msh.points_end(); ++it ) {
+            point_of_id.push_back( *it );
+        }
 
-                // Add displacement at node
-                value[point_id].first++;
-                value[point_id].second += depl;
+        /*
+         * Number of cell contributions at every node.
+         */
+        std::vector< std::size_t > contribution_count( nb_nodes, 0 );
+
+        /*
+         * Accumulated nodal value.
+         */
+        std::vector< nodal_vector_type > nodal_values( nb_nodes, zero );
+
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+
+            const auto degree_info = m_degree_infos.cellDegreeInfo( m_msh, cl );
+
+            const auto cell_basis =
+                make_vector_monomial_basis( m_msh, cl, degree_info.cell_degree() );
+
+            const auto &cell_field = field_cells.at( cell_id );
+
+            /*
+             * Use point identifiers directly. This avoids looking up a point
+             * identifier from its floating-point coordinates.
+             */
+            for ( const auto point_identifier : cl.point_ids() ) {
+                const std::size_t point_id = static_cast< std::size_t >( point_identifier );
+
+                if ( point_id >= nb_nodes ) {
+                    throw std::runtime_error( "Invalid point identifier while "
+                                              "reconstructing nodal field '" +
+                                              quantity + "'" );
+                }
+
+                const auto &point = point_of_id.at( point_id );
+
+                const auto basis_values = cell_basis.eval_functions( point );
+
+                const nodal_vector_type field_value = eval( cell_field, basis_values );
+
+                nodal_values[point_id] += field_value;
+
+                ++contribution_count[point_id];
             }
-            cell_i++;
         }
 
-        std::vector< gmsh::Data > data;       // create data
-        std::vector< gmsh::SubData > subdata; // create subdata
-        data.reserve( nb_nodes );             // data has a size of nb_node
+        /*
+         * Average the cell reconstructions at shared nodes.
+         */
+        for ( std::size_t point_id = 0; point_id < nb_nodes; ++point_id ) {
+            const std::size_t count = contribution_count[point_id];
 
-        // Compute the average value and save it
-        for ( int i_node = 0; i_node < value.size(); i_node++ ) {
-            const static_vector< scalar_type, dimension > depl_avr =
-                value[i_node].second / double( value[i_node].first );
+            if ( count == 0 ) {
+                throw std::runtime_error( "Node " + std::to_string( point_id ) +
+                                          " has no cell contribution for field '" + quantity +
+                                          "'" );
+            }
 
-            const gmsh::Data tmp_data( i_node + 1, convertToVectorGmsh( depl_avr ) );
-            data.push_back( tmp_data );
+            nodal_values[point_id] /= static_cast< scalar_type >( count );
         }
 
-        // Create and init a nodedata view
-        gmsh::NodeData nodedata( 3, 0.0, "continuous_nodes", data, subdata );
-        // Save the view
-        nodedata.saveNodeData( filename, gmsh );
+        /*
+         * The EnSight writer accepts Eigen-compatible static vectors.
+         *
+         * In 2D, the writer automatically generates:
+         *
+         * ux, uy, 0
+         *
+         * In 3D:
+         *
+         * ux, uy, uz
+         */
+        m_output.write_vector( quantity, nodal_values );
     }
 
-    void output_CauchyStress_GP( const std::string &filename, bool def = false ) const {
-        gmsh::Gmesh gmsh = convertMesh( m_post_mesh );
+    void
+    output_GaussDisplacement_GP() {
+        constexpr std::size_t dimension = mesh_type::dimension;
+        using displacement_type = static_vector< scalar_type, dimension >;
 
-        std::vector< gmsh::Data > data;       // create data (not used)
-        std::vector< gmsh::SubData > subdata; // create subdata to save soution at gauss point
-        size_t nb_nodes( gmsh.getNumberofNodes() );
+        const auto &displacement = m_fields.getCurrentField( FieldName::DEPL_CELLS );
 
-        const auto depl = m_fields.getCurrentField( FieldName::DEPL );
+        std::vector< displacement_type > values;
+        values.reserve( m_output.point_cloud( m_gauss_point_part_id ).number_of_points() );
 
-        int cell_i = 0;
-        for ( auto &cl : m_msh ) {
-            const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+            const auto degree_info = m_degree_infos.cellDegreeInfo( m_msh, cl );
 
-            const auto uTF = depl.at( cell_i );
-            matrix_type gr;
-            if ( m_rp.m_precomputation ) {
-                gr = m_data.m_gradient_precomputed.at( cell_i );
-            } else {
+            const auto cell_basis =
+                make_vector_monomial_basis( m_msh, cl, degree_info.cell_degree() );
+
+            const auto &cell_unknowns = displacement.at( cell_id );
+
+            const std::size_t number_of_qp = m_behavior.numberOfQP( cell_id );
+
+            for ( std::size_t qp_id = 0; qp_id < number_of_qp; ++qp_id ) {
+                const auto qp = m_behavior.quadrature_point( cell_id, qp_id );
+
+                const auto basis_values = cell_basis.eval_functions( qp.point() );
+
+                values.push_back( eval( cell_unknowns, basis_values ) );
+            }
+        }
+
+        m_output.write_point_cloud_vector( "displacement_GP", m_gauss_point_part_id, values );
+    }
+
+    void
+    output_CauchyStress_GP() {
+        const auto &displacement = m_fields.getCurrentField( FieldName::DEPL );
+
+        std::vector< static_matrix< scalar_type, 3, 3 > > stresses;
+        stresses.reserve( m_output.point_cloud( m_gauss_point_part_id ).number_of_points() );
+
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+            const auto degree_info = m_degree_infos.cellDegreeInfo( m_msh, cl );
+
+            const auto &local_displacement = displacement.at( cell_id );
+
+            matrix_type gradient_operator;
+            if ( m_rp.m_precomputation )
+                gradient_operator = m_data.m_gradient_precomputed.at( cell_id );
+            else if ( m_behavior.getDeformation() == SMALL_DEF )
+                gradient_operator =
+                    make_matrix_hho_symmetric_gradrec( m_msh, cl, m_degree_infos ).first;
+            else
+                gradient_operator = make_matrix_hho_gradrec( m_msh, cl, m_degree_infos ).first;
+
+            const vector_type reconstructed_gradient = gradient_operator * local_displacement;
+
+            const auto gradient_basis =
+                make_matrix_monomial_basis( m_msh, cl, degree_info.grad_degree() );
+
+            const std::size_t number_of_qp = m_behavior.numberOfQP( cell_id );
+
+            for ( std::size_t qp_id = 0; qp_id < number_of_qp; ++qp_id ) {
+                static_matrix< scalar_type, 3, 3 > cauchy_stress;
+                cauchy_stress.setZero();
+
                 if ( m_behavior.getDeformation() == SMALL_DEF ) {
-                    gr = make_matrix_hho_symmetric_gradrec( m_msh, cl, m_degree_infos ).first;
+                    cauchy_stress = m_behavior.compute_stress3D( cell_id, qp_id );
                 } else {
-                    gr = make_matrix_hho_gradrec( m_msh, cl, m_degree_infos ).first;
+                    const auto qp = m_behavior.quadrature_point( cell_id, qp_id );
+
+                    const auto basis_values = gradient_basis.eval_functions( qp.point() );
+
+                    const auto displacement_gradient = eval( reconstructed_gradient, basis_values );
+
+                    const auto deformation_gradient = convertGtoF( displacement_gradient );
+
+                    const auto deformation_gradient_3d =
+                        convertMatrix3DwithOne( deformation_gradient );
+
+                    const auto pk1_stress = m_behavior.compute_stress3D( cell_id, qp_id );
+
+                    cauchy_stress = convertPK1toCauchy( pk1_stress, deformation_gradient_3d );
                 }
+
+                stresses.push_back( cauchy_stress );
             }
-
-            const vector_type GTuTF = gr * uTF;
-
-            const auto gb = make_matrix_monomial_basis( m_msh, cl, di.grad_degree() );
-            const auto gbs = make_sym_matrix_monomial_basis( m_msh, cl, di.grad_degree() );
-
-            const auto cb = make_vector_monomial_basis( m_msh, cl, di.cell_degree() );
-            const vector_type uT = uTF.head( cb.size() );
-
-            // Loop on nodes
-            const auto nb_qp = m_behavior.numberOfQP( cell_i );
-
-            for ( int i_qp = 0; i_qp < nb_qp; i_qp++ ) {
-                const auto qp = m_behavior.quadrature_point( cell_i, i_qp );
-                std::vector< double > tens;
-
-                if ( m_behavior.getDeformation() == SMALL_DEF ) {
-                    auto stress = m_behavior.compute_stress3D( cell_i, i_qp );
-                    tens = convertToVectorGmsh( stress );
-                } else {
-                    const auto gphi = gb.eval_functions( qp.point() );
-                    const auto GT_iqn = eval( GTuTF, gphi );
-                    const auto FT_iqn = convertGtoF( GT_iqn );
-                    const auto FT_iqn_3D = convertMatrix3DwithOne( FT_iqn );
-
-                    auto P = m_behavior.compute_stress3D( cell_i, i_qp );
-                    auto stress = convertPK1toCauchy( P, FT_iqn_3D );
-                    tens = convertToVectorGmsh( stress );
-                }
-
-                std::array< double, 3 > coor = init_coor( qp.point() );
-
-                if ( def ) {
-                    const auto cphi = cb.eval_functions( qp.point() );
-                    const auto depl = eval( uT, cphi );
-
-                    // Compute new coordinates
-                    for ( int j = 0; j < mesh_type::dimension; j++ )
-                        coor[j] += depl( j );
-                }
-
-                // Add GP
-                // Create a node at gauss point
-                nb_nodes++;
-                const gmsh::Node new_node( coor, nb_nodes, 0 );
-                const gmsh::SubData sdata( tens, new_node );
-                subdata.push_back( sdata ); // add subdata
-            }
-            cell_i++;
         }
 
-        // Save
-        gmsh::NodeData nodedata( 9, 0.0, "CauchyStress_GP", data,
-                                 subdata ); // create and init a nodedata view
-
-        nodedata.saveNodeData( filename, gmsh ); // save the view
+        m_output.write_point_cloud_symmetric_tensor(
+            "cauchyStress_GP", m_gauss_point_part_id, stresses );
     }
 
-    void output_is_plastic_GP( const std::string &filename ) const {
-        gmsh::Gmesh gmsh = convertMesh( m_post_mesh );
+    void
+    output_is_plastic_GP() {
+        std::vector< double > values;
+        values.reserve( m_output.point_cloud( m_gauss_point_part_id ).number_of_points() );
 
-        std::vector< gmsh::Data > data;       // create data (not used)
-        std::vector< gmsh::SubData > subdata; // create subdata to save soution at gauss point
-        size_t nb_nodes( gmsh.getNumberofNodes() );
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+            const std::size_t number_of_qp = m_behavior.numberOfQP( cell_id );
 
-        int cell_i = 0;
-        for ( auto &cl : m_msh ) {
-            // Loop on nodes
-            const auto nb_qp = m_behavior.numberOfQP( cell_i );
-
-            for ( int i_qp = 0; i_qp < nb_qp; i_qp++ ) {
-                const auto qp = m_behavior.quadrature_point( cell_i, i_qp );
-
-                scalar_type p = 0;
-                if ( m_behavior.is_plastic( cell_i, i_qp ) )
-                    p = 1;
-
-                const std::vector< double > p_s = convertToVectorGmsh( p );
-
-                // Add GP
-                // Create a node at gauss point
-                nb_nodes++;
-                const gmsh::Node new_node = convertPoint( qp.point(), nb_nodes );
-                const gmsh::SubData sdata( p_s, new_node );
-                subdata.push_back( sdata ); // add subdata
-            }
-            cell_i++;
+            for ( std::size_t qp_id = 0; qp_id < number_of_qp; ++qp_id )
+                values.push_back( m_behavior.is_plastic( cell_id, qp_id ) ? 1.0 : 0.0 );
         }
 
-        // Save
-        gmsh::NodeData nodedata( 1, 0.0, "state_GP", data,
-                                 subdata ); // create and init a nodedata view
-
-        nodedata.saveNodeData( filename, gmsh ); // save the view
+        m_output.write_point_cloud_scalar( "state_GP", m_gauss_point_part_id, values );
     }
 
-    void output_equivalentPlasticStrain_GP( const std::string &filename ) const {
-        gmsh::Gmesh gmsh = convertMesh( m_post_mesh );
+    void
+    output_equivalentPlasticStrain_GP() {
+        std::vector< double > values;
+        values.reserve( m_output.point_cloud( m_gauss_point_part_id ).number_of_points() );
 
-        std::vector< gmsh::Data > data;       // create data (not used)
-        std::vector< gmsh::SubData > subdata; // create subdata to save soution at gauss point
-        size_t nb_nodes( gmsh.getNumberofNodes() );
+        for ( const auto &cl : m_msh ) {
+            const std::size_t cell_id = m_msh.lookup( cl );
+            const std::size_t number_of_qp = m_behavior.numberOfQP( cell_id );
 
-        int cell_i = 0;
-        for ( auto &cl : m_msh ) {
-            // Loop on nodes
-            const auto nb_qp = m_behavior.numberOfQP( cell_i );
-
-            for ( int i_qp = 0; i_qp < nb_qp; i_qp++ ) {
-                const auto qp = m_behavior.quadrature_point( cell_i, i_qp );
-
-                scalar_type p = m_behavior.equivalentPlasticStrain( cell_i, i_qp );
-
-                const std::vector< double > p_s = convertToVectorGmsh( p );
-
-                // Add GP
-                // Create a node at gauss point
-                nb_nodes++;
-                const gmsh::Node new_node = convertPoint( qp.point(), nb_nodes );
-                const gmsh::SubData sdata( p_s, new_node );
-                subdata.push_back( sdata ); // add subdata
-            }
-            cell_i++;
+            for ( std::size_t qp_id = 0; qp_id < number_of_qp; ++qp_id )
+                values.push_back(
+                    static_cast< double >( m_behavior.equivalentPlasticStrain( cell_id, qp_id ) ) );
         }
 
-        // Save
-        gmsh::NodeData nodedata( 1, 0.0, "equivalentPlasticStrain_GP", data,
-                                 subdata ); // create and init a nodedata view
-
-        nodedata.saveNodeData( filename, gmsh ); // save the view
+        m_output.write_point_cloud_scalar(
+            "equivalentPlasticStrain_GP", m_gauss_point_part_id, values );
     }
 
     void output_discontinuous_deformed( const std::string &filename ) const {
@@ -1405,72 +1515,69 @@ class NonLinearSolver {
         gmsh.writeGmesh( filename, 2 );
     }
 
-    void output_stabCoeff( const std::string &filename ) const {
-        gmsh::Gmesh gmsh = convertMesh( m_post_mesh );
+    void
+    output_stabCoeff() {
+        std::vector< double > values;
+        values.reserve( m_msh.cells_size() );
 
-        std::vector< gmsh::Data > data;       // create data (not used)
-        std::vector< gmsh::SubData > subdata; // create subdata to save soution at gauss point
-        size_t nb_nodes( gmsh.getNumberofNodes() );
+        for ( const auto &cl : m_msh )
+            values.push_back( static_cast< double >( m_stab_manager.getValue( m_msh, cl ) ) );
 
-        for ( auto &cl : m_msh ) {
-
-            std::array< double, 3 > coor = init_coor( barycenter( m_msh, cl ) );
-            double beta = m_stab_manager.getValue( m_msh, cl );
-            std::vector< double > tens( 1, beta );
-
-            // Add GP
-            // Create a node at gauss point
-            nb_nodes++;
-            const gmsh::Node new_node( coor, nb_nodes, 0 );
-            const gmsh::SubData sdata( tens, new_node );
-            subdata.push_back( sdata ); // add subdata
-        }
-
-        // Save
-        gmsh::NodeData nodedata( 1, 0.0, "StabCoeff", data,
-                                 subdata ); // create and init a nodedata view
-
-        nodedata.saveNodeData( filename, gmsh ); // save the view
+        m_output.write_element_scalar( "stab_coeff", values );
     }
 
     void
-    output_normal_stress_boundary_nodes( const std::string &filename,
-                                         const bool contact_only = false ) const {
+    output_normal_stress_boundary_nodes( const bool contact_only = false ) {
         constexpr std::size_t dimension = mesh_type::dimension;
 
         static_assert( dimension == 2 || dimension == 3,
                        "Normal stress output is implemented only in 2D and 3D" );
 
-        gmsh::Gmesh gmsh_mesh = convertMesh( m_post_mesh );
-
-        const auto &post_mesh = m_post_mesh.mesh();
-        const auto storage = post_mesh.backend_storage();
-
-        const std::size_t nb_nodes = gmsh_mesh.getNumberofNodes();
+        const std::size_t nb_nodes = m_msh.points_size();
 
         /*
-         * Tableau indiquant si une face du maillage initial
-         * est une face extérieure.
+         * Build a table giving direct access to a point from its
+         * DiSk++ point identifier.
+         *
+         * This assumes that point identifiers correspond to the zero-based
+         * order returned by points_begin() and points_end().
          */
-        std::vector< bool > is_boundary_face( m_msh.faces_size(), false );
+        std::vector< typename mesh_type::point_type > point_of_id;
+
+        point_of_id.reserve( nb_nodes );
+
+        for ( auto point_it = m_msh.points_begin(); point_it != m_msh.points_end(); ++point_it ) {
+            point_of_id.push_back( *point_it );
+        }
+
+        /*
+         * Mark the boundary faces on which the normal stress
+         * must be evaluated.
+         *
+         * If contact_only is true, only contact faces are selected.
+         * Otherwise, all boundary faces are selected.
+         */
+        std::vector< bool > is_selected_face( m_msh.faces_size(), false );
 
         for ( auto face_it = m_msh.boundary_faces_begin(); face_it != m_msh.boundary_faces_end();
               ++face_it ) {
             const auto fc = *face_it;
+
             const std::size_t face_id = m_msh.lookup( fc );
 
-            if ( contact_only && m_bnd.is_contact_face( face_id ) ) {
-                is_boundary_face.at( face_id ) = true;
+            if ( contact_only ) {
+                is_selected_face.at( face_id ) = m_bnd.is_contact_face( face_id );
             } else {
-                is_boundary_face.at( face_id ) = true;
+                is_selected_face.at( face_id ) = true;
             }
         }
 
         /*
-         * Somme des contraintes normales et nombre
-         * de contributions pour chaque nœud.
+         * Accumulated normal stress and number of contributions
+         * at every mesh node.
          *
-         * Les nœuds intérieurs restent à zéro.
+         * Interior nodes and nodes outside the selected boundary
+         * remain equal to zero.
          */
         std::vector< scalar_type > sigma_nn_sum( nb_nodes, scalar_type { 0 } );
 
@@ -1478,31 +1585,32 @@ class NonLinearSolver {
 
         const bool small_deformation = m_behavior.getDeformation() == SMALL_DEF;
 
-        const auto displacement = m_fields.getCurrentField( FieldName::DEPL );
+        const auto &displacement = m_fields.getCurrentField( FieldName::DEPL );
 
         /*
-         * Boucle sur les cellules.
+         * Loop over the cells.
          *
-         * On connaît ainsi directement la cellule intérieure
-         * utilisée pour évaluer la contrainte sur chaque face.
+         * Processing boundary faces from their adjacent cell gives direct
+         * access to the cell polynomial used to evaluate the stress.
          */
         for ( const auto &cl : m_msh ) {
             const std::size_t cell_id = m_msh.lookup( cl );
 
-            const auto di = m_degree_infos.cellDegreeInfo( m_msh, cl );
+            const auto degree_info = m_degree_infos.cellDegreeInfo( m_msh, cl );
 
             /*
-             * Projection polynomiale de la contrainte
-             * sur la cellule.
+             * Polynomial projection of the stress inside the cell.
              */
             const auto projected_stress =
-                m_behavior.projectStressOnCell( m_msh, cl, di.grad_degree() );
+                m_behavior.projectStressOnCell( m_msh, cl, degree_info.grad_degree() );
 
-            const auto matrix_basis = make_matrix_monomial_basis( m_msh, cl, di.grad_degree() );
+            const auto matrix_basis =
+                make_matrix_monomial_basis( m_msh, cl, degree_info.grad_degree() );
 
             /*
-             * Gradient reconstruit du déplacement.
-             * Il est seulement nécessaire en grandes déformations.
+             * Reconstructed displacement gradient.
+             *
+             * It is needed only for finite-deformation computations.
              */
             vector_type reconstructed_gradient;
 
@@ -1515,30 +1623,28 @@ class NonLinearSolver {
                     gradient_operator = make_matrix_hho_gradrec( m_msh, cl, m_degree_infos ).first;
                 }
 
-                const vector_type uTF = displacement.at( cell_id );
+                const auto &local_displacement = displacement.at( cell_id );
 
-                reconstructed_gradient = gradient_operator * uTF;
+                reconstructed_gradient = gradient_operator * local_displacement;
             }
 
             /*
-             * Faces de la cellule.
-             *
-             * Cette fonction existe déjà dans ton code, par exemple
-             * dans BoundaryConditions::faces_without_contact().
+             * Loop over the faces of the current cell.
              */
-            const auto cell_faces = faces( m_msh, cl );
-
-            for ( const auto &fc : cell_faces ) {
+            for ( const auto &fc : faces( m_msh, cl ) ) {
                 const std::size_t face_id = m_msh.lookup( fc );
 
                 /*
-                 * On ignore les faces internes.
+                 * Skip internal faces and boundary faces that do not
+                 * satisfy the requested selection.
                  */
-                if ( !is_boundary_face.at( face_id ) )
+                if ( !is_selected_face.at( face_id ) ) {
                     continue;
+                }
 
                 /*
-                 * Normale à la face, orientée relativement à la cellule.
+                 * Compute the unit normal oriented with respect
+                 * to the current cell.
                  */
                 auto normal_vector = normal( m_msh, cl, fc );
 
@@ -1551,63 +1657,49 @@ class NonLinearSolver {
                 normal_vector /= normal_norm;
 
                 /*
-                 * Nœuds du post-maillage appartenant à cette face.
+                 * Evaluate the normal stress at each original vertex
+                 * of the boundary face.
                  *
-                 * En 2D :
-                 * les deux extrémités de l'arête.
-                 *
-                 * En 3D :
-                 * les sommets et éventuellement le barycentre
-                 * ajouté lors de la triangulation de la face.
+                 * No PostMesh node or artificial face barycentre is used.
                  */
-                const auto &face_nodes = m_post_mesh.nodes_face( face_id );
-
-                for ( const auto &point_id : face_nodes ) {
-                    /*
-                     * Dans PostMesh, point_identifier est utilisé
-                     * directement pour indexer storage->points.
-                     *
-                     * La conversion en size_t doit donc être disponible.
-                     */
-                    const std::size_t node_id = static_cast< std::size_t >( point_id );
+                for ( const auto point_identifier : fc.point_ids() ) {
+                    const std::size_t node_id = static_cast< std::size_t >( point_identifier );
 
                     if ( node_id >= nb_nodes ) {
-                        throw std::out_of_range( "Invalid post-mesh node identifier in "
+                        throw std::out_of_range( "Invalid mesh node identifier in "
                                                  "output_normal_stress_boundary_nodes" );
                     }
 
-                    const auto &pt = storage->points.at( node_id );
+                    const auto &point = point_of_id.at( node_id );
 
                     /*
-                     * Évaluation de la contrainte projetée au nœud.
+                     * Evaluate the projected stress tensor at the node.
                      */
-                    const auto stress_phi = matrix_basis.eval_functions( pt );
+                    const auto stress_basis_values = matrix_basis.eval_functions( point );
 
-                    const auto stress_tensor = eval( projected_stress, stress_phi );
+                    const auto stress_tensor = eval( projected_stress, stress_basis_values );
 
                     scalar_type sigma_nn = scalar_type { 0 };
 
                     if ( small_deformation ) {
                         /*
-                         * En petites déformations, stress_tensor est
-                         * directement la contrainte de Cauchy.
+                         * In small deformation, stress_tensor is directly
+                         * interpreted as the Cauchy stress tensor.
                          */
                         sigma_nn = normal_vector.dot( stress_tensor * normal_vector );
                     } else {
                         /*
-                         * Évaluation du gradient du déplacement
-                         * au même nœud.
+                         * Evaluate the reconstructed displacement gradient
+                         * at the same node.
                          */
-                        const auto gradient_phi = matrix_basis.eval_functions( pt );
-
                         const auto displacement_gradient =
-                            eval( reconstructed_gradient, gradient_phi );
+                            eval( reconstructed_gradient, stress_basis_values );
 
                         const auto deformation_gradient = convertGtoF( displacement_gradient );
 
                         if constexpr ( dimension == 3 ) {
                             /*
-                             * En 3D :
+                             * Three-dimensional conversion:
                              *
                              * sigma = (1 / det(F)) P F^T
                              */
@@ -1617,8 +1709,9 @@ class NonLinearSolver {
                             sigma_nn = normal_vector.dot( cauchy_stress * normal_vector );
                         } else {
                             /*
-                             * En 2D, on prolonge les tenseurs en 3D
-                             * afin d'utiliser convertPK1toCauchy().
+                             * In two dimensions, embed the stress and
+                             * deformation-gradient tensors in three dimensions
+                             * before applying the PK1-to-Cauchy conversion.
                              */
                             static_matrix< scalar_type, 3, 3 > stress_tensor_3d;
 
@@ -1651,41 +1744,40 @@ class NonLinearSolver {
                     }
 
                     sigma_nn_sum.at( node_id ) += sigma_nn;
-                    sigma_nn_count.at( node_id )++;
+
+                    ++sigma_nn_count.at( node_id );
                 }
             }
         }
 
         /*
-         * Moyenne arithmétique des contributions.
+         * Compute the arithmetic average of the contributions
+         * at each boundary node.
+         *
+         * Interior nodes and unselected boundary nodes remain zero.
          */
-        std::vector< gmsh::Data > data;
-        std::vector< gmsh::SubData > subdata;
-
-        data.reserve( nb_nodes );
+        std::vector< double > nodal_values( nb_nodes, 0.0 );
 
         for ( std::size_t node_id = 0; node_id < nb_nodes; ++node_id ) {
-            scalar_type averaged_sigma_nn = scalar_type { 0 };
+            const std::size_t count = sigma_nn_count[node_id];
 
-            if ( sigma_nn_count[node_id] > 0 ) {
-                averaged_sigma_nn =
-                    sigma_nn_sum[node_id] / static_cast< scalar_type >( sigma_nn_count[node_id] );
+            if ( count == 0 ) {
+                continue;
             }
 
-            /*
-             * Les nœuds intérieurs sont explicitement écrits à zéro.
-             */
-            const gmsh::Data nodal_data( node_id + 1, convertToVectorGmsh( averaged_sigma_nn ) );
-
-            data.push_back( nodal_data );
+            nodal_values[node_id] = static_cast< double >( sigma_nn_sum[node_id] /
+                                                           static_cast< scalar_type >( count ) );
         }
 
         /*
-         * Le temps est maintenant passé explicitement à la fonction.
+         * The current step and physical time are provided by
+         * EnsightExporter::begin_step(time).
          */
-        gmsh::NodeData node_data( 1, 0.0, "NormalStress_boundary", data, subdata );
-
-        node_data.saveNodeData( filename, gmsh_mesh );
+        if ( contact_only ) {
+            m_output.write_scalar( "contact_stress", nodal_values );
+        } else {
+            m_output.write_scalar( "normal_stress", nodal_values );
+        }
     }
 };
 } // namespace mechanics

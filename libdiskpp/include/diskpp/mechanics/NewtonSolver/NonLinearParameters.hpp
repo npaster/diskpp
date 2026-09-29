@@ -79,7 +79,8 @@ enum LineSearchType {
     ANDERSON10,
 };
 
-std::string StabilizationName( const StabilizationType &type ) {
+std::string
+StabilizationName( const StabilizationType &type ) {
     switch ( type ) {
     case StabilizationType::HDG: {
         return "HDG";
@@ -108,7 +109,8 @@ std::string StabilizationName( const StabilizationType &type ) {
     throw std::invalid_argument( "Case not supported" );
 }
 
-std::string FrictionName( const FrictionType &type ) {
+std::string
+FrictionName( const FrictionType &type ) {
     switch ( type ) {
     case FrictionType::NO_FRICTION: {
         return "NO_FRICTION";
@@ -147,7 +149,8 @@ ContactKinematicsName( const ContactKinematics &type ) {
     throw std::invalid_argument( "Case not supported" );
 }
 
-std::string DynaSchemeName( const DynamicType &type ) {
+std::string
+DynaSchemeName( const DynamicType &type ) {
     switch ( type ) {
     case DynamicType::STATIC: {
         return "STATIC";
@@ -180,7 +183,8 @@ std::string DynaSchemeName( const DynamicType &type ) {
     throw std::invalid_argument( "Case not supported" );
 }
 
-std::string LinearSolverName( const solvers::direct_solver &type ) {
+std::string
+LinearSolverName( const solvers::direct_solver &type ) {
     switch ( type ) {
     case solvers::direct_solver::autosel: {
         return "AUTO";
@@ -209,7 +213,8 @@ std::string LinearSolverName( const solvers::direct_solver &type ) {
     throw std::invalid_argument( "Case not supported" );
 }
 
-std::string NonLinearSolverName( const NonLinearSolverType &type ) {
+std::string
+NonLinearSolverName( const NonLinearSolverType &type ) {
     switch ( type ) {
     case NonLinearSolverType::NEWTON: {
         return "NEWTON";
@@ -242,7 +247,8 @@ std::string NonLinearSolverName( const NonLinearSolverType &type ) {
     throw std::invalid_argument( "Case not supported" );
 }
 
-std::string LineSearchName( const LineSearchType &type ) {
+std::string
+LineSearchName( const LineSearchType &type ) {
     switch ( type ) {
     case LineSearchType::NO_LS: {
         return "NO";
@@ -422,7 +428,8 @@ class NonLinearParameters {
                   << ( m_consistent_friction_tangent ? "CONSISTENT"
                                                      : "FROZEN_BOUND" )
                   << std::endl;
-        std::cout << " - Theta: " << m_theta << std::endl;
+        std::cout << " - Theta Nitsche: " << m_theta << std::endl;
+        std::cout << " - Output format: " << " ENSIGHT" << std::endl;
     }
 
     bool readParameters( const std::string &filename ) {
