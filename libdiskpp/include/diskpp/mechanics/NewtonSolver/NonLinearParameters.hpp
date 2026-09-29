@@ -436,29 +436,31 @@ class NonLinearParameters {
         }
 
         ifs >> keyword;
+        keyword = toUpper( keyword );
         line++;
-        if ( keyword != "BeginParameters" ) {
+        if ( keyword != "BEGINPARAMETERS" ) {
             std::cout << "Expected keyword \"BeginParameters\" line: " << line << std::endl;
             return false;
         }
 
         ifs >> keyword;
+        keyword = toUpper( keyword );
         line++;
-        while ( keyword != "EndParameters" ) {
+        while ( keyword != "ENDPARAMETERS" ) {
             // std::cout << "Keyword: " << keyword << std::endl;
-            if ( keyword == "FaceDegree" ) {
+            if ( keyword == "FACEDEGREE" ) {
                 ifs >> m_face_degree;
                 line++;
-            } else if ( keyword == "CellDegree" ) {
+            } else if ( keyword == "CELLDEGREE" ) {
                 ifs >> m_cell_degree;
                 line++;
-            } else if ( keyword == "GradDegree" ) {
+            } else if ( keyword == "GRADDEGREE" ) {
                 ifs >> m_grad_degree;
                 line++;
-            } else if ( keyword == "Sublevel" ) {
+            } else if ( keyword == "SUBLEVEL" ) {
                 ifs >> m_sublevel;
                 line++;
-            } else if ( keyword == "TimeStep" ) {
+            } else if ( keyword == "TIMESTEP" ) {
                 int n_time_step( 0 );
                 ifs >> n_time_step;
                 line++;
@@ -472,12 +474,12 @@ class NonLinearParameters {
                     m_time_step.push_back( std::make_pair( time, time_step ) );
                     line++;
                 }
-            } else if ( keyword == "FinalTime" ) {
+            } else if ( keyword == "FINALTIME" ) {
                 ifs >> m_user_end_time;
                 line++;
 
                 m_has_user_end_time = true;
-            } else if ( keyword == "TimeSave" ) {
+            } else if ( keyword == "TIMESAVE" ) {
                 ifs >> m_n_time_save;
                 line++;
 
@@ -488,9 +490,10 @@ class NonLinearParameters {
                     m_time_save.push_back( time );
                     line++;
                 }
-            } else if ( keyword == "ContactType" ) {
+            } else if ( keyword == "CONTACTTYPE" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "FACE" ) {
                     m_signorini_cell = false;
@@ -499,16 +502,18 @@ class NonLinearParameters {
                 } else {
                     error_keyword( line, keyword, type );
                 }
-            } else if ( keyword == "AdaptativeStabilization" ) {
+            } else if ( keyword == "ADAPTATIVESTABILIZATION" ) {
                 std::string logical;
                 ifs >> logical;
+                logical = toUpper( logical );
                 line++;
                 m_adapt_stab = false;
-                if ( logical == "true" || logical == "True" )
+                if ( logical == "TRUE" )
                     m_adapt_stab = true;
-            } else if ( keyword == "StabType" ) {
+            } else if ( keyword == "STABTYPE" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 m_stab = true;
                 if ( type == "HDG" )
@@ -524,41 +529,44 @@ class NonLinearParameters {
                     m_stab_type = StabilizationType::NO;
                 } else
                     error_keyword(line, keyword, type);
-            } else if ( keyword == "Beta" ) {
+            } else if ( keyword == "BETA" ) {
                 ifs >> m_beta;
                 line++;
-            } else if ( keyword == "Verbose" ) {
+            } else if ( keyword == "VERBOSE" ) {
                 std::string logical;
                 ifs >> logical;
+                logical = toUpper( logical );
                 line++;
                 m_verbose = false;
-                if ( logical == "true" || logical == "True" )
+                if ( logical == "TRUE" )
                     m_verbose = true;
-            } else if ( keyword == "IterMax" ) {
+            } else if ( keyword == "ITERMAX" ) {
                 ifs >> m_iter_max;
                 line++;
-            } else if ( keyword == "Epsilon" ) {
+            } else if ( keyword == "EPSILON" ) {
                 ifs >> m_epsilon;
                 line++;
-            } else if ( keyword == "Precomputation" ) {
+            } else if ( keyword == "PRECOMPUTATION" ) {
                 std::string logical;
                 ifs >> logical;
+                logical = toUpper( logical );
                 line++;
                 m_precomputation = false;
-                if ( logical == "true" || logical == "True" )
+                if ( logical == "TRUE" )
                     m_precomputation = true;
-            } else if ( keyword == "Theta" ) {
+            } else if ( keyword == "THETA" ) {
                 ifs >> m_theta;
                 line++;
-            } else if ( keyword == "Gamma0" ) {
+            } else if ( keyword == "GAMMA0" ) {
                 ifs >> m_gamma_n_0;
                 line++;
-            } else if ( keyword == "Gamma0T" ) {
+            } else if ( keyword == "GAMMA0T" ) {
                 ifs >> m_gamma_t_0;
                 line++;
-            } else if ( keyword == "Friction" ) {
+            } else if ( keyword == "FRICTION" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "NO" )
                     m_frot_type = FrictionType::NO_FRICTION;
@@ -568,7 +576,7 @@ class NonLinearParameters {
                     m_frot_type = FrictionType::COULOMB;
                 else
                     error_keyword(line, keyword, type);
-            } else if ( keyword == "Threshold" ) {
+            } else if ( keyword == "THRESHOLD" ) {
                 // removed
                 T removed;
                 std::cout << "Keyword Threshold is no longer supported. Skipped for backward "
@@ -576,9 +584,10 @@ class NonLinearParameters {
                           << std::endl;
                 ifs >> removed;
                 line++;
-            } else if ( keyword == "FrictionTangent" ) {
+            } else if ( keyword == "FRICTIONTANGENT" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "CONSISTENT" )
                     m_consistent_friction_tangent = true;
@@ -586,9 +595,10 @@ class NonLinearParameters {
                     m_consistent_friction_tangent = false;
                 else
                     error_keyword( line, keyword, type );
-            } else if ( toUpper( keyword ) == "CONTACTKINEMATICS" ) {
+            } else if ( keyword == "CONTACTKINEMATICS" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 type = toUpper( type );
                 line++;
                 if ( type == "REFERENCE" )
@@ -597,9 +607,10 @@ class NonLinearParameters {
                     m_cont_kine = ContactKinematics::CURRENT_NORMAL;
                 else
                     error_keyword( line, keyword, type );
-            } else if ( keyword == "Dynamic" ) {
+            } else if ( keyword == "DYNAMIC" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "STATIC" || type == "NO" )
                     m_dyna_type = DynamicType::STATIC;
@@ -618,9 +629,10 @@ class NonLinearParameters {
             } else if ( keyword == "CFL" ) {
                 ifs >> m_cfl_factor;
                 line++;
-            } else if ( keyword == "NLSolver" ) {
+            } else if ( keyword == "NLSOLVER" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "NEWTON" ) {
                     m_nlin_solv = NonLinearSolverType::NEWTON;
@@ -637,9 +649,10 @@ class NonLinearParameters {
                 } else {
                     error_keyword(line, keyword, type);
                 }
-            } else if ( keyword == "LineSearch" ) {
+            } else if ( keyword == "LINESEARCH" ) {
                 std::string type;
                 ifs >> type;
+                type = toUpper( type );
                 line++;
                 if ( type == "NO" || type == "NO_LS" ) {
                     m_lsearch = LineSearchType::NO_LS;
@@ -669,6 +682,7 @@ class NonLinearParameters {
             }
 
             ifs >> keyword;
+            keyword = toUpper( keyword );
             line++;
         }
 
