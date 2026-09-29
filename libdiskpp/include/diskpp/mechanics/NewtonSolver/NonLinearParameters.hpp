@@ -46,6 +46,8 @@ enum FrictionType : int {
     COULOMB = 2,
 };
 
+enum ContactKinematics : int { REFERENCE, CURRENT_NORMAL };
+
 enum DynamicType : int {
     STATIC = 0,
     NEWMARK = 1,
@@ -118,6 +120,24 @@ std::string FrictionName( const FrictionType &type ) {
     }
     case FrictionType::COULOMB: {
         return "COULOMB";
+        break;
+    }
+    default:
+        break;
+    }
+
+    throw std::invalid_argument( "Case not supported" );
+}
+
+std::string
+ContactKinematicsName( const ContactKinematics &type ) {
+    switch ( type ) {
+    case ContactKinematics::REFERENCE: {
+        return "REFERENCE";
+        break;
+    }
+    case ContactKinematics::CURRENT_NORMAL: {
+        return "CURRENT";
         break;
     }
     default:
@@ -319,6 +339,7 @@ class NonLinearParameters {
     // still needed to fix it
     bool m_consistent_friction_tangent = true;
     FrictionType m_frot_type; // Friction type ?
+    ContactKinematics m_cont_kine;
 
     solvers::direct_solver m_lin_solv; // linear solver
     NonLinearSolverType m_nlin_solv;   // non-linear solver
@@ -343,6 +364,7 @@ class NonLinearParameters {
           m_theta( 1 ),
           m_gamma_0( 1 ),
           m_frot_type( FrictionType::NO_FRICTION ),
+          m_cont_kine( ContactKinematics::REFERENCE ),
           m_dyna_type( DynamicType::STATIC ),
           m_signorini_cell( false ),
           m_lin_solv( solvers::direct_solver::autosel ),
@@ -356,6 +378,16 @@ class NonLinearParameters {
     error_keyword( int line, std::string keyword, std::string value ) {
         throw std::runtime_error( "Error during parsing in line: " + std::to_string( line ) + "." +
                                   "  Keyword: " + keyword + " has an unexpeced value: " + value );
+    }
+
+    std::string
+    toUpper( std::string keyword ) {
+        std::string upper = keyword;
+        std::transform( upper.begin(), upper.end(), upper.begin(), []( unsigned char c ) {
+            return std::toupper( c );
+        } );
+
+        return upper;
     }
 
     void
@@ -384,6 +416,7 @@ class NonLinearParameters {
         std::cout << " - Friction ?: " << FrictionName( m_frot_type ) << std::endl;
         std::cout << " - Gamma_0: " << m_gamma_0 << std::endl;
         std::cout << " - Gamma_0_t: " << gamma_0_t() << std::endl;
+        std::cout << " - Contact kinematics: " << ContactKinematicsName( m_cont_kine ) << std::endl;
         std::cout << " - FrictionTangent: "
                   << ( m_consistent_friction_tangent ? "CONSISTENT"
                                                      : "FROZEN_BOUND" )
@@ -552,6 +585,17 @@ class NonLinearParameters {
                     m_consistent_friction_tangent = false;
                 else
                     error_keyword( line, keyword, type );
+            } else if ( toUpper( keyword ) == "CONTACTKINEMATICS" ) {
+                std::string type;
+                ifs >> type;
+                type = toUpper( type );
+                line++;
+                if ( type == "REFERENCE" )
+                    m_cont_kine = ContactKinematics::REFERENCE;
+                else if ( type == "CURRENT" )
+                    m_cont_kine = ContactKinematics::CURRENT_NORMAL;
+                else
+                    error_keyword( line, keyword, type );
             } else if ( keyword == "Dynamic" ) {
                 std::string type;
                 ifs >> type;
@@ -696,6 +740,11 @@ class NonLinearParameters {
 
     void setConvergenceCriteria( const T &eps ) { m_epsilon = eps; }
     T getConvergenceCriteria() const { return m_epsilon; }
+
+    ContactKinematics
+    getContactKinematics() const {
+        return m_cont_kine;
+    }
 };
 
 } // namespace mechanics

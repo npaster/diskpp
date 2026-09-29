@@ -29,6 +29,7 @@
 #include "diskpp/boundary_conditions/boundary_conditions.hpp"
 #include "diskpp/common/eigen.hpp"
 #include "diskpp/common/timecounter.hpp"
+#include "diskpp/mechanics/NewtonSolver/ContactLinearization.hpp"
 #include "diskpp/mechanics/NewtonSolver/NonLinearParameters.hpp"
 #include "diskpp/mechanics/behaviors/laws/materialData.hpp"
 #include "diskpp/mechanics/behaviors/maths_tensor.hpp"
@@ -40,252 +41,6 @@
 namespace disk {
 
 namespace mechanics {
-
-namespace priv {
-
-template < typename T >
-struct GapLinearization {
-    T gap = T( 0 );
-
-    /*
-     * derivative(i) = d gap / d coefficient(i)
-     */
-    dynamic_vector< T > derivative;
-
-    bool valid = false;
-};
-
-template < typename Basis, typename T, size_t DIM >
-point< T, DIM > new_pt( const Basis &base, const disk::dynamic_vector< T > &tab_coeff,
-                        const point< T, DIM > &pt ) {
-    const auto beval = base.eval_functions( pt );
-
-    const auto depl = disk::eval( tab_coeff, beval );
-
-    return pt + depl;
-}
-
-template < typename T >
-static_vector< T, 2 >
-compute_normal( const disk::point< T, 2 > &a, const disk::point< T, 2 > &b ) {
-    const static_vector< T, 2 > tangent = ( b - a ).to_vector();
-
-    const T tangent_norm = tangent.norm();
-
-    const T tolerance = T( 100 ) * std::numeric_limits< T >::epsilon();
-
-    if ( tangent_norm <= tolerance ) {
-        throw std::runtime_error( "Cannot compute the normal of a degenerate edge" );
-    }
-
-    static_vector< T, 2 > normal;
-
-    normal( 0 ) = -tangent( 1 );
-    normal( 1 ) = tangent( 0 );
-
-    return normal / tangent_norm;
-}
-
-template < typename T >
-static_vector< T, 3 >
-compute_normal( const disk::point< T, 3 > &p1,
-                const disk::point< T, 3 > &p2,
-                const disk::point< T, 3 > &p3 ) {
-    const static_vector< T, 3 > tangent_1 = ( p2 - p1 ).to_vector();
-
-    const static_vector< T, 3 > tangent_2 = ( p3 - p1 ).to_vector();
-
-    const static_vector< T, 3 > area_vector = tangent_1.cross( tangent_2 );
-
-    const T area_norm = area_vector.norm();
-
-    const T tolerance = T( 100 ) * std::numeric_limits< T >::epsilon();
-
-    if ( area_norm <= tolerance ) {
-        throw std::runtime_error( "Cannot compute the normal of a degenerate face" );
-    }
-
-    return area_vector / area_norm;
-}
-
-template < typename Mesh, typename Elem, typename ElemBasis, typename T, typename FunctionGap >
-T
-evaluate_gap_fb( const Mesh &msh,
-                 const Elem &elem,
-                 const ElemBasis &eb,
-                 const disk::dynamic_vector< T > &coefficients,
-                 const FunctionGap &gap_function,
-                 const disk::point< T, 2 > &point,
-                 const static_vector< T, 2 > &reference_normal,
-                 const T time ) {
-    const disk::point< T, 2 > deformed_point = new_pt( eb, coefficients, point );
-
-    const auto element_points = points( msh, elem );
-
-    if ( element_points.size() < 2 ) {
-        throw std::runtime_error( "A 2D contact edge must have at least two points" );
-    }
-
-    const static_vector< T, 2 > initial_geometric_normal =
-        compute_normal( element_points[0], element_points[1] );
-
-    const disk::point< T, 2 > deformed_point_0 = new_pt( eb, coefficients, element_points[0] );
-
-    const disk::point< T, 2 > deformed_point_1 = new_pt( eb, coefficients, element_points[1] );
-
-    /*
-     * Conservation de l'orientation de la normale initiale.
-     */
-    const T orientation = std::copysign( T( 1 ), reference_normal.dot( initial_geometric_normal ) );
-
-    const static_vector< T, 2 > deformed_normal =
-        orientation * compute_normal( deformed_point_0, deformed_point_1 );
-
-    return gap_function( deformed_point, deformed_normal, time );
-}
-
-template < typename Mesh, typename Elem, typename ElemBasis, typename T, typename FunctionGap >
-T
-evaluate_gap_fb( const Mesh &msh,
-                 const Elem &elem,
-                 const ElemBasis &eb,
-                 const disk::dynamic_vector< T > &coefficients,
-                 const FunctionGap &gap_function,
-                 const disk::point< T, 3 > &point,
-                 const static_vector< T, 3 > &reference_normal,
-                 const T time ) {
-    const disk::point< T, 3 > deformed_point = new_pt( eb, coefficients, point );
-
-    const auto element_points = points( msh, elem );
-
-    if ( element_points.size() < 3 ) {
-        throw std::runtime_error( "A 3D contact face must have at least three points" );
-    }
-
-    const static_vector< T, 3 > initial_geometric_normal =
-        compute_normal( element_points[0], element_points[1], element_points[2] );
-
-    const disk::point< T, 3 > deformed_point_0 = new_pt( eb, coefficients, element_points[0] );
-
-    const disk::point< T, 3 > deformed_point_1 = new_pt( eb, coefficients, element_points[1] );
-
-    const disk::point< T, 3 > deformed_point_2 = new_pt( eb, coefficients, element_points[2] );
-
-    const T orientation = std::copysign( T( 1 ), reference_normal.dot( initial_geometric_normal ) );
-
-    const static_vector< T, 3 > deformed_normal =
-        orientation * compute_normal( deformed_point_0, deformed_point_1, deformed_point_2 );
-
-    return gap_function( deformed_point, deformed_normal, time );
-}
-
-template < typename Mesh, typename Elem, typename ElemBasis, typename T, typename FunctionGap >
-T
-compute_gap_fb( const Mesh &msh,
-                const Elem &elem,
-                const ElemBasis &eb,
-                const disk::dynamic_vector< T > &coefficients,
-                const FunctionGap &gap_function,
-                const disk::point< T, Mesh::dimension > &point,
-                const static_vector< T, Mesh::dimension > &reference_normal,
-                const T time ) {
-    return evaluate_gap_fb(
-        msh, elem, eb, coefficients, gap_function, point, reference_normal, time );
-}
-
-template < typename T >
-bool
-is_valid_gap( const T gap ) {
-    return std::isfinite( gap );
-}
-
-template < typename Mesh, typename Elem, typename ElemBasis, typename T, typename FunctionGap >
-GapLinearization< T >
-linearize_gap_fb( const Mesh &msh,
-                  const Elem &elem,
-                  const ElemBasis &eb,
-                  const disk::dynamic_vector< T > &coefficients,
-                  const FunctionGap &gap_function,
-                  const disk::point< T, Mesh::dimension > &point,
-                  const static_vector< T, Mesh::dimension > &reference_normal,
-                  const T time ) {
-    GapLinearization< T > result;
-
-    const Eigen::Index number_of_coefficients = coefficients.size();
-
-    result.derivative = disk::dynamic_vector< T >::Zero( number_of_coefficients );
-
-    /*
-     * Gap au point courant.
-     */
-    result.gap =
-        evaluate_gap_fb( msh, elem, eb, coefficients, gap_function, point, reference_normal, time );
-
-    result.valid = is_valid_gap( result.gap );
-
-    if ( !result.valid )
-        return result;
-
-    /*
-     * Pour une différence centrée, un pas de l'ordre de
-     * epsilon^(1/3) donne généralement un compromis correct
-     * entre troncature et arrondi.
-     */
-    const T relative_step = std::cbrt( std::numeric_limits< T >::epsilon() );
-
-    for ( Eigen::Index coefficient_id = 0; coefficient_id < number_of_coefficients;
-          ++coefficient_id ) {
-        const T coefficient_scale = std::max( T( 1 ), std::abs( coefficients( coefficient_id ) ) );
-
-        const T perturbation = relative_step * coefficient_scale;
-
-        disk::dynamic_vector< T > coefficients_plus = coefficients;
-
-        disk::dynamic_vector< T > coefficients_minus = coefficients;
-
-        coefficients_plus( coefficient_id ) += perturbation;
-
-        coefficients_minus( coefficient_id ) -= perturbation;
-
-        const T gap_plus = evaluate_gap_fb(
-            msh, elem, eb, coefficients_plus, gap_function, point, reference_normal, time );
-
-        const T gap_minus = evaluate_gap_fb(
-            msh, elem, eb, coefficients_minus, gap_function, point, reference_normal, time );
-
-        const bool plus_valid = is_valid_gap( gap_plus );
-
-        const bool minus_valid = is_valid_gap( gap_minus );
-
-        if ( plus_valid && minus_valid ) {
-            /*
-             * Différence centrée.
-             */
-            result.derivative( coefficient_id ) =
-                ( gap_plus - gap_minus ) / ( T( 2 ) * perturbation );
-        } else if ( plus_valid ) {
-            /*
-             * Différence décentrée avant.
-             */
-            result.derivative( coefficient_id ) = ( gap_plus - result.gap ) / perturbation;
-        } else if ( minus_valid ) {
-            /*
-             * Différence décentrée arrière.
-             */
-            result.derivative( coefficient_id ) = ( result.gap - gap_minus ) / perturbation;
-        } else {
-            /*
-             * La projection disparaît des deux côtés.
-             * La dérivée n'est pas définie numériquement.
-             */
-            result.derivative( coefficient_id ) = T( 0 );
-        }
-    }
-
-    return result;
-}
-
-} // namespace priv
 
 template < typename MeshType >
 class contact_contribution {
@@ -317,6 +72,7 @@ class contact_contribution {
     scalar_type m_time;
     // dv/du of the time integrator; 1 when the friction law is displacement-based.
     scalar_type m_cN = scalar_type( 1 );
+    ContactKinematics m_cont_kine;
 
     // contact contrib;
     // normal part of u : u_n = u.n
@@ -544,7 +300,9 @@ class contact_contribution {
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
 
-                const auto n = normal( m_msh, cl, fc );
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
 
                 const auto qp_degree =
                     std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
@@ -562,7 +320,7 @@ class contact_contribution {
                      * D sigma_nn.
                      */
                     const vector_type sigma_nn_derivative =
-                        make_hho_sigma_nn( ET, n, gb, qp.point() );
+                        make_hho_sigma_nn( ET, nc.reference_normal, gb, qp.point() );
 
                     scalar_type phi_n_value = scalar_type( 0 );
                     vector_type phi_n_theta, dphi_n;
@@ -571,18 +329,24 @@ class contact_contribution {
                         const vector_type uT = uTF.head( cb.size() );
 
                         const auto gap_data = priv::linearize_gap_fb(
-                            m_msh, fc, cb, uT, gap_function, qp.point(), n, m_time );
+                            cb, uT, gap_function, qp.point(), nc.kinematic_normal, m_time );
 
                         if ( !gap_data.valid )
                             continue;
 
-                        const scalar_type sigma_nn_value =
-                            eval_stress_nn( ET_uTF, gb, n, qp.point() );
+                        phi_n_value = eval_phi_n_uT( fc,
+                                                     ET_uTF,
+                                                     gb,
+                                                     cb,
+                                                     uTF,
+                                                     nc.reference_normal,
+                                                     nc.kinematic_normal,
+                                                     gamma_F,
+                                                     qp.point() );
 
-                        phi_n_value =
-                            eval_phi_n_uT( fc, ET_uTF, gb, cb, uTF, n, gamma_F, qp.point() );
-
-                        const vector_type uT_n = make_hho_u_n( n, cb, qp.point() );
+                        // always reference normal for test function
+                        const vector_type uT_n =
+                            make_hho_u_n( nc.reference_normal, cb, qp.point() );
 
                         phi_n_theta =
                             make_hho_phi_n_uT( sigma_nn_derivative, uT_n, m_rp.m_theta, gamma_F );
@@ -593,21 +357,27 @@ class contact_contribution {
                         dphi_n =
                             make_hho_dphi_n_uT( sigma_nn_derivative, gap_data.derivative, gamma_F );
                     } else {
-                        const vector_type uF = uTF.segment( offset, fb.size() );
 
                         const auto gap_data = priv::linearize_gap_fb(
-                            m_msh, fc, fb, uF, gap_function, qp.point(), n, m_time );
+                            fb, uF, gap_function, qp.point(), nc.kinematic_normal, m_time );
 
                         if ( !gap_data.valid )
                             continue;
 
-                        const scalar_type sigma_nn_value =
-                            eval_stress_nn( ET_uTF, gb, n, qp.point() );
+                        phi_n_value = eval_phi_n_uF( fc,
+                                                     ET_uTF,
+                                                     gb,
+                                                     fb,
+                                                     uTF,
+                                                     offset,
+                                                     nc.reference_normal,
+                                                     nc.kinematic_normal,
+                                                     gamma_F,
+                                                     qp.point() );
 
-                        phi_n_value = eval_phi_n_uF(
-                            fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point() );
-
-                        const vector_type uF_n = make_hho_u_n( n, fb, qp.point() );
+                        // always reference normal for test function
+                        const vector_type uF_n =
+                            make_hho_u_n( nc.reference_normal, fb, qp.point() );
 
                         phi_n_theta = make_hho_phi_n_uF(
                             sigma_nn_derivative, uF_n, m_rp.m_theta, gamma_F, offset );
@@ -659,38 +429,60 @@ class contact_contribution {
 
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
-                const auto n = normal( m_msh, cl, fc );
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
                 const auto gamma_F = m_rp.m_gamma_0 / hF;
 
                 for ( auto &qp : qps ) {
-                    const vector_type sigma_nn = make_hho_sigma_nn( ET, n, gb, qp.point() );
+                    const vector_type sigma_nn =
+                        make_hho_sigma_nn( ET, nc.reference_normal, gb, qp.point() );
 
                     if ( contact_type == disk::SIGNORINI_CELL ) {
 
-                        const scalar_type phi_n_1_u =
-                            eval_phi_n_uT( fc, ET_uTF, gb, cb, uTF, n, gamma_F, qp.point() );
+                        const scalar_type phi_n_1_u = eval_phi_n_uT( fc,
+                                                                     ET_uTF,
+                                                                     gb,
+                                                                     cb,
+                                                                     uTF,
+                                                                     nc.reference_normal,
+                                                                     nc.kinematic_normal,
+                                                                     gamma_F,
+                                                                     qp.point() );
 
                         // [phi_n_1_u]_R-
                         if ( phi_n_1_u <= scalar_type( 0 ) ) {
-                            const vector_type uT_n = make_hho_u_n( n, cb, qp.point() );
+                            // always reference normal for test function
+                            const vector_type uT_n =
+                                make_hho_u_n( nc.reference_normal, cb, qp.point() );
                             const vector_type phi_n_theta =
                                 make_hho_phi_n_uT( sigma_nn, uT_n, m_rp.m_theta, gamma_F );
 
                             rhs += ( qp.weight() / gamma_F * phi_n_1_u ) * phi_n_theta;
                         }
                     } else {
-                        const scalar_type phi_n_1_u = eval_phi_n_uF(
-                            fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point() );
+                        const scalar_type phi_n_1_u = eval_phi_n_uF( fc,
+                                                                     ET_uTF,
+                                                                     gb,
+                                                                     fb,
+                                                                     uTF,
+                                                                     offset,
+                                                                     nc.reference_normal,
+                                                                     nc.kinematic_normal,
+                                                                     gamma_F,
+                                                                     qp.point() );
 
                         // std::cout << "qp: " << qp.point() << std::endl;
                         // std::cout << "phi_n_1_u: " << phi_n_1_u << std::endl;
 
                         // [phi_n_1_u]_R-
                         if ( phi_n_1_u <= scalar_type( 0 ) ) {
-                            const vector_type uF_n = make_hho_u_n( n, fb, qp.point() );
+                            // always reference normal for test function
+                            const vector_type uF_n =
+                                make_hho_u_n( nc.reference_normal, fb, qp.point() );
                             const vector_type phi_n_theta =
                                 make_hho_phi_n_uF( sigma_nn, uF_n, m_rp.m_theta, gamma_F, offset );
 
@@ -736,7 +528,11 @@ class contact_contribution {
 
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
-                const auto n = normal( m_msh, cl, fc );
+
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
+
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
@@ -745,23 +541,33 @@ class contact_contribution {
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
                 for ( auto &qp : qps ) {
-                    const auto sigma_nt = make_hho_sigma_nt( ET, n, gb, qp.point() );
+                    const auto sigma_nt =
+                        make_hho_sigma_nt( ET, nc.reference_normal, gb, qp.point() );
 
                     if ( contact_type == disk::SIGNORINI_CELL ) {
-                        const auto uT_t = make_hho_u_t( n, cb, qp.point() );
+                        // always reference normal for test function
+                        const auto uT_t = make_hho_u_t( nc.reference_normal, cb, qp.point() );
 
                         const auto phi_t_theta =
                             make_hho_phi_t_uT( sigma_nt, uT_t, m_rp.m_theta, gamma_F );
 
-                        const vector_static phi_t_1_u_proj = eval_proj_phi_t_uT(
-                            ET_uTF, gb, cb, vuTF, n, gamma_F, s_func( qp.point() ), qp.point() );
+                        const vector_static phi_t_1_u_proj =
+                            eval_proj_phi_t_uT( ET_uTF,
+                                                gb,
+                                                cb,
+                                                vuTF,
+                                                nc.reference_normal,
+                                                nc.kinematic_normal,
+                                                gamma_F,
+                                                s_func( qp.point() ),
+                                                qp.point() );
 
                         const vector_static qp_phi_t_1_u_pro =
                             qp.weight() * phi_t_1_u_proj / gamma_F;
 
                         rhs += disk::priv::inner_product( phi_t_theta, qp_phi_t_1_u_pro );
                     } else {
-                        const auto uF_t = make_hho_u_t( n, fb, qp.point() );
+                        const auto uF_t = make_hho_u_t( nc.reference_normal, fb, qp.point() );
 
                         const auto phi_t_theta =
                             make_hho_phi_t_uF( sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset );
@@ -777,7 +583,8 @@ class contact_contribution {
                                                        fb,
                                                        vuTF,
                                                        offset,
-                                                       n,
+                                                       nc.reference_normal,
+                                                       nc.kinematic_normal,
                                                        gamma_F,
                                                        s_func( qp.point() ),
                                                        qp.point() );
@@ -825,7 +632,9 @@ class contact_contribution {
 
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
-                const auto n = normal( m_msh, cl, fc );
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
@@ -834,18 +643,26 @@ class contact_contribution {
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
                 for ( auto &qp : qps ) {
-                    const auto sigma_nt = make_hho_sigma_nt( ET, n, gb, qp.point() );
+                    const auto sigma_nt =
+                        make_hho_sigma_nt( ET, nc.reference_normal, gb, qp.point() );
 
                     if ( contact_type == disk::SIGNORINI_CELL ) {
-                        const auto uT_t = make_hho_u_t( n, cb, qp.point() );
+                        // always reference normal for test function
+                        const auto uT_t = make_hho_u_t( nc.reference_normal, cb, qp.point() );
 
                         const auto phi_t_1 =
                             make_hho_phi_t_uT( sigma_nt, m_cN * uT_t, scalar_type( 1 ), gamma_F );
                         const auto phi_t_theta =
                             make_hho_phi_t_uT( sigma_nt, uT_t, m_rp.m_theta, gamma_F );
 
-                        const auto phi_t_1_u =
-                            eval_phi_t_uT( ET_uTF, gb, cb, vuTF, n, gamma_F, qp.point() );
+                        const auto phi_t_1_u = eval_phi_t_uT( ET_uTF,
+                                                              gb,
+                                                              cb,
+                                                              vuTF,
+                                                              nc.reference_normal,
+                                                              nc.kinematic_normal,
+                                                              gamma_F,
+                                                              qp.point() );
                         const auto d_proj_phi_t_u =
                             make_d_proj_alpha( phi_t_1_u, s_func( qp.point() ) );
 
@@ -857,15 +674,23 @@ class contact_contribution {
 
                         lhs += disk::priv::outer_product( qp_phi_t_theta, d_proj_u_phi_t_1 );
                     } else {
-                        const auto uF_t = make_hho_u_t( n, fb, qp.point() );
+                        // always reference normal for test function
+                        const auto uF_t = make_hho_u_t( nc.reference_normal, fb, qp.point() );
 
                         const auto phi_t_1 = make_hho_phi_t_uF( sigma_nt, m_cN * uF_t,
                                                                 scalar_type( 1 ), gamma_F, offset );
                         const auto phi_t_theta =
                             make_hho_phi_t_uF( sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset );
 
-                        const auto phi_t_1_u =
-                            eval_phi_t_uF( ET_uTF, gb, fb, vuTF, offset, n, gamma_F, qp.point() );
+                        const auto phi_t_1_u = eval_phi_t_uF( ET_uTF,
+                                                              gb,
+                                                              fb,
+                                                              vuTF,
+                                                              offset,
+                                                              nc.reference_normal,
+                                                              nc.kinematic_normal,
+                                                              gamma_F,
+                                                              qp.point() );
                         const auto d_proj_phi_t_u =
                             make_d_proj_alpha( phi_t_1_u, s_func( qp.point() ) );
 
@@ -913,7 +738,9 @@ class contact_contribution {
 
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
-                const auto n = normal( m_msh, cl, fc );
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
@@ -923,10 +750,12 @@ class contact_contribution {
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
                 for ( auto &qp : qps ) {
-                    const auto sigma_nt = make_hho_sigma_nt( ET, n, gb, qp.point() );
+                    const auto sigma_nt =
+                        make_hho_sigma_nt( ET, nc.reference_normal, gb, qp.point() );
 
                     if ( contact_type == disk::SIGNORINI_CELL ) {
-                        const auto uT_t = make_hho_u_t( n, cb, qp.point() );
+                        // always reference normal for test function
+                        const auto uT_t = make_hho_u_t( nc.reference_normal, cb, qp.point() );
 
                         const auto phi_t_theta =
                             make_hho_phi_t_uT( sigma_nt, uT_t, m_rp.m_theta, gamma_F );
@@ -938,7 +767,8 @@ class contact_contribution {
                                                         cb,
                                                         uTF,
                                                         vuTF,
-                                                        n,
+                                                        nc.reference_normal,
+                                                        nc.kinematic_normal,
                                                         gamma_F,
                                                         gamma_n_F,
                                                         s_func( qp.point() ),
@@ -949,7 +779,8 @@ class contact_contribution {
 
                         rhs += disk::priv::inner_product( phi_t_theta, qp_phi_t_1_u_pro );
                     } else {
-                        const auto uF_t = make_hho_u_t( n, fb, qp.point() );
+                        // always reference normal for test function
+                        const auto uF_t = make_hho_u_t( nc.reference_normal, fb, qp.point() );
 
                         const auto phi_t_theta =
                             make_hho_phi_t_uF( sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset );
@@ -962,7 +793,8 @@ class contact_contribution {
                                                         uTF,
                                                         vuTF,
                                                         offset,
-                                                        n,
+                                                        nc.reference_normal,
+                                                        nc.kinematic_normal,
                                                         gamma_F,
                                                         gamma_n_F,
                                                         s_func( qp.point() ),
@@ -1008,7 +840,9 @@ class contact_contribution {
 
             if ( m_bnd.is_contact_face( fc ) ) {
                 const auto contact_type = m_bnd.contact_boundary_type( fc );
-                const auto n = normal( m_msh, cl, fc );
+                const vector_type uF = uTF.segment( offset, fb.size() );
+                const auto ni = normal( m_msh, cl, fc );
+                const auto nc = NormalKinematics( m_cont_kine, m_msh, fc, fb, uF, ni );
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
@@ -1018,20 +852,35 @@ class contact_contribution {
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
                 for ( auto &qp : qps ) {
-                    const auto sigma_nt = make_hho_sigma_nt( ET, n, gb, qp.point() );
+                    const auto sigma_nt =
+                        make_hho_sigma_nt( ET, nc.reference_normal, gb, qp.point() );
 
                     if ( contact_type == disk::SIGNORINI_CELL ) {
-                        const auto uT_t = make_hho_u_t( n, cb, qp.point() );
+                        // always reference normal for test function
+                        const auto uT_t = make_hho_u_t( nc.reference_normal, cb, qp.point() );
 
                         const auto phi_t_1 =
                             make_hho_phi_t_uT( sigma_nt, m_cN * uT_t, scalar_type( 1 ), gamma_F );
                         const auto phi_t_theta =
                             make_hho_phi_t_uT( sigma_nt, uT_t, m_rp.m_theta, gamma_F );
 
-                        const auto phi_t_1_u =
-                            eval_phi_t_uT( ET_uTF, gb, cb, vuTF, n, gamma_F, qp.point() );
-                        const scalar_type phi_n_1_u =
-                            eval_phi_n_uT( fc, ET_uTF, gb, cb, uTF, n, gamma_n_F, qp.point() );
+                        const auto phi_t_1_u = eval_phi_t_uT( ET_uTF,
+                                                              gb,
+                                                              cb,
+                                                              vuTF,
+                                                              nc.reference_normal,
+                                                              nc.kinematic_normal,
+                                                              gamma_F,
+                                                              qp.point() );
+                        const scalar_type phi_n_1_u = eval_phi_n_uT( fc,
+                                                                     ET_uTF,
+                                                                     gb,
+                                                                     cb,
+                                                                     uTF,
+                                                                     nc.reference_normal,
+                                                                     nc.kinematic_normal,
+                                                                     gamma_n_F,
+                                                                     qp.point() );
 
                         const scalar_type proj_phi_n_1_u = std::min( scalar_type( 0 ), phi_n_1_u );
                         const scalar_type fric_bound = -s_func( qp.point() ) * proj_phi_n_1_u;
@@ -1050,9 +899,11 @@ class contact_contribution {
                              phi_t_1_u.norm() > fric_bound ) {
                             const vector_static q_hat = phi_t_1_u / phi_t_1_u.norm();
 
-                            const vector_type uT_n = make_hho_u_n( n, cb, qp.point() );
+                            // always reference normal for test function
+                            const vector_type uT_n =
+                                make_hho_u_n( nc.reference_normal, cb, qp.point() );
                             const vector_type sigma_nn =
-                                make_hho_sigma_nn( ET, n, gb, qp.point() );
+                                make_hho_sigma_nn( ET, nc.reference_normal, gb, qp.point() );
                             const vector_type phi_n_1 =
                                 make_hho_phi_n_uT( sigma_nn, uT_n, scalar_type( 1 ), gamma_n_F );
 
@@ -1063,17 +914,33 @@ class contact_contribution {
                                    disk::priv::outer_product( phi_t_theta_qhat, phi_n_1 );
                         }
                     } else {
-                        const auto uF_t = make_hho_u_t( n, fb, qp.point() );
+                        // always reference normal for test function
+                        const auto uF_t = make_hho_u_t( nc.reference_normal, fb, qp.point() );
 
                         const auto phi_t_1 = make_hho_phi_t_uF( sigma_nt, m_cN * uF_t,
                                                                 scalar_type( 1 ), gamma_F, offset );
                         const auto phi_t_theta =
                             make_hho_phi_t_uF( sigma_nt, uF_t, m_rp.m_theta, gamma_F, offset );
 
-                        const auto phi_t_1_u =
-                            eval_phi_t_uF( ET_uTF, gb, fb, vuTF, offset, n, gamma_F, qp.point() );
-                        const scalar_type phi_n_1_u = eval_phi_n_uF(
-                            fc, ET_uTF, gb, fb, uTF, offset, n, gamma_n_F, qp.point() );
+                        const auto phi_t_1_u = eval_phi_t_uF( ET_uTF,
+                                                              gb,
+                                                              fb,
+                                                              vuTF,
+                                                              offset,
+                                                              nc.reference_normal,
+                                                              nc.kinematic_normal,
+                                                              gamma_F,
+                                                              qp.point() );
+                        const scalar_type phi_n_1_u = eval_phi_n_uF( fc,
+                                                                     ET_uTF,
+                                                                     gb,
+                                                                     fb,
+                                                                     uTF,
+                                                                     offset,
+                                                                     nc.reference_normal,
+                                                                     nc.kinematic_normal,
+                                                                     gamma_n_F,
+                                                                     qp.point() );
 
                         const scalar_type proj_phi_n_1_u = std::min( scalar_type( 0 ), phi_n_1_u );
                         const scalar_type fric_bound = -s_func( qp.point() ) * proj_phi_n_1_u;
@@ -1092,9 +959,11 @@ class contact_contribution {
                              phi_t_1_u.norm() > fric_bound ) {
                             const vector_static q_hat = phi_t_1_u / phi_t_1_u.norm();
 
-                            const vector_type uF_n = make_hho_u_n( n, fb, qp.point() );
+                            // always reference normal for test function
+                            const vector_type uF_n =
+                                make_hho_u_n( nc.reference_normal, fb, qp.point() );
                             const vector_type sigma_nn =
-                                make_hho_sigma_nn( ET, n, gb, qp.point() );
+                                make_hho_sigma_nn( ET, nc.reference_normal, gb, qp.point() );
                             const vector_type phi_n_1 = make_hho_phi_n_uF(
                                 sigma_nn, uF_n, scalar_type( 1 ), gamma_n_F, offset );
 
@@ -1118,9 +987,15 @@ class contact_contribution {
     vector_type F_cont;
     double time_contact;
 
-    contact_contribution( const mesh_type &msh, const material_type &material_data,
-                          const param_type &rp, const bnd_type &bnd )
-        : m_msh( msh ), m_material_data( material_data ), m_rp( rp ), m_bnd( bnd ) {}
+    contact_contribution( const mesh_type &msh,
+                          const material_type &material_data,
+                          const param_type &rp,
+                          const bnd_type &bnd )
+        : m_msh( msh ),
+          m_material_data( material_data ),
+          m_rp( rp ),
+          m_bnd( bnd ),
+          m_cont_kine( rp.getContactKinematics() ) {}
 
     // One quadrature point of a contact face, with every quantity projected on that
     // face's own discrete normal n = normal( m_msh, cl, fc ).
@@ -1367,7 +1242,7 @@ class contact_contribution {
 
                 for ( auto &qp : qps ) {
                     const scalar_type phi_n =
-                        eval_phi_n_uF( fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point() );
+                        eval_phi_n_uF( fc, ET_uTF, gb, fb, uTF, offset, n, n, gamma_F, qp.point() );
                     const scalar_type sig_nn = eval_stress_nn( ET_uTF, gb, n, qp.point() );
                     const scalar_type neg = std::min( scalar_type( 0 ), phi_n );
                     energy += qp.weight() / ( scalar_type( 2 ) * gamma_F ) *
@@ -1416,7 +1291,7 @@ class contact_contribution {
                     const vector_static sigma_nt = eval_stress_nt( ET_uTF, gb, n, qp.point() );
 
                     const scalar_type phi_n =
-                        eval_phi_n_uF( fc, ET_uTF, gb, fb, uTF, offset, n, gamma_F, qp.point() );
+                        eval_phi_n_uF( fc, ET_uTF, gb, fb, uTF, offset, n, n, gamma_F, qp.point() );
 
                     vector_static proj = vector_static::Zero();
                     if ( phi_n < scalar_type( 0 ) ) {
@@ -1445,73 +1320,105 @@ class contact_contribution {
     }
 
     template < typename CellBasis >
-    scalar_type eval_uT_n( const CellBasis &cb, const vector_type &uTF, const vector_static &n,
-                           const point_type &pt ) const {
-        const vector_type uT_n = make_hho_u_n( n, cb, pt );
+    scalar_type
+    eval_uT_n( const CellBasis &cb,
+               const vector_type &uTF,
+               const vector_static &kinematic_normal,
+               const point_type &pt ) const {
+        const vector_type uT_n = make_hho_u_n( kinematic_normal, cb, pt );
 
         return uT_n.dot( uTF.head( cb.size() ) );
     }
 
     template < typename CellBasis >
-    vector_static eval_uT_t( const CellBasis &cb, const vector_type &uTF, const vector_static &n,
-                             const point_type &pt ) const {
-        const auto uT_t = make_hho_u_t( n, cb, pt );
+    vector_static
+    eval_uT_t( const CellBasis &cb,
+               const vector_type &uTF,
+               const vector_static &kinematic_normal,
+               const point_type &pt ) const {
+        const auto uT_t = make_hho_u_t( kinematic_normal, cb, pt );
 
         return uT_t.transpose() * ( uTF.head( cb.size() ) );
     }
 
     template < typename FaceBasis >
-    scalar_type eval_uF_n( const FaceBasis &fb, const vector_type &uF, const vector_static &n,
-                           const point_type &pt ) const {
-        const vector_type uF_n = make_hho_u_n( n, fb, pt );
+    scalar_type
+    eval_uF_n( const FaceBasis &fb,
+               const vector_type &uF,
+               const vector_static &kinematic_normal,
+               const point_type &pt ) const {
+        const vector_type uF_n = make_hho_u_n( kinematic_normal, fb, pt );
         assert( uF_n.size() == uF.size() );
         return uF_n.dot( uF );
     }
 
     template < typename FaceBasis >
-    vector_static eval_uF_t( const FaceBasis &fb, const vector_type &uF, const vector_static &n,
-                             const point_type &pt ) const {
-        const auto uF_t = make_hho_u_t( n, fb, pt );
+    vector_static
+    eval_uF_t( const FaceBasis &fb,
+               const vector_type &uF,
+               const vector_static &kinematic_normal,
+               const point_type &pt ) const {
+        const auto uF_t = make_hho_u_t( kinematic_normal, fb, pt );
         assert( uF_t.rows() == uF.size() );
         return uF_t.transpose() * uF;
     }
 
     template < typename GradBasis >
-    scalar_type eval_stress_nn( const vector_type &ET_uTF, const GradBasis &gb,
-                                const vector_static &n, const point_type &pt ) const {
+    scalar_type
+    eval_stress_nn( const vector_type &ET_uTF,
+                    const GradBasis &gb,
+                    const vector_static &reference_normal,
+                    const point_type &pt ) const {
         const auto stress = eval_stress( ET_uTF, gb, pt );
-        return ( stress * n ).dot( n );
+        return ( stress * reference_normal ).dot( reference_normal );
     }
 
     template < typename GradBasis >
-    vector_static eval_stress_nt( const vector_type &ET_uTF, const GradBasis &gb,
-                                  const vector_static &n, const point_type &pt ) const {
+    vector_static
+    eval_stress_nt( const vector_type &ET_uTF,
+                    const GradBasis &gb,
+                    const vector_static &reference_normal,
+                    const point_type &pt ) const {
         const matrix_static sig = eval_stress( ET_uTF, gb, pt );
-        const vector_static s_n = sig * n;
-        const auto s_nn = s_n.dot( n );
-        return s_n - s_nn * n;
+        const vector_static s_n = sig * reference_normal;
+        const auto s_nn = s_n.dot( reference_normal );
+        return s_n - s_nn * reference_normal;
     }
 
     template < typename GradBasis, typename CellBasis >
-    scalar_type eval_phi_n_uT( const face_type &fc, const vector_type &ET_uTF, const GradBasis &gb,
-                               const CellBasis &cb, const vector_type &uTF, const vector_static &n,
-                               scalar_type gamma_F, const point_type &pt ) const {
-        const scalar_type sigma_nn = eval_stress_nn( ET_uTF, gb, n, pt );
-        const scalar_type uT_n = eval_uT_n( cb, uTF, n, pt );
+    scalar_type
+    eval_phi_n_uT( const face_type &fc,
+                   const vector_type &ET_uTF,
+                   const GradBasis &gb,
+                   const CellBasis &cb,
+                   const vector_type &uTF,
+                   const vector_static &reference_normal,
+                   const vector_static &kinematic_normal,
+                   scalar_type gamma_F,
+                   const point_type &pt ) const {
+        const scalar_type sigma_nn = eval_stress_nn( ET_uTF, gb, reference_normal, pt );
         const vector_type uT = uTF.head( cb.size() );
 
         const auto gap_func = m_bnd.contact_boundary_gap( fc );
-        const scalar_type gap = priv::compute_gap_fb( m_msh, fc, cb, uT, gap_func, pt, n, m_time );
+        const scalar_type gap =
+            priv::compute_gap_fb( m_msh, fc, cb, uT, gap_func, pt, kinematic_normal, m_time );
 
         return sigma_nn + gamma_F * gap;
     }
 
     template < typename GradBasis, typename CellBasis >
-    scalar_type eval_proj_phi_n_uT( const face_type &fc, const vector_type &ET_uTF,
-                                    const GradBasis &gb, const CellBasis &cb,
-                                    const vector_type &uTF, const vector_static &n,
-                                    scalar_type gamma_F, const point_type &pt ) const {
-        const scalar_type phi_n_1_u = eval_phi_n_uT( fc, ET_uTF, gb, cb, uTF, n, gamma_F, pt );
+    scalar_type
+    eval_proj_phi_n_uT( const face_type &fc,
+                        const vector_type &ET_uTF,
+                        const GradBasis &gb,
+                        const CellBasis &cb,
+                        const vector_type &uTF,
+                        const vector_static &reference_normal,
+                        const vector_static &kinematic_normal,
+                        scalar_type gamma_F,
+                        const point_type &pt ) const {
+        const scalar_type phi_n_1_u = eval_phi_n_uT(
+            fc, ET_uTF, gb, cb, uTF, reference_normal, kinematic_normal, gamma_F, pt );
 
         if ( phi_n_1_u <= scalar_type( 0 ) )
             return phi_n_1_u;
@@ -1520,46 +1427,73 @@ class contact_contribution {
     }
 
     template < typename GradBasis, typename CellBasis >
-    vector_static eval_phi_t_uT( const vector_type &ET_uTF, const GradBasis &gb,
-                                 const CellBasis &cb, const vector_type &uTF,
-                                 const vector_static &n, scalar_type gamma_F,
-                                 const point_type &pt ) const {
-        const auto sigma_nt = eval_stress_nt( ET_uTF, gb, n, pt );
-        const auto uT_t = eval_uT_t( cb, uTF, n, pt );
+    vector_static
+    eval_phi_t_uT( const vector_type &ET_uTF,
+                   const GradBasis &gb,
+                   const CellBasis &cb,
+                   const vector_type &uTF,
+                   const vector_static &reference_normal,
+                   const vector_static &kinematic_normal,
+                   scalar_type gamma_F,
+                   const point_type &pt ) const {
+        const auto sigma_nt = eval_stress_nt( ET_uTF, gb, reference_normal, pt );
+        const auto uT_t = eval_uT_t( cb, uTF, kinematic_normal, pt );
 
         return sigma_nt - gamma_F * uT_t;
     }
 
     template < typename GradBasis, typename CellBasis >
-    vector_static eval_proj_phi_t_uT( const vector_type &ET_uTF, const GradBasis &gb,
-                                      const CellBasis &cb, const vector_type &uTF,
-                                      const vector_static &n, scalar_type gamma_F, scalar_type s,
-                                      const point_type &pt ) const {
-        const vector_static phi_t_1_u = eval_phi_t_uT( ET_uTF, gb, cb, uTF, n, gamma_F, pt );
+    vector_static
+    eval_proj_phi_t_uT( const vector_type &ET_uTF,
+                        const GradBasis &gb,
+                        const CellBasis &cb,
+                        const vector_type &uTF,
+                        const vector_static &reference_normal,
+                        const vector_static &kinematic_normal,
+                        scalar_type gamma_F,
+                        scalar_type s,
+                        const point_type &pt ) const {
+        const vector_static phi_t_1_u =
+            eval_phi_t_uT( ET_uTF, gb, cb, uTF, reference_normal, kinematic_normal, gamma_F, pt );
 
         return make_proj_alpha( phi_t_1_u, s );
     }
 
     template < typename GradBasis, typename FaceBasis >
-    scalar_type eval_phi_n_uF( const face_type &fc, const vector_type &ET_uTF, const GradBasis &gb,
-                               const FaceBasis &fb, const vector_type &uTF, const size_t offset,
-                               const vector_static &n, scalar_type gamma_F,
-                               const point_type &pt ) const {
+    scalar_type
+    eval_phi_n_uF( const face_type &fc,
+                   const vector_type &ET_uTF,
+                   const GradBasis &gb,
+                   const FaceBasis &fb,
+                   const vector_type &uTF,
+                   const size_t offset,
+                   const vector_static &reference_normal,
+                   const vector_static &kinematic_normal,
+                   scalar_type gamma_F,
+                   const point_type &pt ) const {
         const vector_type uF = uTF.segment( offset, fb.size() );
-        const scalar_type sigma_nn = eval_stress_nn( ET_uTF, gb, n, pt );
-        const scalar_type uF_n = eval_uF_n( fb, uF, n, pt );
+        const scalar_type sigma_nn = eval_stress_nn( ET_uTF, gb, reference_normal, pt );
         const auto gap_func = m_bnd.contact_boundary_gap( fc );
-        const scalar_type gap = priv::compute_gap_fb( m_msh, fc, fb, uF, gap_func, pt, n, m_time );
+        const scalar_type gap =
+            priv::compute_gap_fb( m_msh, fc, fb, uF, gap_func, pt, kinematic_normal, m_time );
 
         return sigma_nn + gamma_F * gap;
     }
 
     template < typename GradBasis, typename FaceBasis >
     scalar_type
-    eval_proj_phi_n_uF( const face_type &fc, const vector_type &ET_uTF, const GradBasis &gb,
-                        const FaceBasis &fb, const vector_type &uTF, const size_t offset,
-                        const vector_static &n, scalar_type gamma_F, const point_type &pt ) const {
-        const scalar_type phi_n_1_u = eval_phi_n_uF( ET_uTF, gb, fb, uTF, offset, n, gamma_F, pt );
+    eval_proj_phi_n_uF( const face_type &fc,
+                        const vector_type &ET_uTF,
+                        const GradBasis &gb,
+                        const FaceBasis &fb,
+                        const vector_type &uTF,
+                        const size_t offset,
+                        const vector_static &reference_normal,
+                        const vector_static &kinematic_normal,
+                        scalar_type gamma_F,
+                        const point_type &pt ) const {
+        const scalar_type phi_n_1_u = eval_phi_n_uF(
+            fc, ET_uTF, gb, fb, uTF, offset, reference_normal, kinematic_normal, gamma_F, pt );
 
         if ( phi_n_1_u <= scalar_type( 0 ) )
             return phi_n_1_u;
@@ -1568,24 +1502,37 @@ class contact_contribution {
     }
 
     template < typename GradBasis, typename FaceBasis >
-    vector_static eval_phi_t_uF( const vector_type &ET_uTF, const GradBasis &gb,
-                                 const FaceBasis &fb, const vector_type &uTF, size_t offset,
-                                 const vector_static &n, scalar_type gamma_F,
-                                 const point_type &pt ) const {
+    vector_static
+    eval_phi_t_uF( const vector_type &ET_uTF,
+                   const GradBasis &gb,
+                   const FaceBasis &fb,
+                   const vector_type &uTF,
+                   size_t offset,
+                   const vector_static &reference_normal,
+                   const vector_static &kinematic_normal,
+                   scalar_type gamma_F,
+                   const point_type &pt ) const {
         const vector_type uF = uTF.segment( offset, fb.size() );
-        const auto sigma_nt = eval_stress_nt( ET_uTF, gb, n, pt );
-        const auto uF_t = eval_uF_t( fb, uF, n, pt );
+        const auto sigma_nt = eval_stress_nt( ET_uTF, gb, reference_normal, pt );
+        const auto uF_t = eval_uF_t( fb, uF, kinematic_normal, pt );
 
         return sigma_nt - gamma_F * uF_t;
     }
 
     template < typename GradBasis, typename FaceBasis >
     vector_static
-    eval_proj_tresca_phi_t_uF( const vector_type &ET_uTF, const GradBasis &gb, const FaceBasis &fb,
-                               const vector_type &uTF, size_t offset, const vector_static &n,
-                               scalar_type gamma_F, scalar_type s, const point_type &pt ) const {
-        const vector_static phi_t_1_u =
-            eval_phi_t_uF( ET_uTF, gb, fb, uTF, offset, n, gamma_F, pt );
+    eval_proj_tresca_phi_t_uF( const vector_type &ET_uTF,
+                               const GradBasis &gb,
+                               const FaceBasis &fb,
+                               const vector_type &uTF,
+                               size_t offset,
+                               const vector_static &reference_normal,
+                               const vector_static &kinematic_normal,
+                               scalar_type gamma_F,
+                               scalar_type s,
+                               const point_type &pt ) const {
+        const vector_static phi_t_1_u = eval_phi_t_uF(
+            ET_uTF, gb, fb, uTF, offset, reference_normal, kinematic_normal, gamma_F, pt );
 
         return make_proj_alpha( phi_t_1_u, s );
     }
@@ -1599,15 +1546,16 @@ class contact_contribution {
                                 const vector_type &uTF,
                                 const vector_type &vuTF,
                                 size_t offset,
-                                const vector_static &n,
+                                const vector_static &reference_normal,
+                                const vector_static &kinematic_normal,
                                 scalar_type gamma_F,
                                 scalar_type gamma_n_F,
                                 scalar_type Fc,
                                 const point_type &pt ) const {
-        const vector_static phi_t_1_u =
-            eval_phi_t_uF( ET_uTF, gb, fb, vuTF, offset, n, gamma_F, pt );
-        const scalar_type phi_n_1_u =
-            eval_phi_n_uF( fc, ET_uTF, gb, fb, uTF, offset, n, gamma_n_F, pt );
+        const vector_static phi_t_1_u = eval_phi_t_uF(
+            ET_uTF, gb, fb, vuTF, offset, reference_normal, kinematic_normal, gamma_F, pt );
+        const scalar_type phi_n_1_u = eval_phi_n_uF(
+            fc, ET_uTF, gb, fb, uTF, offset, reference_normal, kinematic_normal, gamma_n_F, pt );
         const scalar_type proj_phi_n_1_u = std::min( scalar_type( 0 ), phi_n_1_u );
         const scalar_type fric_bound = -Fc * proj_phi_n_1_u;
 
@@ -1623,14 +1571,16 @@ class contact_contribution {
                                 const CellBasis &cb,
                                 const vector_type &uTF,
                                 const vector_type &vuTF,
-                                const vector_static &n,
+                                const vector_static &reference_normal,
+                                const vector_static &kinematic_normal,
                                 scalar_type gamma_F,
                                 scalar_type gamma_n_F,
                                 scalar_type Fc,
                                 const point_type &pt ) const {
-        const vector_static phi_t_1_u = eval_phi_t_uT( ET_uTF, gb, cb, vuTF, n, gamma_F, pt );
-        const scalar_type phi_n_1_u =
-            eval_phi_n_uT( fc, ET_uTF, gb, cb, uTF, n, gamma_n_F, pt );
+        const vector_static phi_t_1_u =
+            eval_phi_t_uT( ET_uTF, gb, cb, vuTF, reference_normal, kinematic_normal, gamma_F, pt );
+        const scalar_type phi_n_1_u = eval_phi_n_uT(
+            fc, ET_uTF, gb, cb, uTF, reference_normal, kinematic_normal, gamma_n_F, pt );
         const scalar_type proj_phi_n_1_u = std::min( scalar_type( 0 ), phi_n_1_u );
         const scalar_type fric_bound = -Fc * proj_phi_n_1_u;
 
