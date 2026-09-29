@@ -613,6 +613,10 @@ class NonLinearSolver {
     void addExternalLoad( const func_type load ) { m_load = std::make_unique<func_type>( load ); }
 
     SolverInfo compute() {
+
+        // save parameters
+        m_rp.writeParameters( m_output.output_directory() / "parameters.dat" );
+
         // Precomputation
         if ( m_rp.m_precomputation ) {
             timecounter t1;
@@ -691,9 +695,11 @@ class NonLinearSolver {
                       << std::endl;
 
         // time of saving
-        bool time_saving = false;
+        bool time_saving = false, time_saving_all = false;
         if ( m_rp.m_n_time_save > 0 ) {
             time_saving = true;
+        } else if ( m_rp.m_n_time_save < 0 ) {
+            time_saving_all = true;
         }
 
         NewtonSolverInfo newton_info;
@@ -775,7 +781,8 @@ class NonLinearSolver {
                 m_stab_manager.update();
                 m_fields.update();
 
-                if ( time_saving && ( m_rp.m_time_save.front() < current_time + 1E-5 ) ) {
+                if ( time_saving_all ||
+                     ( time_saving && ( m_rp.m_time_save.front() < current_time + 1E-5 ) ) ) {
                     initialize_ensight_output();
                     std::cout << "** Save results" << std::endl;
                     const auto gmsh_directory = m_output.output_directory() / "gmsh";
@@ -811,9 +818,11 @@ class NonLinearSolver {
 
                     this->output_discontinuous_deformed( filepath.string() + "deformed_disc.msh" );
 
-                    m_rp.m_time_save.pop_front();
-                    if ( m_rp.m_time_save.empty() )
-                        time_saving = false;
+                    if ( time_saving ) {
+                        m_rp.m_time_save.pop_front();
+                        if ( m_rp.m_time_save.empty() )
+                            time_saving = false;
+                    }
 
                     m_output.end_step();
                 }

@@ -28,9 +28,15 @@
 
 #include "diskpp/solvers/direct_solvers.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -330,7 +336,7 @@ class NonLinearParameters {
     // face unknowns (SIGNORINI_FACE).
     bool m_signorini_cell;
 
-    int m_n_time_save;          // number of saving
+    int m_n_time_save; // number of saving - Negative values means that all time ster are saved
     std::list< T > m_time_save; // list of time where we save result;
 
     T m_theta;   // theta-parameter for contact
@@ -363,7 +369,7 @@ class NonLinearParameters {
           m_stab( true ),
           m_beta( 1 ),
           m_stab_type( StabilizationType::HHO ),
-          m_n_time_save( 0 ),
+          m_n_time_save( -1 ),
           m_user_end_time( 1.0 ),
           m_has_user_end_time( false ),
           m_adapt_stab( false ),
@@ -575,7 +581,7 @@ class NonLinearParameters {
                 ifs >> type;
                 type = toUpper( type );
                 line++;
-                if ( type == "NO" )
+                if ( type == "NO" || "NO_FRICTION" )
                     m_frot_type = FrictionType::NO_FRICTION;
                 else if ( type == "TRESCA" )
                     m_frot_type = FrictionType::TRESCA;
@@ -605,7 +611,6 @@ class NonLinearParameters {
             } else if ( keyword == "CONTACTKINEMATICS" ) {
                 std::string type;
                 ifs >> type;
-                type = toUpper( type );
                 type = toUpper( type );
                 line++;
                 if ( type == "REFERENCE" )
@@ -697,6 +702,158 @@ class NonLinearParameters {
         return true;
     }
 
+    bool
+    writeParameters( const std::filesystem::path &filename ) const {
+        std::ofstream ofs( filename, std::ios::out | std::ios::trunc );
+
+        if ( !ofs.is_open() ) {
+            std::cerr << "Error opening " << filename << " for writing" << std::endl;
+
+            return false;
+        }
+
+        /*
+         * Preserve the floating-point values during a write/read
+         * round trip.
+         */
+        ofs << std::scientific << std::setprecision( std::numeric_limits< T >::max_digits10 );
+
+        ofs << "BeginParameters\n";
+
+        /*
+         * Polynomial degrees.
+         */
+        ofs << "FaceDegree\n";
+        ofs << m_face_degree << '\n';
+
+        ofs << "CellDegree\n";
+        ofs << m_cell_degree << '\n';
+
+        ofs << "GradDegree\n";
+        ofs << m_grad_degree << '\n';
+
+        /*
+         * Time-step intervals.
+         */
+        ofs << "TimeStep\n";
+        ofs << m_time_step.size() << '\n';
+
+        for ( const auto &time_step : m_time_step ) {
+            ofs << time_step.first << ' ' << time_step.second << '\n';
+        }
+
+        /*
+         * Write FinalTime only when it was explicitly defined by
+         * the user. Reading this keyword sets
+         * m_has_user_end_time to true.
+         */
+        if ( m_has_user_end_time ) {
+            ofs << "FinalTime\n";
+            ofs << m_user_end_time << '\n';
+        }
+
+        ofs << "Sublevel\n";
+        ofs << m_sublevel << '\n';
+
+        /*
+         * Saving times.
+         *
+         * Use the actual container size to guarantee consistency
+         * between the declared number and the written values.
+         */
+        ofs << "TimeSave\n";
+        ofs << m_n_time_save << '\n';
+
+        for ( const auto time : m_time_save ) {
+            ofs << time << '\n';
+        }
+
+        /*
+         * Nonlinear solver.
+         */
+        ofs << "NLSolver\n";
+        ofs << NonLinearSolverName( m_nlin_solv ) << '\n';
+
+        ofs << "LineSearch\n";
+        ofs << LineSearchName( m_lsearch ) << '\n';
+
+        /*
+         * Stabilization.
+         */
+        ofs << "StabType\n";
+        ofs << StabilizationName( m_stab_type ) << '\n';
+
+        ofs << "AdaptativeStabilization\n";
+        ofs << BoolName( m_adapt_stab ) << '\n';
+
+        ofs << "Beta\n";
+        ofs << m_beta << '\n';
+
+        /*
+         * General options.
+         */
+        ofs << "Verbose\n";
+        ofs << BoolName( m_verbose ) << '\n';
+
+        ofs << "Precomputation\n";
+        ofs << BoolName( m_precomputation ) << '\n';
+
+        ofs << "IterMax\n";
+        ofs << m_iter_max << '\n';
+
+        ofs << "Epsilon\n";
+        ofs << m_epsilon << '\n';
+
+        /*
+         * Contact formulation.
+         */
+        ofs << "ContactType\n";
+        ofs << ( m_signorini_cell ? "CELL" : "FACE" ) << '\n';
+
+        ofs << "Theta\n";
+        ofs << m_theta << '\n';
+
+        ofs << "Gamma0\n";
+        ofs << m_gamma_n_0 << '\n';
+
+        /*
+         * Preserve the stored Gamma0T value. A negative value means
+         * that gamma_0_t() falls back to Gamma0.
+         */
+        ofs << "Gamma0T\n";
+        ofs << m_gamma_t_0 << '\n';
+
+        ofs << "Friction\n";
+        ofs << FrictionName( m_frot_type ) << '\n';
+
+        ofs << "FrictionTangent\n";
+        ofs << ( m_consistent_friction_tangent ? "CONSISTENT" : "FROZEN_BOUND" ) << '\n';
+
+        ofs << "ContactKinematics\n";
+        ofs << ContactKinematicsName( m_cont_kine ) << '\n';
+
+        /*
+         * Dynamic formulation.
+         */
+        ofs << "Dynamic\n";
+        ofs << DynaSchemeName( m_dyna_type ) << '\n';
+
+        ofs << "CFL\n";
+        ofs << m_cfl_factor << '\n';
+
+        ofs << "EndParameters\n";
+
+        if ( !ofs ) {
+            std::cerr << "Error while writing parameters to " << filename << std::endl;
+
+            return false;
+        }
+
+        ofs.close();
+
+        return true;
+    }
+
     void setFaceDegree( const int face_degree ) { m_face_degree = face_degree; }
 
     int getFaceDegree() const { return m_face_degree; }
@@ -707,7 +864,10 @@ class NonLinearParameters {
 
     void setGradDegree( const int grad_degree ) { m_grad_degree = grad_degree; }
 
-    int getGradDegree() const { return m_face_degree; }
+    int
+    getGradDegree() const {
+        return m_grad_degree;
+    }
 
     void setStabilizationParameter( const T stab_para ) { m_beta = stab_para; }
 
