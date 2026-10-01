@@ -44,6 +44,7 @@ enum STUDY {
     DYNAMIC_STICK_SLIP_SEPARATION,
     DYNAMIC_DISC_IMPACT,
     CONT_WALL_2D,
+    DYNAMIC_SPHERE_IMPACT_3D,
 };
 
 /* Bibliographie */
@@ -333,7 +334,8 @@ getMaterialData( const STUDY &study ) {
         material_data.setRho( 1.0 );
         break;
     }
-    case STUDY::DYNAMIC_DISC_IMPACT: {
+    case STUDY::DYNAMIC_DISC_IMPACT:
+    case STUDY::DYNAMIC_SPHERE_IMPACT_3D: {
         material_data.setMu( 30.0 );
         material_data.setLambda( 30.0 );
         material_data.setRho( 1.0 );
@@ -377,6 +379,7 @@ addAdditionalParameters( const STUDY &study, disk::mechanics::NonLinearParameter
     case STUDY::IMPACT_2D:
     case STUDY::FREE_VIBR_2D:
     case STUDY::DYNAMIC_DISC_IMPACT:
+    case STUDY::DYNAMIC_SPHERE_IMPACT_3D:
     case STUDY::DYNAMIC_STICK_SLIP_SEPARATION:
     case STUDY::AIMI_CREDICO_GIMPERLEIN_64: {
         std::map< std::string, T > dyna_para;
@@ -611,8 +614,8 @@ getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
     }
     case STUDY::DYNAMIC_STICK_SLIP_SEPARATION: {
 
-        // Coulomb friction coefficient, from the "Threshold" keyword.
-        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.0; };
+        // Coulomb friction coefficient
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.5; };
 
         auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
             // compute the distance to the plane y = 0
@@ -654,7 +657,7 @@ getBoundaryConditions( const Mesh< T, 2, Storage > &msh,
         break;
     }
     case STUDY::DYNAMIC_DISC_IMPACT: {
-        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.0; };
+        auto s = []( const disk::point< T, 2 > &p ) -> T { return 0.7; };
 
         auto gap = []( const disk::point< T, 2 > &pt, const disk::static_vector< T, 2 > &n ) -> T {
             // distance to the rigid support  y = 0
@@ -1081,6 +1084,23 @@ getBoundaryConditions( const Mesh< T, 3, Storage > &msh,
 
         break;
     }
+    case STUDY::DYNAMIC_SPHERE_IMPACT_3D: {
+        // elastic sphere falling on the rigid plane z = 0
+        auto s = []( const disk::point< T, 3 > &p ) -> T { return 0.2; }; // Coulomb F
+
+        auto gap = []( const disk::point< T, 3 > &pt, const disk::static_vector< T, 3 > &n ) -> T {
+            if ( std::abs( n( 2 ) ) < T( 1e-12 ) )
+                return T( 1e13 );
+            const auto dist = std::abs( pt.z() / n( 2 ) );
+            return pt.z() < T( 0 ) ? -dist : dist;
+        };
+
+        /* LOWER HALF: Signorini + Coulomb friction */
+        bnd.addContactBC( disk::SIGNORINI_FACE, 0, s, gap );
+        /* UPPER HALF: homogeneous Neumann, g = 0 */
+        bnd.addNeumannBC( disk::NEUMANN, 1, zero );
+        break;
+    }
     default: {
         throw std::invalid_argument( "getBoundaryConditions3D: Unexpected study" );
         break;
@@ -1178,6 +1198,13 @@ addExternalLoad( const Mesh< T, 3, Storage > &msh,
     case STUDY::SPHERE_LARGE:
     case STUDY::TAYLOR_ROD:
     case STUDY::GV_3D: {
+        break;
+    }
+    case STUDY::DYNAMIC_SPHERE_IMPACT_3D: {
+        auto load = []( const disk::point< T, 3 > &p, const T &time ) -> result_type {
+            return result_type { 0.0, 0.0, -0.05 };
+        };
+        nl.addExternalLoad( load );
         break;
     }
     default: {
@@ -1424,6 +1451,20 @@ addNonLinearOptions( const Mesh< T, 3, Storage > &msh,
     case STUDY::GV_3D: {
         nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
                         disk::mechanics::LawType::ELASTIC );
+        break;
+    }
+    case STUDY::DYNAMIC_SPHERE_IMPACT_3D: {
+        nl.addBehavior( disk::mechanics::DeformationMeasure::SMALL_DEF,
+                        disk::mechanics::LawType::ELASTIC );
+
+        // rigid uplift of 1: the mesh touches z = 0, the initial gap is 1
+        auto u0 = []( const disk::point< T, 3 > &p ) -> result_type {
+            return result_type { 0.0, 0.0, 1.0 };
+        };
+
+        nl.initial_guess( u0 );
+
+        nl.addPointPlot( { 0.0, 0.0, 0.0 }, "lowest_point.csv" );
         break;
     }
     default: {

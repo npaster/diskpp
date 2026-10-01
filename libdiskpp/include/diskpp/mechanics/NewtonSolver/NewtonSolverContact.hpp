@@ -74,6 +74,9 @@ class contact_contribution {
     scalar_type m_cN = scalar_type( 1 );
     ContactKinematics m_cont_kine;
 
+    // tangential penalty on kinematics
+    scalar_type gamma_t_face( const scalar_type hF ) const { return m_rp.gamma_0_t() / ( hF * m_cN ); }
+
     // contact contrib;
     // normal part of u : u_n = u.n
     template < typename TraceBasis >
@@ -305,7 +308,7 @@ class contact_contribution {
             const scalar_type hF = diameter( m_msh, fc );
 
             const scalar_type gamma_n_F = m_rp.gamma_0_n() / hF;
-            const scalar_type gamma_t_F = m_rp.gamma_0_t() / hF;
+            const scalar_type gamma_t_F = gamma_t_face( hF ); //m_rp.gamma_0_t() / hF;
 
             for ( const auto &qp : quadrature_points ) {
 
@@ -634,7 +637,7 @@ class contact_contribution {
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
-                const auto gamma_t_F = m_rp.gamma_0_t() / hF;
+                const auto gamma_t_F = gamma_t_face( hF ); //m_rp.gamma_0_t() / hF;
 
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
@@ -736,7 +739,7 @@ class contact_contribution {
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
-                const auto gamma_t_F = m_rp.gamma_0_t() / hF;
+                const auto gamma_t_F = gamma_t_face( hF ); //m_rp.gamma_0_t() / hF;
 
                 const auto s_func = m_bnd.contact_boundary_func( fc );
 
@@ -844,7 +847,7 @@ class contact_contribution {
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
-                const auto gamma_t_F = m_rp.gamma_0_t() / hF;
+                const auto gamma_t_F = gamma_t_face( hF ); //m_rp.gamma_0_t() / hF;
                 const auto gamma_n_F = m_rp.gamma_0_n() / hF;
 
                 const auto s_func = m_bnd.contact_boundary_func( fc );
@@ -946,7 +949,7 @@ class contact_contribution {
                 const auto qp_deg = std::max( cell_infos.cell_degree(), cell_infos.grad_degree() );
                 const auto qps = integrate( m_msh, fc, 2 * qp_deg + 2 );
                 const auto hF = diameter( m_msh, fc );
-                const auto gamma_t_F = m_rp.gamma_0_t() / hF;
+                const auto gamma_t_F = gamma_t_face( hF ); //m_rp.gamma_0_t() / hF;
                 const auto gamma_n_F = m_rp.gamma_0_n() / hF;
 
                 const auto s_func = m_bnd.contact_boundary_func( fc );
