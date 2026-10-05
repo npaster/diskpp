@@ -149,8 +149,8 @@ bool is_inside( const raw_simplex< point< T, 3 >, 3 > &rs, const point< T, 3 > &
 
         const auto bar_f = ( p0 + p1 + p2 ) / 3.0;
 
-        const auto v01 = to_vector( pts[1] - pts[0] );
-        const auto v02 = to_vector( pts[2] - pts[0] );
+        const auto v01 = to_vector( p1 - p0 );
+        const auto v02 = to_vector( p2 - p0 );
 
         const auto n0 = v01.cross( v02 );
         const auto n0n = n0.normalized();
@@ -162,14 +162,14 @@ bool is_inside( const raw_simplex< point< T, 3 >, 3 > &rs, const point< T, 3 > &
             sign = -1.0;
         }
 
-        return std::make_pair( bar_f, sign * n0n );
+        return std::make_pair( bar_f, static_vector< T, 3 >( sign * n0n ) );
     };
 
     for ( int i = 0; i < 4; i++ ) {
         const auto [bar_f, n] = f_face( i );
-        const T dist = n.dot( to_vector( bar_f - pt ).normalized() );
+        const T dist = n.dot( to_vector( bar_f - pt ) );
 
-        if ( dist < 0. ) {
+        if ( dist < -1e-12 ) {
             return false;
         }
     }

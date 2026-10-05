@@ -404,7 +404,7 @@ bool is_inside( const generic_mesh< T, 3 > &msh, const typename generic_mesh< T,
     const auto pts = points( msh, cl );
 
     T xmin = std::numeric_limits< T >::max(), ymin = xmin, zmin = xmin;
-    T xmax = std::numeric_limits< T >::min(), ymax = xmax, zmax = xmax;
+    T xmax = std::numeric_limits< T >::lowest(), ymax = xmax, zmax = xmax;
 
     for ( auto &p : pts ) {
         xmin = std::min( xmin, p.x() );
