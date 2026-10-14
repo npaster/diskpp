@@ -282,11 +282,16 @@ class GenericIteration {
             throw std::runtime_error( "Norm of residual diverges." );
         }
 
-        if ( error <= rp.getConvergenceCriteria() || this->m_resi_init < scalar_type( 1.e-10 ) ) {
+        // relative drop OR small in absolute terms; the absolute test catches a step
+        // that starts at rest, where the relative one is never satisfiable
+        const scalar_type eps = rp.getConvergenceCriteria();
+        const scalar_type abs_tol = scalar_type( 1e-12 );
+
+        if ( this->m_resi_init <= abs_tol ) {
             return true;
-        } else {
-            return false;
         }
+
+        return residual <= eps * this->m_resi_init || residual <= abs_tol;
     }
 
     virtual scalar_type post_convergence( const mesh_type &msh, const bnd_type &bnd,

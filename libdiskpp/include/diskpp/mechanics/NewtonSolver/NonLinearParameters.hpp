@@ -581,7 +581,7 @@ class NonLinearParameters {
                 ifs >> type;
                 type = toUpper( type );
                 line++;
-                if ( type == "NO" || "NO_FRICTION" )
+                if ( type == "NO" || type == "NO_FRICTION" )
                     m_frot_type = FrictionType::NO_FRICTION;
                 else if ( type == "TRESCA" )
                     m_frot_type = FrictionType::TRESCA;
